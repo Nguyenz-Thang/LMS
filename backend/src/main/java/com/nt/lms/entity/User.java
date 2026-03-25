@@ -1,5 +1,6 @@
 package com.nt.lms.entity;
 
+import java.time.LocalDate;
 import java.util.Set;
 
 import jakarta.persistence.*;
@@ -7,7 +8,8 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -27,6 +29,7 @@ public class User {
     String password;
     String fullName;
     String avatar;
+    LocalDate dob;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

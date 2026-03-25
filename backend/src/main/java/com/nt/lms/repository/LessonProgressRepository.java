@@ -7,7 +7,5 @@ public interface LessonProgressRepository extends JpaRepository<LessonProgress, 
 
     boolean existsByUserIdAndLessonId(String userId, String lessonId);
 
-    long countByUserIdAndLessonCourseIdAndCompletedTrue(String userId, String courseId);
-
-    long countByLessonCourseId(String courseId);
+    long countByUserIdAndLesson_Section_Course_IdAndCompletedTrue(String userId, String courseId);
 }

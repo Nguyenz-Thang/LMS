@@ -12,6 +12,7 @@ public class CourseResponse {
     String id;
     String title;
     String description;
+    String thumbnailUrl;
     String instructorName;
     String categoryName;
 }

@@ -1,12 +1,14 @@
 package com.nt.lms.repository;
 
-import java.util.List;
-
+import com.nt.lms.entity.Lesson;
+import com.nt.lms.entity.Section;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.nt.lms.entity.Lesson;
+import java.util.List;
 
 public interface LessonRepository extends JpaRepository<Lesson, String> {
-    List<Lesson> findByCourseIdOrderByOrderIndexAsc(String courseId);
-    long countByCourseId(String courseId);
+
+    List<Lesson> findBySectionOrderByOrderIndexAsc(Section section);
+
+    long countBySection_Course_Id(String courseId);
 }

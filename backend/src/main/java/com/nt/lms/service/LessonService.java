@@ -1,21 +1,18 @@
 package com.nt.lms.service;
 
-import java.util.List;
-
 import com.nt.lms.dto.request.LessonRequest;
 import com.nt.lms.dto.response.LessonResponse;
-import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Lesson;
-import com.nt.lms.exception.AppException;
-import com.nt.lms.exception.ErrorCode;
-import com.nt.lms.repository.CourseRepository;
+import com.nt.lms.entity.Section;
+import com.nt.lms.mapper.LessonMapper;
 import com.nt.lms.repository.LessonRepository;
-
+import com.nt.lms.repository.SectionRepository;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.AccessLevel;
-
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,67 +20,70 @@ import org.springframework.stereotype.Service;
 public class LessonService {
 
     LessonRepository lessonRepository;
-    CourseRepository courseRepository;
+    SectionRepository sectionRepository;
+    LessonMapper lessonMapper;
 
-    // ✅ CREATE
     public LessonResponse createLesson(LessonRequest request) {
-
-        Course course = courseRepository.findById(request.getCourseId())
-                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
+        Section section = sectionRepository.findById(request.getSectionId())
+                .orElseThrow(() -> new RuntimeException("Section not found"));
 
         Lesson lesson = Lesson.builder()
                 .title(request.getTitle())
                 .content(request.getContent())
                 .videoUrl(request.getVideoUrl())
-                .orderIndex(request.getOrderIndex())
-                .course(course)
+                .duration(request.getDuration())
+                .lessonType(request.getLessonType())
+                .isPreview(request.getIsPreview())
+                .orderIndex(request.getOrderIndex() == null ? 1 : request.getOrderIndex())
+                .section(section)
                 .build();
 
-        return mapToResponse(lessonRepository.save(lesson));
+        return lessonMapper.toLessonResponse(lessonRepository.save(lesson));
     }
 
-    // 📚 GET BY COURSE
-    public List<LessonResponse> getLessonsByCourse(String courseId) {
-        return lessonRepository.findByCourseIdOrderByOrderIndexAsc(courseId)
+    public List<LessonResponse> getLessonsBySection(String sectionId) {
+        Section section = sectionRepository.findById(sectionId)
+                .orElseThrow(() -> new RuntimeException("Section not found"));
+
+        return lessonRepository.findBySectionOrderByOrderIndexAsc(section)
                 .stream()
-                .map(this::mapToResponse)
+                .map(lessonMapper::toLessonResponse)
                 .toList();
     }
 
-    // 🔍 DETAIL
     public LessonResponse getLesson(String id) {
         Lesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
+                .orElseThrow(() -> new RuntimeException("Lesson not found"));
 
-        return mapToResponse(lesson);
+        return lessonMapper.toLessonResponse(lesson);
     }
 
-    // 🔄 UPDATE
     public LessonResponse updateLesson(String id, LessonRequest request) {
-
         Lesson lesson = lessonRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
+                .orElseThrow(() -> new RuntimeException("Lesson not found"));
 
-        lesson.setTitle(request.getTitle());
-        lesson.setContent(request.getContent());
-        lesson.setVideoUrl(request.getVideoUrl());
-        lesson.setOrderIndex(request.getOrderIndex());
+        if (request.getTitle() != null) lesson.setTitle(request.getTitle());
+        if (request.getContent() != null) lesson.setContent(request.getContent());
+        if (request.getVideoUrl() != null) lesson.setVideoUrl(request.getVideoUrl());
+        if (request.getDuration() != null) lesson.setDuration(request.getDuration());
+        if (request.getLessonType() != null) lesson.setLessonType(request.getLessonType());
+        if (request.getIsPreview() != null) lesson.setIsPreview(request.getIsPreview());
+        if (request.getOrderIndex() != null) lesson.setOrderIndex(request.getOrderIndex());
 
-        return mapToResponse(lessonRepository.save(lesson));
+        if (request.getSectionId() != null &&
+                !request.getSectionId().equals(lesson.getSection().getId())) {
+            Section section = sectionRepository.findById(request.getSectionId())
+                    .orElseThrow(() -> new RuntimeException("Section not found"));
+            lesson.setSection(section);
+        }
+
+        return lessonMapper.toLessonResponse(lessonRepository.save(lesson));
     }
 
-    // ❌ DELETE
     public void deleteLesson(String id) {
-        lessonRepository.deleteById(id);
-    }
+        Lesson lesson = lessonRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Lesson not found"));
 
-    // 🔁 MAP
-    private LessonResponse mapToResponse(Lesson lesson) {
-        return LessonResponse.builder()
-                .id(lesson.getId())
-                .title(lesson.getTitle())
-                .content(lesson.getContent())
-                .orderIndex(lesson.getOrderIndex())
-                .build();
+        lessonRepository.delete(lesson);
     }
 }

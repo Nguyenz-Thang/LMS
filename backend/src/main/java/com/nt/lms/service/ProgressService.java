@@ -23,7 +23,6 @@ public class ProgressService {
     LessonRepository lessonRepository;
     UserRepository userRepository;
 
-    // ✅ MARK DONE LESSON
     public void completeLesson(String lessonId) {
 
         String username = SecurityContextHolder.getContext()
@@ -48,7 +47,6 @@ public class ProgressService {
         progressRepository.save(progress);
     }
 
-    // 📊 GET PROGRESS %
     public double getProgress(String courseId) {
 
         String username = SecurityContextHolder.getContext()
@@ -58,9 +56,9 @@ public class ProgressService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
         long completed = progressRepository
-                .countByUserIdAndLessonCourseIdAndCompletedTrue(user.getId(), courseId);
+                .countByUserIdAndLesson_Section_Course_IdAndCompletedTrue(user.getId(), courseId);
 
-        long total = lessonRepository.countByCourseId(courseId);
+        long total = lessonRepository.countBySection_Course_Id(courseId);
 
         if (total == 0) return 0;
 

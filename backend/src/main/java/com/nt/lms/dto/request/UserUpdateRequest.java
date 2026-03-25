@@ -1,20 +1,21 @@
 package com.nt.lms.dto.request;
 
 import java.time.LocalDate;
-import java.util.List;
+import java.util.Set;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserUpdateRequest {
+    String email;
     String password;
-    String firstName;
-    String lastName;
+    String fullName;
+    String avatar;
     LocalDate dob;
-    List<String> roles;
+    Set<String> roles;
 }

@@ -1,0 +1,60 @@
+.container {
+  padding: 20px;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+/* Title */
+.heading {
+  margin-bottom: 16px;
+  font-size: 20px;
+  color: #222;
+}
+
+/* Grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+/* Card */
+.card {
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: 0.2s;
+
+  &:hover {
+    transform: translateY(-3px);
+  }
+}
+
+/* Image (placeholder) */
+.image {
+  height: 120px;
+  background: #e5e7eb; // xám nhẹ
+
+  /* ảnh mặc định */
+  background-image: url("../../assets/img/utt.png");
+  background-size: cover;
+  background-position: center;
+}
+
+/* Body */
+.body {
+  padding: 12px;
+}
+
+.title {
+  font-size: 15px;
+  margin-bottom: 4px;
+  color: #111;
+}
+
+.desc {
+  font-size: 13px;
+  color: #666;
+}

@@ -3,17 +3,12 @@ package com.nt.lms.service;
 import java.util.List;
 
 import com.nt.lms.dto.request.CourseRequest;
-import com.nt.lms.dto.response.CourseResponse;
-import com.nt.lms.dto.response.PageResponse;
-import com.nt.lms.entity.Category;
-import com.nt.lms.entity.Course;
-import com.nt.lms.entity.User;
+import com.nt.lms.dto.response.*;
+import com.nt.lms.entity.*;
 import com.nt.lms.exception.AppException;
 import com.nt.lms.exception.ErrorCode;
 import com.nt.lms.mapper.CourseMapper;
-import com.nt.lms.repository.CategoryRepository;
-import com.nt.lms.repository.CourseRepository;
-import com.nt.lms.repository.UserRepository;
+import com.nt.lms.repository.*;
 
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -34,6 +29,62 @@ public class CourseService {
     CategoryRepository categoryRepository;
     UserRepository userRepository;
     CourseMapper courseMapper;
+    SectionRepository sectionRepository;
+    LessonRepository lessonRepository;
+    public CourseResponse getCourseById(String id) {
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+
+        return mapToResponse(course);
+    }
+    public CourseCurriculumResponse getCourseCurriculum(String id) {
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Course not found"));
+
+        List<Section> sections = sectionRepository.findByCourseOrderByOrderIndexAsc(course);
+
+        List<CurriculumSectionResponse> sectionResponses = sections.stream().map(section -> {
+            List<Lesson> lessons = lessonRepository.findBySectionOrderByOrderIndexAsc(section);
+
+            List<CurriculumLessonResponse> lessonResponses = lessons.stream()
+                    .map(lesson -> CurriculumLessonResponse.builder()
+                            .id(lesson.getId())
+                            .title(lesson.getTitle())
+                            .content(lesson.getContent())
+                            .videoUrl(lesson.getVideoUrl())
+                            .duration(lesson.getDuration())
+                            .type(lesson.getLessonType())
+                            .isPreview(lesson.getIsPreview())
+                            .orderIndex(lesson.getOrderIndex())
+                            .build())
+                    .toList();
+
+            int totalDuration = lessons.stream()
+                    .map(Lesson::getDuration)
+                    .filter(java.util.Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .sum();
+
+            return CurriculumSectionResponse.builder()
+                    .id(section.getId())
+                    .title(section.getTitle())
+                    .orderIndex(section.getOrderIndex())
+                    .totalLessons(lessons.size())
+                    .totalDuration(totalDuration)
+                    .lessons(lessonResponses)
+                    .build();
+        }).toList();
+
+        return CourseCurriculumResponse.builder()
+                .id(course.getId())
+                .title(course.getTitle())
+                .description(course.getDescription())
+                .thumbnailUrl(course.getThumbnailUrl())
+                .instructorName(course.getInstructor() != null ? course.getInstructor().getUsername() : null)
+                .categoryName(course.getCategory() != null ? course.getCategory().getName() : null)
+                .sections(sectionResponses)
+                .build();
+    }
     // ✅ CREATE COURSE
     public CourseResponse createCourse(CourseRequest request) {
 
@@ -49,6 +100,7 @@ public class CourseService {
         Course course = Course.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
+                .thumbnailUrl(request.getThumbnailUrl())
                 .instructor(instructor)
                 .category(category)
                 .build();
@@ -87,6 +139,7 @@ public class CourseService {
 
         course.setTitle(request.getTitle());
         course.setDescription(request.getDescription());
+        course.setThumbnailUrl(request.getThumbnailUrl());
         course.setCategory(category);
 
         return mapToResponse(courseRepository.save(course));
@@ -108,6 +161,7 @@ public class CourseService {
                 .id(course.getId())
                 .title(course.getTitle())
                 .description(course.getDescription())
+                .thumbnailUrl(course.getThumbnailUrl())
                 .instructorName(course.getInstructor().getUsername())
                 .categoryName(course.getCategory().getName())
                 .build();

@@ -14,6 +14,7 @@ public enum ErrorCode {
     INVALID_PASSWORD(1004, "Password must be at least 6 chacracters", HttpStatus.BAD_REQUEST),
     USER_NOT_EXISTED(1005, "User not existed", HttpStatus.NOT_FOUND),
     UNAUTHENTICATED(1006, "Unauthenticated", HttpStatus.UNAUTHORIZED),
+    FORBIDDEN(1003, "You do not have permission", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(1007, "You do not have Permission", HttpStatus.FORBIDDEN),
     INVALID_DOB(1008, "Invalid date of birth", HttpStatus.BAD_REQUEST),
     ROLE_NOT_EXISTED(1009, "Role not existed", HttpStatus.NOT_FOUND),
@@ -22,6 +23,9 @@ public enum ErrorCode {
     LESSON_NOT_EXISTED(1012, "Lesson not existed", HttpStatus.NOT_FOUND),
     QUIZ_NOT_EXISTED(1014, "Quiz not existed", HttpStatus.NOT_FOUND),
     ALREADY_ENROLLED(1013, "User already enrolled in this course", HttpStatus.BAD_REQUEST),
+    EMAIL_EXISTED(1014, "Email already exists", HttpStatus.NOT_FOUND),
+    PASSWORD_NOT_MATCH(1015, "Password does not match", HttpStatus.NOT_FOUND),
+    INVALID_REQUEST(1016, "Invalid request", HttpStatus.NOT_FOUND),
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

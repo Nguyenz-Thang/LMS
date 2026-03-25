@@ -1,14 +1,16 @@
-package com.nt.lms.dto.request;
+package com.nt.lms.dto.response;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PermissionRequest {
-    String name;
-    String description;
+public class SectionResponse {
+    String id;
+    String title;
+    int orderIndex;
+    String courseId;
 }

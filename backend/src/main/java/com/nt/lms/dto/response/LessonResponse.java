@@ -13,6 +13,10 @@ public class LessonResponse {
     String title;
     String content;
     String videoUrl;
-
+    Integer duration;
+    String lessonType;
+    String type;
+    Boolean isPreview;
     int orderIndex;
+    String sectionId;
 }

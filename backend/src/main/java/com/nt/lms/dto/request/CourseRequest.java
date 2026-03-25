@@ -10,5 +10,6 @@ import lombok.experimental.FieldDefaults;
 public class CourseRequest {
     String title;
     String description;
+    String thumbnailUrl;
     String categoryId;
 }

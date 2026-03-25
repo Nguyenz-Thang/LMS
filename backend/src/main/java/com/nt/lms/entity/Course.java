@@ -1,9 +1,8 @@
 package com.nt.lms.entity;
-import jakarta.persistence.*;
 
+import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-
 
 @Entity
 @Data
@@ -21,6 +20,8 @@ public class Course {
 
     @Column(columnDefinition = "TEXT")
     String description;
+
+    String thumbnailUrl;
 
     @ManyToOne
     User instructor;

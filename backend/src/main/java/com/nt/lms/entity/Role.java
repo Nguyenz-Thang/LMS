@@ -2,31 +2,28 @@ package com.nt.lms.entity;
 
 import java.util.Set;
 
-import jakarta.persistence.*;
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+
 @Entity
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Role {
 
     @Id
-    String name; // ADMIN, INSTRUCTOR, STUDENT
+    String name;
 
     String description;
 
     @ManyToMany(mappedBy = "roles")
+    @JsonIgnore
     Set<User> users;
-
-    @ManyToMany
-    @JoinTable(
-            name = "role_permissions",
-            joinColumns = @JoinColumn(name = "role_name"),
-            inverseJoinColumns = @JoinColumn(name = "permission_name")
-    )
-    Set<Permission> permissions;
 }
