@@ -2,10 +2,12 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import Modal from "../Modal";
-import api from "../../api/axios";
 import styles from "./DeleteLessonModal.module.scss";
+import { useLessonApi } from "../../api/LessonApi";
 
 function DeleteLessonModal({ isOpen, onClose, onDeleted, lesson }) {
+  const { deleteLesson } = useLessonApi();
+
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
 
@@ -25,12 +27,14 @@ function DeleteLessonModal({ isOpen, onClose, onDeleted, lesson }) {
       setLoading(true);
       setErrorText("");
 
-      await api.delete(`/lessons/${lesson.id}`);
+      await deleteLesson(lesson.id);
 
       onClose();
       if (onDeleted) onDeleted();
-    } catch (err) {
-      setErrorText(err?.response?.data?.message || "Xóa lesson thất bại.");
+    } catch (error) {
+      setErrorText(
+        error?.body?.message || error?.message || "Xóa lesson thất bại.",
+      );
     } finally {
       setLoading(false);
     }

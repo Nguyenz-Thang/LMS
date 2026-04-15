@@ -1,180 +1,170 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Search,
-  Plus,
-  BookOpen,
-  User,
-  Tag,
-  FileText,
-  Trash2,
-} from "lucide-react";
-import api from "../../api/axios";
-import AddCourseModal from "../../components/AddCourseModal";
-import EditCourseModal from "../../components/EditCourseModal";
-import DeleteCourseModal from "../../components/DeleteCourseModal";
-import styles from "./Courses.module.scss";
 import { useNavigate } from "react-router-dom";
-const PAGE_SIZE = 6;
-const BACKEND_BASE_URL = "http://localhost:8080/lms";
-const FALLBACK_THUMB =
-  "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
+import {
+  GraduationCap,
+  Search,
+  RefreshCw,
+  ArrowRight,
+  BookOpen,
+  Layers3,
+  Clock3,
+  CircleCheck,
+} from "lucide-react";
+import { useCourseApi } from "../../api/courseApi";
+import { enrollCourse, getMyEnrollments } from "../../api/enrollmentApi";
+import styles from "./Courses.module.scss";
 
-// Thay id bằng category thật trong DB của bạn
-const MOCK_CATEGORIES = [
-  {
-    id: "89d47524-23b2-11f1-bec9-1a3a6529bc34",
-    name: "Programming",
-  },
-  {
-    id: "22222222-2222-2222-2222-222222222222",
-    name: "Frontend",
-  },
-  {
-    id: "33333333-3333-3333-3333-333333333333",
-    name: "Backend",
-  },
-];
+function normalizeCourse(rawCourse) {
+  return {
+    id: rawCourse?.id || "",
+    title: rawCourse?.title || "Khóa học không xác định",
+    description: rawCourse?.description || "",
+    thumbnailUrl: rawCourse?.thumbnailUrl || "",
+    instructorName: rawCourse?.instructorName || "Chưa cập nhật",
+    categoryName: rawCourse?.categoryName || "Chưa phân loại",
+    status: rawCourse?.status || "DRAFT",
+    visibility: rawCourse?.visibility || "PUBLIC",
+    level: rawCourse?.level || "BEGINNER",
+    estimatedHours: Number(rawCourse?.estimatedHours) || 0,
+  };
+}
+
+function getLevelLabel(level) {
+  switch (level) {
+    case "ADVANCED":
+      return "Nâng cao";
+    case "INTERMEDIATE":
+      return "Trung cấp";
+    case "BEGINNER":
+    default:
+      return "Cơ bản";
+  }
+}
 
 export default function Courses() {
-  const [courses, setCourses] = useState([]);
-  const [pageInfo, setPageInfo] = useState({
-    page: 0,
-    size: PAGE_SIZE,
-    totalElements: 0,
-    totalPages: 0,
-  });
+  const navigate = useNavigate();
+  const { listCourses } = useCourseApi();
 
-  const [loading, setLoading] = useState(true);
+  const [courses, setCourses] = useState([]);
+  const [myCourseIds, setMyCourseIds] = useState([]);
+  const [inputKeyword, setInputKeyword] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [enrollingId, setEnrollingId] = useState("");
   const [errorText, setErrorText] = useState("");
 
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [page, setPage] = useState(0);
+  const [size] = useState(6);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
-  const [isOpenAddModal, setIsOpenAddModal] = useState(false);
-  const [isOpenEditModal, setIsOpenEditModal] = useState(false);
-  const [editingCourse, setEditingCourse] = useState(null);
-  const [isOpenDeleteModal, setIsOpenDeleteModal] = useState(false);
-  const [deletingCourse, setDeletingCourse] = useState(null);
-  const navigate = useNavigate();
-  useEffect(() => {
-    fetchCourses(page);
-  }, [page]);
+  const fetchMyEnrollments = async () => {
+    try {
+      const res = await getMyEnrollments();
+      const items = Array.isArray(res?.result) ? res.result : [];
+      setMyCourseIds(items.map((item) => item?.courseId).filter(Boolean));
+    } catch (error) {
+      console.error("Fetch my enrollments error:", error);
+    }
+  };
 
-  const fetchCourses = async (currentPage = 0) => {
+  const fetchCourses = async (nextPage = page, nextKeyword = keyword) => {
     try {
       setLoading(true);
       setErrorText("");
 
-      const res = await api.get("/courses", {
-        params: {
-          page: currentPage,
-          size: PAGE_SIZE,
-        },
+      const res = await listCourses({
+        keyword: nextKeyword || "",
+        page: nextPage,
+        size,
       });
 
-      const payload = res?.data?.result || {};
-      const content = payload?.content || [];
+      const pageData = res?.result || {};
+      const content = Array.isArray(pageData?.content) ? pageData.content : [];
 
-      setCourses(Array.isArray(content) ? content : []);
-      setPageInfo({
-        page: payload?.page ?? 0,
-        size: payload?.size ?? PAGE_SIZE,
-        totalElements: payload?.totalElements ?? 0,
-        totalPages: payload?.totalPages ?? 0,
-      });
+      const studentVisibleCourses = content
+        .map(normalizeCourse)
+        .filter(
+          (course) =>
+            course.status === "PUBLISHED" && course.visibility !== "PRIVATE",
+        );
+
+      setCourses(studentVisibleCourses);
+      setPage(Number(pageData?.page) || 0);
+      setTotalPages(Number(pageData?.totalPages) || 0);
+      setTotalElements(Number(pageData?.totalElements) || 0);
     } catch (error) {
-      setCourses([]);
       setErrorText(
-        error?.response?.data?.message || "Không tải được danh sách khóa học.",
+        error?.body?.message ||
+          error?.message ||
+          "Không tải được danh sách khóa học.",
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const categories = useMemo(() => {
-    const raw = courses.map((item) => item?.categoryName).filter(Boolean);
-    const fromCourseList = [...new Set(raw)].map((name) => ({
-      id: name,
-      name,
-    }));
+  useEffect(() => {
+    fetchCourses(0, "");
+    fetchMyEnrollments();
+  }, []);
 
-    return fromCourseList.length > 0 ? fromCourseList : MOCK_CATEGORIES;
-  }, [courses]);
+  const publishedCourses = useMemo(
+    () => courses.filter((course) => course.status === "PUBLISHED"),
+    [courses],
+  );
 
-  const filteredCourses = useMemo(() => {
-    return courses.filter((course) => {
-      const matchSearch =
-        !search ||
-        course?.title?.toLowerCase().includes(search.toLowerCase()) ||
-        course?.description?.toLowerCase().includes(search.toLowerCase()) ||
-        course?.instructorName?.toLowerCase().includes(search.toLowerCase());
+  const enrolledVisibleCount = useMemo(
+    () => courses.filter((course) => myCourseIds.includes(course.id)).length,
+    [courses, myCourseIds],
+  );
 
-      const matchCategory =
-        !selectedCategory || course?.categoryName === selectedCategory;
-
-      return matchSearch && matchCategory;
-    });
-  }, [courses, search, selectedCategory]);
-
-  const handleResetFilter = () => {
-    setSearch("");
-    setSelectedCategory("");
+  const handleSearch = () => {
+    const nextKeyword = inputKeyword.trim();
+    setKeyword(nextKeyword);
+    fetchCourses(0, nextKeyword);
   };
 
-  const handleCreatedCourse = async () => {
-    setPage(0);
-    await fetchCourses(0);
+  const handleRefresh = () => {
+    setInputKeyword("");
+    setKeyword("");
+    fetchCourses(0, "");
+    fetchMyEnrollments();
   };
 
-  const handleOpenEditModal = (course) => {
-    setEditingCourse(course);
-    setIsOpenEditModal(true);
-  };
-  const handleOpenDeleteModal = (course) => {
-    setDeletingCourse(course);
-    setIsOpenDeleteModal(true);
-  };
-
-  const handleDeletedCourse = async () => {
-    if (filteredCourses.length === 1 && page > 0) {
-      setPage((prev) => prev - 1);
-      return;
+  const handleEnroll = async (course) => {
+    try {
+      setEnrollingId(course.id);
+      await enrollCourse({ courseId: course.id });
+      await fetchMyEnrollments();
+    } catch (error) {
+      alert(
+        error?.response?.data?.message ||
+          error?.body?.message ||
+          error?.message ||
+          "Đăng ký khóa học thất bại.",
+      );
+    } finally {
+      setEnrollingId("");
     }
-
-    await fetchCourses(page);
-  };
-
-  const handleUpdatedCourse = async () => {
-    await fetchCourses(page);
-  };
-
-  const getImageSrc = (thumbnailUrl) => {
-    if (!thumbnailUrl) return FALLBACK_THUMB;
-    if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
-    return `${BACKEND_BASE_URL}${thumbnailUrl}`;
   };
 
   return (
-    <div className={styles.coursesPage}>
-      <div className={styles.heroCard}>
-        <div>
-          <h1>Quản lí khóa học</h1>
-          <p>
-            Theo dõi danh sách course, tìm kiếm nhanh và quản lí nội dung học
-            tập trong hệ thống.
-          </p>
-        </div>
+    <div className={styles.page}>
+      <div className={styles.headerCard}>
+        <div className={styles.headerLeft}>
+          <div className={styles.headerIcon}>
+            <GraduationCap size={24} />
+          </div>
 
-        <button
-          type="button"
-          className={styles.addBtn}
-          onClick={() => setIsOpenAddModal(true)}
-        >
-          <Plus size={18} />
-          <span>Thêm khóa học</span>
-        </button>
+          <div>
+            <h1>Khóa học</h1>
+            <p>
+              Xem danh sách khóa học đang mở, tìm kiếm nhanh và đăng ký học trực
+              tiếp.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className={styles.toolbar}>
@@ -182,188 +172,185 @@ export default function Courses() {
           <Search size={18} />
           <input
             type="text"
-            placeholder="Tìm theo tên khóa học, mô tả, giảng viên..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm theo tên khóa học..."
+            value={inputKeyword}
+            onChange={(e) => setInputKeyword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSearch();
+              }
+            }}
           />
         </div>
 
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className={styles.categorySelect}
+        <button
+          type="button"
+          className={styles.primaryBtn}
+          onClick={handleSearch}
         >
-          <option value="">Tất cả danh mục</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.name}>
-              {category.name}
-            </option>
-          ))}
-        </select>
+          <Search size={16} />
+          <span>Tìm kiếm</span>
+        </button>
 
         <button
           type="button"
-          className={styles.resetBtn}
-          onClick={handleResetFilter}
+          className={styles.refreshBtn}
+          onClick={handleRefresh}
         >
-          Đặt lại
+          <RefreshCw size={16} />
+          <span>Làm mới</span>
         </button>
       </div>
-
-      {errorText && <div className={styles.errorBox}>{errorText}</div>}
 
       <div className={styles.summaryRow}>
         <div className={styles.summaryCard}>
           <span>Tổng khóa học</span>
-          <strong>{pageInfo.totalElements}</strong>
+          <strong>{totalElements}</strong>
         </div>
 
         <div className={styles.summaryCard}>
-          <span>Trang hiện tại</span>
-          <strong>{pageInfo.page + 1}</strong>
+          <span>Đang hiển thị</span>
+          <strong>{courses.length}</strong>
         </div>
 
         <div className={styles.summaryCard}>
-          <span>Hiển thị</span>
-          <strong>{filteredCourses.length}</strong>
+          <span>Đã publish</span>
+          <strong>{publishedCourses.length}</strong>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <span>Đã đăng ký</span>
+          <strong>{enrolledVisibleCount}</strong>
         </div>
       </div>
 
       {loading ? (
-        <div className={styles.loadingBox}>Đang tải danh sách khóa học...</div>
-      ) : filteredCourses.length === 0 ? (
-        <div className={styles.emptyBox}>
-          Không có khóa học phù hợp với bộ lọc hiện tại.
-        </div>
+        <div className={styles.stateBox}>Đang tải danh sách khóa học...</div>
+      ) : errorText ? (
+        <div className={styles.errorBox}>{errorText}</div>
+      ) : courses.length === 0 ? (
+        <div className={styles.stateBox}>Không có khóa học phù hợp.</div>
       ) : (
-        <div className={styles.courseGrid}>
-          {filteredCourses.map((course) => (
-            <div className={styles.courseCard} key={course.id}>
-              <div className={styles.thumbnailWrap}>
-                <img
-                  src={getImageSrc(course.thumbnailUrl)}
-                  alt={course.title}
-                  className={styles.thumbnail}
-                />
-                <span className={styles.categoryBadge}>
-                  {course.categoryName || "Chưa phân loại"}
-                </span>
-              </div>
+        <>
+          <div className={styles.grid}>
+            {courses.map((course) => {
+              const isEnrolled = myCourseIds.includes(course.id);
 
-              <div className={styles.cardBody}>
-                <h3>{course.title}</h3>
-                <p>{course.description || "Chưa có mô tả cho khóa học này."}</p>
-
-                <div className={styles.metaList}>
-                  <div className={styles.metaItem}>
-                    <BookOpen size={16} />
-                    <span>ID: {course.id?.slice(0, 8)}...</span>
+              return (
+                <div key={course.id} className={styles.courseCard}>
+                  <div className={styles.thumbnailWrap}>
+                    {course.thumbnailUrl ? (
+                      <img
+                        src={course.thumbnailUrl}
+                        alt={course.title}
+                        className={styles.thumbnail}
+                      />
+                    ) : (
+                      <div className={styles.thumbnailPlaceholder}>
+                        <BookOpen size={28} />
+                      </div>
+                    )}
                   </div>
 
-                  <div className={styles.metaItem}>
-                    <User size={16} />
-                    <span>{course.instructorName || "Chưa có giảng viên"}</span>
+                  <div className={styles.cardBody}>
+                    <div className={styles.badgeRow}>
+                      <span className={styles.statusBadge}>
+                        {course.status}
+                      </span>
+                      <span className={styles.levelBadge}>
+                        {getLevelLabel(course.level)}
+                      </span>
+                    </div>
+
+                    <h3>{course.title}</h3>
+
+                    <p className={styles.description}>
+                      {course.description || "Chưa có mô tả khóa học."}
+                    </p>
+
+                    <div className={styles.metaList}>
+                      <div className={styles.metaItem}>
+                        <Layers3 size={15} />
+                        <span>{course.categoryName}</span>
+                      </div>
+
+                      <div className={styles.metaItem}>
+                        <Clock3 size={15} />
+                        <span>{course.estimatedHours} giờ</span>
+                      </div>
+
+                      <div className={styles.metaItem}>
+                        <BookOpen size={15} />
+                        <span>{course.instructorName}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className={styles.metaItem}>
-                    <Tag size={16} />
-                    <span>{course.categoryName || "Chưa có danh mục"}</span>
-                  </div>
+                  <div className={styles.cardActions}>
+                    <button
+                      type="button"
+                      className={styles.viewBtn}
+                      onClick={() => navigate(`/courses/${course.id}`)}
+                    >
+                      <ArrowRight size={16} />
+                      <span>Xem chi tiết</span>
+                    </button>
 
-                  <div className={styles.metaItem}>
-                    <FileText size={16} />
-                    <span>Mô tả ngắn</span>
+                    {isEnrolled ? (
+                      <button
+                        type="button"
+                        className={styles.enrolledBtn}
+                        onClick={() => navigate("/my-courses")}
+                      >
+                        <CircleCheck size={16} />
+                        <span>Đã đăng ký</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.enrollBtn}
+                        onClick={() => handleEnroll(course)}
+                        disabled={enrollingId === course.id}
+                      >
+                        <GraduationCap size={16} />
+                        <span>
+                          {enrollingId === course.id
+                            ? "Đang đăng ký..."
+                            : "Đăng ký học"}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
+              );
+            })}
+          </div>
 
-                <div className={styles.cardActions}>
-                  <button
-                    type="button"
-                    className={styles.outlineBtn}
-                    onClick={() => navigate(`/admin/lessons/${course.id}`)}
-                  >
-                    Chi tiết
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.editBtn}
-                    onClick={() => handleOpenEditModal(course)}
-                  >
-                    Sửa
-                  </button>
+          <div className={styles.pagination}>
+            <button
+              type="button"
+              className={styles.pageBtn}
+              disabled={page <= 0}
+              onClick={() => fetchCourses(page - 1, keyword)}
+            >
+              Trước
+            </button>
 
-                  <button
-                    type="button"
-                    className={styles.deleteBtn}
-                    onClick={() => handleOpenDeleteModal(course)}
-                  >
-                    <Trash2 size={16} />
-                    <span>Xóa</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            <span className={styles.pageInfo}>
+              Trang {page + 1} / {Math.max(totalPages, 1)}
+            </span>
+
+            <button
+              type="button"
+              className={styles.pageBtn}
+              disabled={page + 1 >= totalPages}
+              onClick={() => fetchCourses(page + 1, keyword)}
+            >
+              Sau
+            </button>
+          </div>
+        </>
       )}
-
-      <div className={styles.pagination}>
-        <button
-          type="button"
-          onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
-          disabled={page === 0}
-          className={styles.pageBtn}
-        >
-          Trước
-        </button>
-
-        <div className={styles.pageInfo}>
-          Trang <strong>{pageInfo.page + 1}</strong> /{" "}
-          <strong>{Math.max(pageInfo.totalPages, 1)}</strong>
-        </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            setPage((prev) =>
-              prev + 1 < pageInfo.totalPages ? prev + 1 : prev,
-            )
-          }
-          disabled={
-            pageInfo.totalPages === 0 || page + 1 >= pageInfo.totalPages
-          }
-          className={styles.pageBtn}
-        >
-          Sau
-        </button>
-      </div>
-
-      <AddCourseModal
-        isOpen={isOpenAddModal}
-        onClose={() => setIsOpenAddModal(false)}
-        onCreated={handleCreatedCourse}
-        categories={MOCK_CATEGORIES}
-      />
-
-      <EditCourseModal
-        isOpen={isOpenEditModal}
-        onClose={() => {
-          setIsOpenEditModal(false);
-          setEditingCourse(null);
-        }}
-        onUpdated={handleUpdatedCourse}
-        course={editingCourse}
-        categories={MOCK_CATEGORIES}
-      />
-      <DeleteCourseModal
-        isOpen={isOpenDeleteModal}
-        onClose={() => {
-          setIsOpenDeleteModal(false);
-          setDeletingCourse(null);
-        }}
-        course={deletingCourse}
-        onDeleted={handleDeletedCourse}
-      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Entity
+@Table(name = "lessons")
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,17 +22,27 @@ public class Lesson {
     @Column(columnDefinition = "TEXT")
     String content;
 
+    String description;
+
+    @Column(name = "video_url")
     String videoUrl;
 
-    Integer duration;
+    @Column(name = "thumbnail_url")
+    String thumbnailUrl;
 
-    @Column(name = "lesson_type")
-    String lessonType;
+    @Column(name = "duration_minutes")
+    Integer durationMinutes;
 
+    @Column(name = "is_published")
+    Boolean isPublished;
+
+    @Column(name = "is_preview")
     Boolean isPreview;
 
+    @Column(name = "order_index")
     int orderIndex;
 
     @ManyToOne
+    @JoinColumn(name = "section_id")
     Section section;
 }

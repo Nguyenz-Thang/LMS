@@ -11,6 +11,7 @@ import lombok.experimental.FieldDefaults;
 public class SectionResponse {
     String id;
     String title;
+    String description;
     int orderIndex;
     String courseId;
 }

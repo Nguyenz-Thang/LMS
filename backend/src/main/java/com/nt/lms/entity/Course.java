@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Entity
+@Table(name = "courses")
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,11 +22,21 @@ public class Course {
     @Column(columnDefinition = "TEXT")
     String description;
 
+    @Column(name = "thumbnail_url")
     String thumbnailUrl;
 
-    @ManyToOne
-    User instructor;
+    String status;
+    String visibility;
+    String level;
+
+    @Column(name = "estimated_hours")
+    Integer estimatedHours;
 
     @ManyToOne
+    @JoinColumn(name = "category_id")
     Category category;
+
+    @ManyToOne
+    @JoinColumn(name = "instructor_id")
+    User instructor;
 }

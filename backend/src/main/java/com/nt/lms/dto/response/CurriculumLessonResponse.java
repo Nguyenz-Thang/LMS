@@ -1,5 +1,6 @@
 package com.nt.lms.dto.response;
 
+import com.nt.lms.enums.LessonType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -11,10 +12,16 @@ import lombok.experimental.FieldDefaults;
 public class CurriculumLessonResponse {
     String id;
     String title;
+    String description;
     String content;
     String videoUrl;
-    Integer duration;
-    String type;
+    String thumbnailUrl;
+    Integer durationMinutes;
     Boolean isPreview;
+    Boolean isPublished;
     int orderIndex;
+
+    LessonType lessonType;
+    String quizId;
+    String assignmentId;
 }

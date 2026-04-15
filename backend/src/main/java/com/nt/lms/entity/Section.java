@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Entity
+@Table(name = "course_sections")
 @Data
 @Builder
 @NoArgsConstructor
@@ -18,8 +19,12 @@ public class Section {
 
     String title;
 
+    @Column(name = "order_index")
     int orderIndex;
 
+    String description;
+
     @ManyToOne
+    @JoinColumn(name = "course_id")
     Course course;
 }

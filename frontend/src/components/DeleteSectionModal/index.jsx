@@ -2,10 +2,12 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import Modal from "../Modal";
-import api from "../../api/axios";
 import styles from "./DeleteSectionModal.module.scss";
+import { useSectionApi } from "../../api/sectionApi";
 
 function DeleteSectionModal({ isOpen, onClose, onDeleted, section }) {
+  const { deleteSection } = useSectionApi();
+
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
 
@@ -25,12 +27,14 @@ function DeleteSectionModal({ isOpen, onClose, onDeleted, section }) {
       setLoading(true);
       setErrorText("");
 
-      await api.delete(`/sections/${section.id}`);
+      await deleteSection(section.id);
 
       onClose();
       if (onDeleted) onDeleted();
     } catch (error) {
-      setErrorText(error?.response?.data?.message || "Xóa section thất bại.");
+      setErrorText(
+        error?.body?.message || error?.message || "Xóa section thất bại.",
+      );
     } finally {
       setLoading(false);
     }

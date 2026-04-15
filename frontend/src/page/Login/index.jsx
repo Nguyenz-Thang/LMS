@@ -13,8 +13,6 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || "/";
-
   const [form, setForm] = useState({
     username: "",
     password: "",
@@ -46,6 +44,14 @@ export default function Login() {
     return true;
   };
 
+  const getRedirectByRole = (user) => {
+    const roles = user?.roles?.map((role) => role.name) || [];
+
+    if (roles.includes("ADMIN")) return "/admin";
+    if (roles.includes("INSTRUCTOR")) return "/instructor";
+    return "/home";
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorText("");
@@ -75,8 +81,14 @@ export default function Login() {
 
       const user = meRes?.data?.result;
 
+      if (!user) {
+        throw new Error("Không lấy được thông tin người dùng.");
+      }
+
       login({ user, token });
-      navigate(from, { replace: true });
+
+      const from = location.state?.from?.pathname;
+      navigate(from || getRedirectByRole(user), { replace: true });
     } catch (error) {
       const backendMessage =
         error?.response?.data?.message ||

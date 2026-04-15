@@ -1,30 +1,42 @@
 package com.nt.lms.dto.response;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
 
 import java.util.List;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class QuizResponse {
 
     String id;
     String title;
+    String description;
+    String courseId;
     List<Question> questions;
 
     @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Question {
         String id;
         String content;
-        List<Answer> answers;
+        String questionType;
+        Integer points;
+        Integer orderIndex;
+        List<Option> options;
     }
 
     @Data
     @Builder
-    public static class Answer {
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Option {
         String id;
         String content;
+        Boolean isCorrect;
+        Integer orderIndex;
     }
 }

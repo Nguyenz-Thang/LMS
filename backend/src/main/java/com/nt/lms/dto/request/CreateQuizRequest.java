@@ -1,30 +1,40 @@
 package com.nt.lms.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
+
 import java.util.List;
 
-import lombok.*;
-import lombok.experimental.FieldDefaults;
-
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
 public class CreateQuizRequest {
 
-    String title;
-    String courseId;
-
-    List<QuestionRequest> questions;
+    private String title;
+    private String description;
+    private String courseId;
+    private List<QuestionRequest> questions;
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class QuestionRequest {
-        String content;
-        List<AnswerRequest> answers;
+        private String content;
+        private String questionType;
+        private Integer points;
+        private Integer orderIndex;
+        private List<AnswerRequest> answers;
     }
 
     @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AnswerRequest {
-        String content;
-        boolean isCorrect;
+        private String content;
+        @JsonProperty("isCorrect")
+        private boolean isCorrect;
     }
 }

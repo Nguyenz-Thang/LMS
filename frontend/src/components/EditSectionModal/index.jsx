@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import Modal from "../Modal";
-import api from "../../api/axios";
 import styles from "./EditSectionModal.module.scss";
+import { useSectionApi } from "../../api/sectionApi";
 
 function EditSectionModal({ isOpen, onClose, onUpdated, section, courseId }) {
+  const { updateSection } = useSectionApi();
+
   const [form, setForm] = useState({
     title: "",
+    description: "",
     orderIndex: 1,
   });
   const [loading, setLoading] = useState(false);
@@ -17,6 +20,7 @@ function EditSectionModal({ isOpen, onClose, onUpdated, section, courseId }) {
 
     setForm({
       title: section.title || "",
+      description: section.description || "",
       orderIndex: section.orderIndex || 1,
     });
     setErrorText("");
@@ -66,17 +70,18 @@ function EditSectionModal({ isOpen, onClose, onUpdated, section, courseId }) {
 
       const payload = {
         title: form.title.trim(),
+        description: form.description.trim(),
         orderIndex: Number(form.orderIndex),
         courseId,
       };
 
-      await api.put(`/sections/${section.id}`, payload);
+      await updateSection(section.id, payload);
 
       onClose();
       if (onUpdated) onUpdated();
     } catch (error) {
       setErrorText(
-        error?.response?.data?.message || "Cập nhật section thất bại.",
+        error?.body?.message || error?.message || "Cập nhật section thất bại.",
       );
     } finally {
       setLoading(false);
@@ -104,6 +109,18 @@ function EditSectionModal({ isOpen, onClose, onUpdated, section, courseId }) {
               type="text"
               placeholder="Ví dụ: Bắt đầu"
               value={form.title}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="edit-section-description">Mô tả</label>
+            <textarea
+              id="edit-section-description"
+              name="description"
+              rows="4"
+              placeholder="Nhập mô tả section..."
+              value={form.description}
               onChange={handleChange}
             />
           </div>

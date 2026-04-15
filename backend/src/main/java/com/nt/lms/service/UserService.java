@@ -24,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -39,30 +38,23 @@ public class UserService {
     UserMapper userMapper;
     PasswordEncoder passwordEncoder;
 
-    // 🔐 REGISTER (đơn giản: username + password)
     public UserResponse register(RegisterRequest request) {
-
-        // validate null
         if (request.getUsername() == null || request.getPassword() == null || request.getEmail() == null) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        // check username tồn tại
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new AppException(ErrorCode.USER_EXISTED);
         }
 
-        // check email tồn tại
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new AppException(ErrorCode.EMAIL_EXISTED);
         }
 
-        // check confirm password
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
         }
 
-        // lấy role mặc định
         Role role = roleRepository.findById("STUDENT")
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_EXISTED));
 
@@ -76,17 +68,25 @@ public class UserService {
         return userMapper.toUserResponse(userRepository.save(user));
     }
 
-    // 🧑‍💼 ADMIN tạo user
     public UserResponse createUser(UserCreationRequest request) {
+        if (request == null
+                || request.getUsername() == null || request.getUsername().isBlank()
+                || request.getEmail() == null || request.getEmail().isBlank()
+                || request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
 
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new AppException(ErrorCode.USER_EXISTED);
         }
 
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new AppException(ErrorCode.EMAIL_EXISTED);
+        }
+
         User user = userMapper.toUser(request);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        // default role STUDENT
         Role role = roleRepository.findById("STUDENT")
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_EXISTED));
 
@@ -95,7 +95,6 @@ public class UserService {
         return userMapper.toUserResponse(userRepository.save(user));
     }
 
-    // 👥 ADMIN xem danh sách user
     @PreAuthorize("hasRole('ADMIN')")
     public List<UserResponse> getUsers() {
         log.info("In method get Users");
@@ -105,8 +104,7 @@ public class UserService {
                 .toList();
     }
 
-    // 🔍 Xem user (chỉ chính nó)
-    @PostAuthorize("returnObject.username == authentication.name")
+    @PostAuthorize("returnObject.username == authentication.name or hasRole('ADMIN')")
     public UserResponse getUser(String id) {
         log.info("In method get user by Id");
         return userMapper.toUserResponse(
@@ -114,7 +112,6 @@ public class UserService {
                         .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED)));
     }
 
-    // 👤 Lấy info bản thân
     public UserResponse getMyInfo() {
         String username = SecurityContextHolder.getContext()
                 .getAuthentication()
@@ -126,7 +123,6 @@ public class UserService {
         return userMapper.toUserResponse(user);
     }
 
-    // ✏️ Update user
     public UserResponse updateUser(String userId, UserUpdateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
@@ -134,7 +130,6 @@ public class UserService {
         userMapper.updateUser(user, request);
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
@@ -146,12 +141,10 @@ public class UserService {
         return userMapper.toUserResponse(userRepository.save(user));
     }
 
-    // ❌ Delete user
     public void deleteUser(String userId) {
         if (!userRepository.existsById(userId)) {
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         }
         userRepository.deleteById(userId);
     }
-
 }

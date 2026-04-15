@@ -10,12 +10,13 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class LessonRequest {
     String title;
+    String description;
     String content;
     String videoUrl;
-    Integer duration;
-    String lessonType;
-    String type;
+    String thumbnailUrl;
+    Integer durationMinutes;
     Boolean isPreview;
+    Boolean isPublished;
     Integer orderIndex;
     String sectionId;
 }

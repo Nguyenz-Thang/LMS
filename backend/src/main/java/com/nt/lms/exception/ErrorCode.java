@@ -26,6 +26,12 @@ public enum ErrorCode {
     EMAIL_EXISTED(1014, "Email already exists", HttpStatus.NOT_FOUND),
     PASSWORD_NOT_MATCH(1015, "Password does not match", HttpStatus.NOT_FOUND),
     INVALID_REQUEST(1016, "Invalid request", HttpStatus.NOT_FOUND),
+
+    CATEGORY_EXISTED(2001, "Category already existed", HttpStatus.NOT_FOUND),
+    CATEGORY_NOT_FOUND(2002, "Category not found", HttpStatus.NOT_FOUND),
+    SECTION_NOT_FOUND(2003, "section not found", HttpStatus.NOT_FOUND),
+    LESSON_NOT_FOUND(2004, "lesson not found", HttpStatus.NOT_FOUND),
+    SECTION_NOT_EXISTED(2005, "section not existed", HttpStatus.NOT_FOUND),
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

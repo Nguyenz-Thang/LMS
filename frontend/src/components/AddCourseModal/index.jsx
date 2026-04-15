@@ -1,17 +1,21 @@
 import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import Modal from "../Modal";
-import api from "../../api/axios";
 import styles from "./AddCourseModal.module.scss";
-
-const BACKEND_BASE_URL = "http://localhost:8080/lms";
+import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
 
 function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
+  const { createCourse, uploadCourseImage } = useCourseApi();
+
   const [form, setForm] = useState({
     title: "",
     description: "",
     thumbnailUrl: "",
     categoryId: "",
+    status: "PUBLISHED",
+    visibility: "PUBLIC",
+    level: "BEGINNER",
+    estimatedHours: 0,
   });
 
   const [thumbnailMode, setThumbnailMode] = useState("url");
@@ -31,7 +35,7 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
   const buildImageUrl = (value) => {
     if (!value) return "";
     if (value.startsWith("http")) return value;
-    return `${BACKEND_BASE_URL}${value}`;
+    return `${LMS_BASE_URL}${value}`;
   };
 
   const handleChange = (e) => {
@@ -54,6 +58,10 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
       description: "",
       thumbnailUrl: "",
       categoryId: "",
+      status: "PUBLISHED",
+      visibility: "PUBLIC",
+      level: "BEGINNER",
+      estimatedHours: 0,
     });
     setThumbnailMode("url");
     setPreviewUrl("");
@@ -77,19 +85,6 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
     }
   };
 
-  const uploadImage = async (file) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await api.post("/courses/upload", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    return res?.data?.result || "";
-  };
-
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -106,17 +101,17 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
       setUploadingImage(true);
       setErrorText("");
 
-      const imageUrl = await uploadImage(file);
+      const res = await uploadCourseImage(file);
+      const imageUrl = res?.result || "";
 
       setForm((prev) => ({
         ...prev,
         thumbnailUrl: imageUrl,
       }));
-
-      // Không đổi preview sang URL backend ở đây
-      // để ảnh local vẫn hiện ổn định
     } catch (error) {
-      setErrorText(error?.response?.data?.message || "Upload ảnh thất bại.");
+      setErrorText(
+        error?.body?.message || error?.message || "Upload ảnh thất bại.",
+      );
     } finally {
       setUploadingImage(false);
       e.target.value = "";
@@ -155,15 +150,21 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
         description: form.description.trim(),
         thumbnailUrl: form.thumbnailUrl.trim(),
         categoryId: form.categoryId,
+        status: form.status,
+        visibility: form.visibility,
+        level: form.level,
+        estimatedHours: Number(form.estimatedHours) || 0,
       };
 
-      await api.post("/courses", payload);
+      await createCourse(payload);
 
       resetForm();
       onClose();
       if (onCreated) onCreated();
     } catch (error) {
-      setErrorText(error?.response?.data?.message || "Thêm khóa học thất bại.");
+      setErrorText(
+        error?.body?.message || error?.message || "Thêm khóa học thất bại.",
+      );
     } finally {
       setLoading(false);
     }
@@ -281,6 +282,60 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="status">Trạng thái</label>
+            <select
+              id="status"
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+            >
+              <option value="DRAFT">DRAFT</option>
+              <option value="PUBLISHED">PUBLISHED</option>
+              <option value="ARCHIVED">ARCHIVED</option>
+            </select>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="visibility">Hiển thị</label>
+            <select
+              id="visibility"
+              name="visibility"
+              value={form.visibility}
+              onChange={handleChange}
+            >
+              <option value="PUBLIC">PUBLIC</option>
+              <option value="PRIVATE">PRIVATE</option>
+              <option value="UNLISTED">UNLISTED</option>
+            </select>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="level">Cấp độ</label>
+            <select
+              id="level"
+              name="level"
+              value={form.level}
+              onChange={handleChange}
+            >
+              <option value="BEGINNER">BEGINNER</option>
+              <option value="INTERMEDIATE">INTERMEDIATE</option>
+              <option value="ADVANCED">ADVANCED</option>
+            </select>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="estimatedHours">Số giờ ước tính</label>
+            <input
+              id="estimatedHours"
+              name="estimatedHours"
+              type="number"
+              min="0"
+              value={form.estimatedHours}
+              onChange={handleChange}
+            />
           </div>
 
           {errorText && <div className={styles.errorBox}>{errorText}</div>}

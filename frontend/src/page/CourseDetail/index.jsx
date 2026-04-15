@@ -2,168 +2,184 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  CirclePlay,
-  FileText,
-  HelpCircle,
-  Clock3,
-  Pencil,
-  Trash2,
-  Plus,
-  User,
-  Tag,
   BookOpen,
-  Eye,
+  Layers3,
+  Clock3,
+  PlayCircle,
+  FileText,
+  ClipboardCheck,
+  FilePenLine,
+  GraduationCap,
+  CircleCheck,
 } from "lucide-react";
-import api from "../../api/axios";
+import { useCourseApi } from "../../api/courseApi";
+import { enrollCourse, getMyEnrollments } from "../../api/enrollmentApi";
 import styles from "./CourseDetail.module.scss";
-import AddSectionModal from "../../components/AddSectionModal";
-import EditSectionModal from "../../components/EditSectionModal";
-import DeleteSectionModal from "../../components/DeleteSectionModal";
-import AddLessonModal from "../../components/AddLessonModal";
-import EditLessonModal from "../../components/EditLessonModal";
-import DeleteLessonModal from "../../components/DeleteLessonModal";
-const BACKEND_BASE_URL = "http://localhost:8080/lms";
-const FALLBACK_THUMB =
-  "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
 
-function formatDuration(seconds) {
-  if (!seconds || seconds <= 0) return "00:00";
-
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+function normalizeCourse(rawCourse) {
+  return {
+    id: rawCourse?.id || "",
+    title: rawCourse?.title || "Khóa học không xác định",
+    description: rawCourse?.description || "",
+    thumbnailUrl: rawCourse?.thumbnailUrl || "",
+    instructorName: rawCourse?.instructorName || "Chưa cập nhật",
+    categoryName: rawCourse?.categoryName || "Chưa phân loại",
+    status: rawCourse?.status || "DRAFT",
+    visibility: rawCourse?.visibility || "PUBLIC",
+    level: rawCourse?.level || "BEGINNER",
+    estimatedHours: Number(rawCourse?.estimatedHours) || 0,
+  };
 }
 
-function formatTotalDuration(totalSeconds) {
-  if (!totalSeconds || totalSeconds <= 0) return "0 phút";
-
-  const hours = Math.floor(totalSeconds / 3600);
-  const mins = Math.floor((totalSeconds % 3600) / 60);
-
-  if (hours > 0) {
-    return `${hours} giờ ${mins} phút`;
-  }
-
-  return `${mins} phút`;
+function normalizeCurriculum(rawCurriculum) {
+  return {
+    id: rawCurriculum?.id || "",
+    sections: Array.isArray(rawCurriculum?.sections)
+      ? rawCurriculum.sections.map((section) => ({
+          id: section?.id || "",
+          title: section?.title || "Chương học",
+          description: section?.description || "",
+          orderIndex: Number(section?.orderIndex) || 0,
+          totalLessons: Number(section?.totalLessons) || 0,
+          totalDurationMinutes: Number(section?.totalDurationMinutes) || 0,
+          lessons: Array.isArray(section?.lessons)
+            ? section.lessons.map((lesson) => ({
+                id: lesson?.id || "",
+                title: lesson?.title || "Bài học",
+                description: lesson?.description || "",
+                durationMinutes: Number(lesson?.durationMinutes) || 0,
+                isPreview: !!lesson?.isPreview,
+                isPublished: !!lesson?.isPublished,
+                orderIndex: Number(lesson?.orderIndex) || 0,
+                lessonType: lesson?.lessonType || "READING",
+                quizId: lesson?.quizId || "",
+                assignmentId: lesson?.assignmentId || "",
+              }))
+            : [],
+        }))
+      : [],
+  };
 }
 
-function getLessonIcon(type) {
-  switch (type) {
+function getLessonTypeLabel(lessonType) {
+  switch (lessonType) {
     case "VIDEO":
-      return <CirclePlay size={16} />;
-    case "ARTICLE":
-      return <FileText size={16} />;
+      return "Video";
     case "QUIZ":
-      return <HelpCircle size={16} />;
+      return "Quiz";
+    case "ASSIGNMENT":
+      return "Bài tập";
+    case "READING":
     default:
-      return <BookOpen size={16} />;
+      return "Bài đọc";
+  }
+}
+
+function getLessonIcon(lessonType) {
+  switch (lessonType) {
+    case "VIDEO":
+      return PlayCircle;
+    case "QUIZ":
+      return ClipboardCheck;
+    case "ASSIGNMENT":
+      return FilePenLine;
+    case "READING":
+    default:
+      return FileText;
   }
 }
 
 export default function CourseDetail() {
-  const { id } = useParams();
   const navigate = useNavigate();
+  const { id } = useParams();
+  const { getCourseById, getCourseCurriculum } = useCourseApi();
 
-  const [openSections, setOpenSections] = useState({});
-  const [curriculum, setCurriculum] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [course, setCourse] = useState(null);
+  const [curriculum, setCurriculum] = useState({ sections: [] });
+  const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
-  const [isOpenAddSectionModal, setIsOpenAddSectionModal] = useState(false);
-  const [isOpenEditSectionModal, setIsOpenEditSectionModal] = useState(false);
-  const [editingSection, setEditingSection] = useState(null);
-  const [isOpenDeleteSectionModal, setIsOpenDeleteSectionModal] =
-    useState(false);
-  const [deletingSection, setDeletingSection] = useState(null);
-  const [isOpenAddLessonModal, setIsOpenAddLessonModal] = useState(false);
-  const [selectedSection, setSelectedSection] = useState(null);
-  const [isOpenEditLessonModal, setIsOpenEditLessonModal] = useState(false);
-  const [editingLesson, setEditingLesson] = useState(null);
-  const [editingLessonSection, setEditingLessonSection] = useState(null);
-  const [isOpenDeleteLessonModal, setIsOpenDeleteLessonModal] = useState(false);
-  const [deletingLesson, setDeletingLesson] = useState(null);
-  useEffect(() => {
-    fetchCourseDetail();
-  }, [id]);
-  const nextSectionOrderIndex = useMemo(() => {
-    return (curriculum?.sections?.length || 0) + 1;
-  }, [curriculum]);
-  const handleOpenEditSectionModal = (section) => {
-    setEditingSection(section);
-    setIsOpenEditSectionModal(true);
+  const [enrolling, setEnrolling] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+
+  const fetchMyEnrollments = async (courseId) => {
+    try {
+      const res = await getMyEnrollments();
+      const items = Array.isArray(res?.result) ? res.result : [];
+      setIsEnrolled(items.some((item) => item?.courseId === courseId));
+    } catch (error) {
+      console.error("Fetch my enrollments error:", error);
+    }
   };
-  const handleOpenDeleteSectionModal = (section) => {
-    setDeletingSection(section);
-    setIsOpenDeleteSectionModal(true);
-  };
-  const handleOpenAddLessonModal = (section) => {
-    setSelectedSection(section);
-    setIsOpenAddLessonModal(true);
-  };
-  const handleOpenEditLessonModal = (lesson, section) => {
-    setEditingLesson(lesson);
-    setEditingLessonSection(section);
-    setIsOpenEditLessonModal(true);
-  };
-  const handleOpenDeleteLessonModal = (lesson) => {
-    setDeletingLesson(lesson);
-    setIsOpenDeleteLessonModal(true);
-  };
+
   const fetchCourseDetail = async () => {
     try {
       setLoading(true);
       setErrorText("");
 
-      const res = await api.get(`/courses/${id}/curriculum`);
-      const data = res?.data?.result || null;
+      const [courseRes, curriculumRes] = await Promise.all([
+        getCourseById(id),
+        getCourseCurriculum(id),
+      ]);
 
-      setCurriculum(data);
-
-      const initialOpenState = {};
-      (data?.sections || []).forEach((section, index) => {
-        initialOpenState[section.id] = index === 0;
-      });
-      setOpenSections(initialOpenState);
+      const normalizedCourse = normalizeCourse(courseRes?.result);
+      setCourse(normalizedCourse);
+      setCurriculum(normalizeCurriculum(curriculumRes?.result));
+      await fetchMyEnrollments(normalizedCourse.id);
     } catch (error) {
       setErrorText(
-        error?.response?.data?.message || "Không tải được chi tiết khóa học.",
+        error?.body?.message ||
+          error?.message ||
+          "Không tải được chi tiết khóa học.",
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const getImageSrc = (thumbnailUrl) => {
-    if (!thumbnailUrl) return FALLBACK_THUMB;
-    if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
-    if (thumbnailUrl.startsWith("/")) {
-      return `${BACKEND_BASE_URL}${thumbnailUrl}`;
+  useEffect(() => {
+    if (id) {
+      fetchCourseDetail();
     }
-    return `${BACKEND_BASE_URL}/${thumbnailUrl}`;
+  }, [id]);
+
+  const totalSections = curriculum.sections.length;
+
+  const totalLessons = useMemo(
+    () =>
+      curriculum.sections.reduce(
+        (sum, section) => sum + section.lessons.length,
+        0,
+      ),
+    [curriculum],
+  );
+
+  const totalDurationMinutes = useMemo(
+    () =>
+      curriculum.sections.reduce(
+        (sum, section) => sum + (section.totalDurationMinutes || 0),
+        0,
+      ),
+    [curriculum],
+  );
+
+  const handleEnroll = async () => {
+    if (!course?.id) return;
+
+    try {
+      setEnrolling(true);
+      await enrollCourse({ courseId: course.id });
+      setIsEnrolled(true);
+    } catch (error) {
+      alert(
+        error?.response?.data?.message ||
+          error?.body?.message ||
+          error?.message ||
+          "Đăng ký khóa học thất bại.",
+      );
+    } finally {
+      setEnrolling(false);
+    }
   };
-
-  const toggleSection = (sectionId) => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [sectionId]: !prev[sectionId],
-    }));
-  };
-
-  const totalLessons = useMemo(() => {
-    return (curriculum?.sections || []).reduce(
-      (sum, section) => sum + (section.totalLessons || 0),
-      0,
-    );
-  }, [curriculum]);
-
-  const totalDuration = useMemo(() => {
-    return (curriculum?.sections || []).reduce(
-      (sum, section) => sum + (section.totalDuration || 0),
-      0,
-    );
-  }, [curriculum]);
 
   if (loading) {
     return <div className={styles.stateBox}>Đang tải chi tiết khóa học...</div>;
@@ -173,8 +189,8 @@ export default function CourseDetail() {
     return <div className={styles.errorBox}>{errorText}</div>;
   }
 
-  if (!curriculum) {
-    return <div className={styles.stateBox}>Không tìm thấy khóa học.</div>;
+  if (!course) {
+    return <div className={styles.stateBox}>Không có dữ liệu khóa học.</div>;
   }
 
   return (
@@ -183,41 +199,51 @@ export default function CourseDetail() {
         <button
           type="button"
           className={styles.backBtn}
-          onClick={() => navigate("/admin/courses")}
+          onClick={() => navigate(-1)}
         >
           <ArrowLeft size={18} />
           <span>Quay lại</span>
         </button>
       </div>
 
-      <div className={styles.headerCard}>
-        <div className={styles.thumbWrap}>
-          <img
-            src={getImageSrc(curriculum.thumbnailUrl)}
-            alt={curriculum.title}
-            className={styles.thumbnail}
-          />
+      <div className={styles.heroCard}>
+        <div className={styles.heroMedia}>
+          {course.thumbnailUrl ? (
+            <img
+              src={course.thumbnailUrl}
+              alt={course.title}
+              className={styles.heroImage}
+            />
+          ) : (
+            <div className={styles.heroPlaceholder}>
+              <BookOpen size={32} />
+            </div>
+          )}
         </div>
 
-        <div className={styles.headerContent}>
-          <div className={styles.categoryBadge}>
-            {curriculum.categoryName || "Chưa phân loại"}
+        <div className={styles.heroContent}>
+          <div className={styles.badgeRow}>
+            <span className={styles.badge}>{course.status}</span>
+            <span className={styles.badgeMuted}>{course.level}</span>
           </div>
 
-          <h1>{curriculum.title}</h1>
-          <p className={styles.description}>
-            {curriculum.description || "Chưa có mô tả cho khóa học này."}
-          </p>
+          <h1>{course.title}</h1>
+          <p>{course.description || "Chưa có mô tả khóa học."}</p>
 
-          <div className={styles.metaRow}>
+          <div className={styles.metaGrid}>
             <div className={styles.metaItem}>
-              <User size={16} />
-              <span>{curriculum.instructorName || "Chưa có giảng viên"}</span>
+              <BookOpen size={16} />
+              <span>Giảng viên: {course.instructorName}</span>
             </div>
 
             <div className={styles.metaItem}>
-              <Tag size={16} />
-              <span>{curriculum.categoryName || "Chưa có danh mục"}</span>
+              <Layers3 size={16} />
+              <span>Danh mục: {course.categoryName}</span>
+            </div>
+
+            <div className={styles.metaItem}>
+              <Layers3 size={16} />
+              <span>{totalSections} chương</span>
             </div>
 
             <div className={styles.metaItem}>
@@ -227,276 +253,121 @@ export default function CourseDetail() {
 
             <div className={styles.metaItem}>
               <Clock3 size={16} />
-              <span>{formatTotalDuration(totalDuration)}</span>
+              <span>{totalDurationMinutes} phút nội dung</span>
+            </div>
+
+            <div className={styles.metaItem}>
+              <Clock3 size={16} />
+              <span>{course.estimatedHours} giờ ước tính</span>
             </div>
           </div>
 
-          <div className={styles.actionRow}>
-            <button type="button" className={styles.primaryBtn}>
-              <Pencil size={16} />
-              <span>Sửa khóa học</span>
-            </button>
-
-            <button type="button" className={styles.dangerBtn}>
-              <Trash2 size={16} />
-              <span>Xóa</span>
-            </button>
-
-            <button
-              type="button"
-              className={styles.darkBtn}
-              onClick={() => setIsOpenAddSectionModal(true)}
-            >
-              <Plus size={16} />
-              <span>Thêm section</span>
-            </button>
+          <div className={styles.heroActions}>
+            {isEnrolled ? (
+              <button
+                type="button"
+                className={styles.enrolledBtn}
+                onClick={() => navigate("/my-courses")}
+              >
+                <CircleCheck size={16} />
+                <span>Đã đăng ký</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.enrollBtn}
+                onClick={handleEnroll}
+                disabled={enrolling}
+              >
+                <GraduationCap size={16} />
+                <span>{enrolling ? "Đang đăng ký..." : "Đăng ký học"}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className={styles.contentGrid}>
-        <div className={styles.curriculumCard}>
-          <div className={styles.sectionTitleRow}>
-            <div>
-              <h2>Nội dung khóa học</h2>
-              <p>
-                {curriculum.sections?.length || 0} chương • {totalLessons} bài
-                học
-              </p>
-            </div>
+      <div className={styles.curriculumCard}>
+        <div className={styles.sectionHeader}>
+          <h2>Chương trình học</h2>
+          <p>Dữ liệu hiển thị theo curriculum backend hiện tại.</p>
+        </div>
 
-            <button type="button" className={styles.addLessonBtn}>
-              <Plus size={16} />
-              <span>Thêm lesson</span>
-            </button>
+        {curriculum.sections.length === 0 ? (
+          <div className={styles.stateBox}>
+            Khóa học chưa có chương/bài học.
           </div>
-
+        ) : (
           <div className={styles.sectionList}>
-            {(curriculum.sections || []).map((section, sectionIndex) => {
-              const isOpen = !!openSections[section.id];
-
-              return (
-                <div key={section.id} className={styles.sectionBlock}>
-                  <div className={styles.sectionHeader}>
-                    <button
-                      type="button"
-                      className={styles.sectionToggle}
-                      onClick={() => toggleSection(section.id)}
-                    >
-                      <div className={styles.sectionHeaderLeft}>
-                        <div className={styles.sectionOrder}>
-                          {sectionIndex + 1}
-                        </div>
-
-                        <div>
-                          <h3>{section.title}</h3>
-                          <p>
-                            {section.totalLessons || 0} bài học •{" "}
-                            {formatTotalDuration(section.totalDuration || 0)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span className={styles.chevronIcon}>
-                        {isOpen ? (
-                          <ChevronUp size={18} />
-                        ) : (
-                          <ChevronDown size={18} />
-                        )}
-                      </span>
-                    </button>
-
-                    <div className={styles.sectionHeaderRight}>
-                      <button
-                        type="button"
-                        className={styles.iconActionBtn}
-                        onClick={() => handleOpenEditSectionModal(section)}
-                      >
-                        <Pencil size={15} />
-                      </button>
-
-                      <button
-                        type="button"
-                        className={styles.iconActionBtn}
-                        onClick={() => handleOpenDeleteSectionModal(section)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+            {curriculum.sections.map((section, sectionIndex) => (
+              <div key={section.id} className={styles.sectionCard}>
+                <div className={styles.sectionTop}>
+                  <div>
+                    <span className={styles.sectionOrder}>
+                      Chương {sectionIndex + 1}
+                    </span>
+                    <h3>{section.title}</h3>
+                    <p>{section.description || "Chưa có mô tả chương."}</p>
                   </div>
 
-                  {isOpen && (
-                    <div className={styles.lessonList}>
-                      {(section.lessons || []).map((lesson, lessonIndex) => (
-                        <div key={lesson.id} className={styles.lessonRow}>
-                          <div className={styles.lessonLeft}>
-                            <div className={styles.lessonOrder}>
-                              {lesson.orderIndex ?? lessonIndex + 1}
-                            </div>
+                  <div className={styles.sectionStats}>
+                    <span>{section.totalLessons} bài</span>
+                    <span>{section.totalDurationMinutes} phút</span>
+                  </div>
+                </div>
 
-                            <div className={styles.lessonMain}>
-                              <div className={styles.lessonTop}>
-                                <span className={styles.lessonIcon}>
-                                  {getLessonIcon(lesson.type)}
-                                </span>
+                <div className={styles.lessonList}>
+                  {section.lessons.map((lesson, lessonIndex) => {
+                    const LessonIcon = getLessonIcon(lesson.lessonType);
 
-                                <h4>{lesson.title}</h4>
-
-                                {lesson.isPreview && (
-                                  <span className={styles.previewBadge}>
-                                    <Eye size={13} />
-                                    <span>Preview</span>
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className={styles.lessonBottom}>
-                                <span className={styles.lessonType}>
-                                  {lesson.type || "LESSON"}
-                                </span>
-
-                                {lesson.duration ? (
-                                  <span className={styles.lessonDuration}>
-                                    <Clock3 size={14} />
-                                    <span>
-                                      {formatDuration(lesson.duration)}
-                                    </span>
-                                  </span>
-                                ) : null}
-
-                                {lesson.videoUrl ? (
-                                  <a
-                                    href={lesson.videoUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className={styles.videoLink}
-                                  >
-                                    Xem video
-                                  </a>
-                                ) : null}
-                              </div>
-                            </div>
+                    return (
+                      <div key={lesson.id} className={styles.lessonItem}>
+                        <div className={styles.lessonLeft}>
+                          <div className={styles.lessonIcon}>
+                            <LessonIcon size={18} />
                           </div>
 
-                          <div className={styles.lessonActions}>
-                            <button
-                              type="button"
-                              className={styles.smallBtn}
-                              onClick={() =>
-                                handleOpenEditLessonModal(lesson, section)
-                              }
-                            >
-                              Sửa
-                            </button>
-                            <button
-                              type="button"
-                              className={`${styles.smallBtn} ${styles.smallDangerBtn}`}
-                              onClick={() =>
-                                handleOpenDeleteLessonModal(lesson)
-                              }
-                            >
-                              Xóa
-                            </button>
+                          <div className={styles.lessonInfo}>
+                            <div className={styles.lessonTitleRow}>
+                              <strong>
+                                {sectionIndex + 1}.{lessonIndex + 1}{" "}
+                                {lesson.title}
+                              </strong>
+                              <span className={styles.lessonType}>
+                                {getLessonTypeLabel(lesson.lessonType)}
+                              </span>
+                            </div>
+
+                            <span className={styles.lessonDescription}>
+                              {lesson.description || "Chưa có mô tả bài học."}
+                            </span>
+
+                            <div className={styles.lessonMeta}>
+                              <span>{lesson.durationMinutes} phút</span>
+                              <span>
+                                {lesson.isPublished ? "Đã publish" : "Bản nháp"}
+                              </span>
+                              <span>
+                                {lesson.isPreview
+                                  ? "Cho xem thử"
+                                  : "Không preview"}
+                              </span>
+                              {lesson.quizId ? <span>Quiz: Có</span> : null}
+                              {lesson.assignmentId ? (
+                                <span>Bài tập: Có</span>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
-                      ))}
-
-                      <div className={styles.addLessonInline}>
-                        <button
-                          className={styles.inlineAddBtn}
-                          onClick={() => handleOpenAddLessonModal(section)}
-                        >
-                          <Plus size={15} />
-                          <span>Thêm bài học vào chương này</span>
-                        </button>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
-        </div>
-
-        <div className={styles.sideCard}>
-          <h3>Tổng quan</h3>
-
-          <div className={styles.sideStats}>
-            <div className={styles.statItem}>
-              <span>Chương học</span>
-              <strong>{curriculum.sections?.length || 0}</strong>
-            </div>
-
-            <div className={styles.statItem}>
-              <span>Bài học</span>
-              <strong>{totalLessons}</strong>
-            </div>
-
-            <div className={styles.statItem}>
-              <span>Tổng thời lượng</span>
-              <strong>{formatTotalDuration(totalDuration)}</strong>
-            </div>
-          </div>
-
-          <div className={styles.sideNote}>LMS</div>
-        </div>
+        )}
       </div>
-      <AddSectionModal
-        isOpen={isOpenAddSectionModal}
-        onClose={() => setIsOpenAddSectionModal(false)}
-        onCreated={fetchCourseDetail}
-        courseId={curriculum?.id}
-        nextOrderIndex={nextSectionOrderIndex}
-      />
-      <EditSectionModal
-        isOpen={isOpenEditSectionModal}
-        onClose={() => {
-          setIsOpenEditSectionModal(false);
-          setEditingSection(null);
-        }}
-        onUpdated={fetchCourseDetail}
-        section={editingSection}
-        courseId={curriculum?.id}
-      />
-      <DeleteSectionModal
-        isOpen={isOpenDeleteSectionModal}
-        onClose={() => {
-          setIsOpenDeleteSectionModal(false);
-          setDeletingSection(null);
-        }}
-        onDeleted={fetchCourseDetail}
-        section={deletingSection}
-      />
-      <AddLessonModal
-        isOpen={isOpenAddLessonModal}
-        onClose={() => {
-          setIsOpenAddLessonModal(false);
-          setSelectedSection(null);
-        }}
-        onCreated={fetchCourseDetail}
-        section={selectedSection}
-        nextOrderIndex={(selectedSection?.lessons?.length || 0) + 1}
-      />
-      <EditLessonModal
-        isOpen={isOpenEditLessonModal}
-        onClose={() => {
-          setIsOpenEditLessonModal(false);
-          setEditingLesson(null);
-          setEditingLessonSection(null);
-        }}
-        onUpdated={fetchCourseDetail}
-        lesson={editingLesson}
-        section={editingLessonSection}
-      />
-      <DeleteLessonModal
-        isOpen={isOpenDeleteLessonModal}
-        onClose={() => {
-          setIsOpenDeleteLessonModal(false);
-          setDeletingLesson(null);
-        }}
-        onDeleted={fetchCourseDetail}
-        lesson={deletingLesson}
-      />
     </div>
   );
 }

@@ -28,10 +28,24 @@ public class EnrollmentController {
                 .build();
     }
 
+    @GetMapping
+    public ApiResponse<List<EnrollmentResponse>> getAllEnrollments() {
+        return ApiResponse.<List<EnrollmentResponse>>builder()
+                .result(enrollmentService.getAllEnrollments())
+                .build();
+    }
+
     @GetMapping("/me")
     public ApiResponse<List<EnrollmentResponse>> myCourses() {
         return ApiResponse.<List<EnrollmentResponse>>builder()
                 .result(enrollmentService.getMyCourses())
+                .build();
+    }
+
+    @PutMapping("/access/{courseId}")
+    public ApiResponse<EnrollmentResponse> markEnrollmentAccess(@PathVariable String courseId) {
+        return ApiResponse.<EnrollmentResponse>builder()
+                .result(enrollmentService.markEnrollmentAccess(courseId))
                 .build();
     }
 }

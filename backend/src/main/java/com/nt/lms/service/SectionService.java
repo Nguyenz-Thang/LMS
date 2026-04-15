@@ -29,6 +29,7 @@ public class SectionService {
 
         Section section = Section.builder()
                 .title(request.getTitle())
+                .description(request.getDescription())
                 .orderIndex(request.getOrderIndex() == null ? 1 : request.getOrderIndex())
                 .course(course)
                 .build();
@@ -61,11 +62,16 @@ public class SectionService {
             section.setTitle(request.getTitle());
         }
 
+        if (request.getDescription() != null) {
+            section.setDescription(request.getDescription());
+        }
+
         if (request.getOrderIndex() != null) {
             section.setOrderIndex(request.getOrderIndex());
         }
 
-        if (request.getCourseId() != null && !request.getCourseId().equals(section.getCourse().getId())) {
+        if (request.getCourseId() != null &&
+                !request.getCourseId().equals(section.getCourse().getId())) {
             Course course = courseRepository.findById(request.getCourseId())
                     .orElseThrow(() -> new RuntimeException("Course not found"));
             section.setCourse(course);

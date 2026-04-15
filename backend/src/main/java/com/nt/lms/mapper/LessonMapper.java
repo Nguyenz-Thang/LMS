@@ -9,5 +9,6 @@ import org.mapstruct.Mapping;
 public interface LessonMapper {
 
     @Mapping(target = "sectionId", source = "section.id")
+    @Mapping(target = "durationMinutes", source = "durationMinutes")
     LessonResponse toLessonResponse(Lesson lesson);
 }

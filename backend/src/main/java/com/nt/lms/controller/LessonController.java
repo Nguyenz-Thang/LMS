@@ -2,7 +2,8 @@ package com.nt.lms.controller;
 
 import java.util.List;
 
-import com.nt.lms.dto.request.LessonRequest;
+import com.nt.lms.dto.request.LessonCreationRequest;
+import com.nt.lms.dto.request.LessonUpdateRequest;
 import com.nt.lms.dto.response.ApiResponse;
 import com.nt.lms.dto.response.LessonResponse;
 import com.nt.lms.service.LessonService;
@@ -22,7 +23,7 @@ public class LessonController {
     LessonService lessonService;
 
     @PostMapping
-    public ApiResponse<LessonResponse> create(@RequestBody LessonRequest request) {
+    public ApiResponse<LessonResponse> create(@RequestBody LessonCreationRequest request) {
         return ApiResponse.<LessonResponse>builder()
                 .result(lessonService.createLesson(request))
                 .build();
@@ -38,13 +39,14 @@ public class LessonController {
     @GetMapping("/{id}")
     public ApiResponse<LessonResponse> get(@PathVariable String id) {
         return ApiResponse.<LessonResponse>builder()
-                .result(lessonService.getLesson(id))
+                .result(lessonService.getLessonById(id))
                 .build();
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<LessonResponse> update(@PathVariable String id,
-                                              @RequestBody LessonRequest request) {
+    public ApiResponse<LessonResponse> update(
+            @PathVariable String id,
+            @RequestBody LessonUpdateRequest request) {
         return ApiResponse.<LessonResponse>builder()
                 .result(lessonService.updateLesson(id, request))
                 .build();
@@ -52,7 +54,7 @@ public class LessonController {
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable String id) {
-        lessonService.deleteLesson(id);
+        lessonService.deleteLessonById(id);
         return ApiResponse.<Void>builder().build();
     }
 }

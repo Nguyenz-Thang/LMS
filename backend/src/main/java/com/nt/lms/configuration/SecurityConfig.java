@@ -35,8 +35,13 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity.authorizeHttpRequests(request -> request
-                .requestMatchers("/uploads/**").permitAll()   // 👈 thêm dòng này
+                .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS).permitAll()
+
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+                .requestMatchers("/instructor/**").hasAnyRole("INSTRUCTOR", "ADMIN")
+                .requestMatchers("/student/**").hasAnyRole("STUDENT", "INSTRUCTOR", "ADMIN")
+
                 .anyRequest().authenticated());
 
         httpSecurity.oauth2ResourceServer(oauth2 -> oauth2

@@ -1,9 +1,11 @@
 package com.nt.lms.entity;
-import jakarta.persistence.*;
 
+import com.nt.lms.enums.EnrollmentStatus;
+import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.time.LocalDateTime;
 
 @Entity
 @Data
@@ -11,6 +13,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Table(name = "enrollments")
 public class Enrollment {
 
     @Id
@@ -18,8 +21,23 @@ public class Enrollment {
     String id;
 
     @ManyToOne
+    @JoinColumn(name = "user_id")
     User user;
 
     @ManyToOne
+    @JoinColumn(name = "course_id")
     Course course;
+
+    @Column(name = "enrolled_at")
+    LocalDateTime enrolledAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    EnrollmentStatus status;
+
+    @Column(name = "progress_percent")
+    Double progressPercent;
+
+    @Column(name = "last_accessed_at")
+    LocalDateTime lastAccessedAt;
 }

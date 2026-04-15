@@ -13,8 +13,9 @@ import java.util.List;
 public class CurriculumSectionResponse {
     String id;
     String title;
+    String description;
     int orderIndex;
     int totalLessons;
-    Integer totalDuration;
+    Integer totalDurationMinutes;
     List<CurriculumLessonResponse> lessons;
 }

@@ -1,18 +1,14 @@
 package com.nt.lms.controller;
 
-import java.util.List;
-
 import com.nt.lms.dto.request.CourseRequest;
+import com.nt.lms.dto.response.ApiResponse;
 import com.nt.lms.dto.response.CourseCurriculumResponse;
 import com.nt.lms.dto.response.CourseResponse;
-import com.nt.lms.dto.response.ApiResponse;
 import com.nt.lms.dto.response.PageResponse;
 import com.nt.lms.service.CourseService;
-
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.AccessLevel;
-
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,20 +26,13 @@ public class CourseController {
                 .build();
     }
 
-//    @GetMapping
-//    public ApiResponse<List<CourseResponse>> getAll() {
-//        return ApiResponse.<List<CourseResponse>>builder()
-//                .result(courseService.getCourses())
-//                .build();
-//    }
-
-
     @GetMapping("/{id}/curriculum")
     public ApiResponse<CourseCurriculumResponse> getCurriculum(@PathVariable String id) {
         return ApiResponse.<CourseCurriculumResponse>builder()
                 .result(courseService.getCourseCurriculum(id))
                 .build();
     }
+
     @GetMapping("/{id}")
     public ApiResponse<CourseResponse> get(@PathVariable String id) {
         return ApiResponse.<CourseResponse>builder()
@@ -64,6 +53,7 @@ public class CourseController {
         courseService.deleteCourse(id);
         return ApiResponse.<Void>builder().build();
     }
+
     @GetMapping
     public ApiResponse<PageResponse<CourseResponse>> getCourses(
             @RequestParam(required = false) String keyword,

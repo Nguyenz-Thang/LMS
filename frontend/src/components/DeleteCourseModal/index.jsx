@@ -1,11 +1,13 @@
 import PropTypes from "prop-types";
 import { Trash2, AlertTriangle } from "lucide-react";
 import Modal from "../Modal";
-import api from "../../api/axios";
 import styles from "./DeleteCourseModal.module.scss";
 import { useState } from "react";
+import { useCourseApi } from "../../api/courseApi";
 
 function DeleteCourseModal({ isOpen, onClose, course, onDeleted }) {
+  const { deleteCourse } = useCourseApi();
+
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
 
@@ -25,12 +27,14 @@ function DeleteCourseModal({ isOpen, onClose, course, onDeleted }) {
       setLoading(true);
       setErrorText("");
 
-      await api.delete(`/courses/${course.id}`);
+      await deleteCourse(course.id); // ✅ dùng API đã tách
 
       handleClose();
       if (onDeleted) onDeleted();
     } catch (error) {
-      setErrorText(error?.response?.data?.message || "Xóa khóa học thất bại.");
+      setErrorText(
+        error?.body?.message || error?.message || "Xóa khóa học thất bại.",
+      );
     } finally {
       setLoading(false);
     }

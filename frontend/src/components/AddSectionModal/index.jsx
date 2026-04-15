@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import Modal from "../Modal";
-import api from "../../api/axios";
 import styles from "./AddSectionModal.module.scss";
+import { useSectionApi } from "../../api/sectionApi";
 
 function AddSectionModal({
   isOpen,
@@ -11,8 +11,11 @@ function AddSectionModal({
   courseId,
   nextOrderIndex = 1,
 }) {
+  const { createSection } = useSectionApi();
+
   const [form, setForm] = useState({
     title: "",
+    description: "",
     orderIndex: nextOrderIndex,
   });
   const [loading, setLoading] = useState(false);
@@ -23,6 +26,7 @@ function AddSectionModal({
 
     setForm({
       title: "",
+      description: "",
       orderIndex: nextOrderIndex,
     });
     setErrorText("");
@@ -67,16 +71,19 @@ function AddSectionModal({
 
       const payload = {
         title: form.title.trim(),
+        description: form.description.trim(),
         orderIndex: Number(form.orderIndex),
         courseId,
       };
 
-      await api.post("/sections", payload);
+      await createSection(payload);
 
       onClose();
       if (onCreated) onCreated();
     } catch (error) {
-      setErrorText(error?.response?.data?.message || "Thêm section thất bại.");
+      setErrorText(
+        error?.body?.message || error?.message || "Thêm section thất bại.",
+      );
     } finally {
       setLoading(false);
     }
@@ -103,6 +110,18 @@ function AddSectionModal({
               type="text"
               placeholder="Ví dụ: Bắt đầu"
               value={form.title}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="section-description">Mô tả</label>
+            <textarea
+              id="section-description"
+              name="description"
+              rows="4"
+              placeholder="Nhập mô tả section..."
+              value={form.description}
               onChange={handleChange}
             />
           </div>

@@ -13,6 +13,15 @@ public class CourseResponse {
     String title;
     String description;
     String thumbnailUrl;
+
+    String instructorId;
     String instructorName;
+
+    String categoryId;
     String categoryName;
+
+    String status;
+    String visibility;
+    String level;
+    Integer estimatedHours;
 }
