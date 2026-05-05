@@ -1,13 +1,56 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { useNavigate } from "react-router-dom";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 import Modal from "../Modal";
 import styles from "./EditLessonModal.module.scss";
 import { useLessonApi } from "../../api/LessonApi";
 
+const READING_EDITOR_FORMATS = [
+  "header",
+  "size",
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "color",
+  "background",
+  "align",
+  "list",
+  "bullet",
+  "indent",
+  "script",
+  "blockquote",
+  "code-block",
+  "link",
+  "image",
+];
+
+function stripHtml(html = "") {
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
+const initialResourceForm = {
+  fileName: "",
+  fileUrl: "",
+  fileType: "",
+  fileSize: "",
+};
+
 function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   const navigate = useNavigate();
-  const { updateLesson } = useLessonApi();
+  const {
+    updateLesson,
+    getLessonResources,
+    createLessonResource,
+    updateLessonResource,
+    deleteLessonResource,
+  } = useLessonApi();
+  const quillRef = useRef(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -20,10 +63,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
     isPublished: true,
     orderIndex: 1,
     lessonType: "VIDEO",
-
     quizTitle: "",
     quizDescription: "",
-
     assignmentTitle: "",
     assignmentDescription: "",
     assignmentType: "ESSAY",
@@ -31,6 +72,108 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [resources, setResources] = useState([]);
+  const [resourceForm, setResourceForm] = useState(initialResourceForm);
+  const [editingResourceId, setEditingResourceId] = useState("");
+  const [resourceLoading, setResourceLoading] = useState(false);
+  const [resourceSaving, setResourceSaving] = useState(false);
+  const [deletingResourceId, setDeletingResourceId] = useState("");
+  const [resourceError, setResourceError] = useState("");
+  function resolveUploadedImageUrl(data) {
+    const raw =
+      data?.result?.url ||
+      data?.result?.fileUrl ||
+      data?.result?.path ||
+      data?.result?.imageUrl ||
+      data?.url ||
+      data?.fileUrl ||
+      data?.path ||
+      data?.imageUrl ||
+      (typeof data?.result === "string" ? data.result : "");
+
+    if (!raw) return "";
+
+    return raw.startsWith("http")
+      ? raw
+      : `http://localhost:8080/lms${raw.startsWith("/") ? "" : "/"}${raw}`;
+  }
+  const handleEditorImageUpload = () => {
+    const input = document.createElement("input");
+    input.setAttribute("type", "file");
+    input.setAttribute("accept", "image/*");
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const token = localStorage.getItem("token");
+
+        const res = await fetch("http://localhost:8080/lms/courses/upload", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data?.message || "Upload ảnh thất bại");
+        }
+
+        const imageUrl = resolveUploadedImageUrl(data);
+
+        if (!imageUrl) {
+          console.log("UPLOAD_IMAGE_RESPONSE =", data);
+          throw new Error("Không lấy được URL ảnh");
+        }
+
+        const editor = quillRef.current?.getEditor();
+        if (!editor) return;
+
+        const range = editor.getSelection(true);
+        editor.insertEmbed(
+          range?.index ?? editor.getLength(),
+          "image",
+          imageUrl.startsWith("http")
+            ? imageUrl
+            : `http://localhost:8080/lms${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`,
+        );
+      } catch (error) {
+        setErrorText(error?.message || "Upload ảnh thất bại.");
+      }
+    };
+  };
+
+  const readingEditorModules = useMemo(
+    () => ({
+      toolbar: {
+        container: [
+          [{ header: [1, 2, 3, 4, false] }],
+          [{ size: ["small", false, "large", "huge"] }],
+          ["bold", "italic", "underline", "strike"],
+          [{ color: [] }, { background: [] }],
+          [{ align: ["", "center", "right", "justify"] }],
+          [{ list: "ordered" }, { list: "bullet" }],
+          [{ indent: "-1" }, { indent: "+1" }],
+          [{ script: "sub" }, { script: "super" }],
+          ["blockquote", "code-block"],
+          ["link", "image"],
+          ["clean"],
+        ],
+        handlers: {
+          image: handleEditorImageUpload,
+        },
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (!isOpen || !lesson) return;
@@ -46,10 +189,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       isPublished: lesson.isPublished ?? true,
       orderIndex: lesson.orderIndex || 1,
       lessonType: lesson.lessonType || "VIDEO",
-
       quizTitle: lesson.quizTitle || lesson.title || "",
       quizDescription: lesson.quizDescription || "",
-
       assignmentTitle: lesson.assignmentTitle || lesson.title || "",
       assignmentDescription: lesson.assignmentDescription || "",
       assignmentType: lesson.assignmentType || "ESSAY",
@@ -57,6 +198,48 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
     setErrorText("");
   }, [isOpen, lesson]);
+
+  useEffect(() => {
+    if (!isOpen || !lesson?.id) return;
+
+    let active = true;
+
+    const fetchResources = async () => {
+      try {
+        setResourceLoading(true);
+        setResourceError("");
+        const res = await getLessonResources(lesson.id);
+        if (active) {
+          setResources(Array.isArray(res?.result) ? res.result : []);
+        }
+      } catch (error) {
+        if (active) {
+          setResources([]);
+          setResourceError(
+            error?.body?.message ||
+              error?.message ||
+              "Khong tai duoc tai lieu dinh kem.",
+          );
+        }
+      } finally {
+        if (active) {
+          setResourceLoading(false);
+        }
+      }
+    };
+
+    fetchResources();
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, lesson?.id, getLessonResources]);
+
+  const resetResourceForm = () => {
+    setEditingResourceId("");
+    setResourceForm(initialResourceForm);
+    setResourceError("");
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -125,6 +308,117 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
     });
   };
 
+  const handleReadingContentChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      content: value,
+    }));
+  };
+
+  const handleResourceChange = (e) => {
+    const { name, value } = e.target;
+    setResourceForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const validateResourceForm = () => {
+    if (!lesson?.id) return "Khong tim thay bai hoc de cap nhat tai lieu.";
+    if (!resourceForm.fileName.trim()) return "Vui long nhap ten tai lieu.";
+    if (!resourceForm.fileUrl.trim()) return "Vui long nhap duong dan tai lieu.";
+    if (resourceForm.fileSize !== "" && Number(resourceForm.fileSize) < 0) {
+      return "Kich thuoc file khong duoc nho hon 0.";
+    }
+    return "";
+  };
+
+  const handleSubmitResource = async () => {
+    const validationError = validateResourceForm();
+    if (validationError) {
+      setResourceError(validationError);
+      return;
+    }
+
+    try {
+      setResourceSaving(true);
+      setResourceError("");
+
+      const payload = {
+        fileName: resourceForm.fileName.trim(),
+        fileUrl: resourceForm.fileUrl.trim(),
+        fileType: resourceForm.fileType.trim(),
+        fileSize:
+          resourceForm.fileSize === ""
+            ? 0
+            : Math.max(0, Number(resourceForm.fileSize) || 0),
+      };
+
+      const res = editingResourceId
+        ? await updateLessonResource(lesson.id, editingResourceId, payload)
+        : await createLessonResource(lesson.id, payload);
+
+      const savedResource = res?.result;
+      if (!savedResource) return;
+
+      setResources((prev) => {
+        if (editingResourceId) {
+          return prev.map((resource) =>
+            resource.id === savedResource.id ? savedResource : resource,
+          );
+        }
+
+        return [...prev, savedResource];
+      });
+
+      resetResourceForm();
+    } catch (error) {
+      setResourceError(
+        error?.body?.message ||
+          error?.message ||
+          "Khong luu duoc tai lieu dinh kem.",
+      );
+    } finally {
+      setResourceSaving(false);
+    }
+  };
+
+  const handleEditResource = (resource) => {
+    setEditingResourceId(resource.id);
+    setResourceForm({
+      fileName: resource.fileName || "",
+      fileUrl: resource.fileUrl || "",
+      fileType: resource.fileType || "",
+      fileSize:
+        resource.fileSize === null || resource.fileSize === undefined
+          ? ""
+          : String(resource.fileSize),
+    });
+    setResourceError("");
+  };
+
+  const handleDeleteResource = async (resourceId) => {
+    if (!lesson?.id) return;
+
+    try {
+      setDeletingResourceId(resourceId);
+      setResourceError("");
+      await deleteLessonResource(lesson.id, resourceId);
+      setResources((prev) => prev.filter((resource) => resource.id !== resourceId));
+      if (editingResourceId === resourceId) {
+        resetResourceForm();
+      }
+    } catch (error) {
+      setResourceError(
+        error?.body?.message ||
+          error?.message ||
+          "Khong xoa duoc tai lieu dinh kem.",
+      );
+    } finally {
+      setDeletingResourceId("");
+    }
+  };
+
   const handleClose = () => {
     if (loading) return;
     setErrorText("");
@@ -132,21 +426,10 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   };
 
   const validateForm = () => {
-    if (!lesson?.id) {
-      return "Không tìm thấy bài học để cập nhật.";
-    }
-
-    if (!section?.id) {
-      return "Không tìm thấy section.";
-    }
-
-    if (!form.title.trim()) {
-      return "Vui lòng nhập tiêu đề bài học.";
-    }
-
-    if (!form.lessonType) {
-      return "Vui lòng chọn loại bài học.";
-    }
+    if (!lesson?.id) return "Không tìm thấy bài học để cập nhật.";
+    if (!section?.id) return "Không tìm thấy section.";
+    if (!form.title.trim()) return "Vui lòng nhập tiêu đề bài học.";
+    if (!form.lessonType) return "Vui lòng chọn loại bài học.";
 
     if (form.durationMinutes !== "" && Number(form.durationMinutes) < 0) {
       return "Thời lượng không được nhỏ hơn 0.";
@@ -160,10 +443,11 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       return "Bài học video phải có video URL.";
     }
 
-    if (
-      (form.lessonType === "READING" || form.lessonType === "ASSIGNMENT") &&
-      !form.content.trim()
-    ) {
+    if (form.lessonType === "READING" && !stripHtml(form.content)) {
+      return "Bài đọc cần có nội dung.";
+    }
+
+    if (form.lessonType === "ASSIGNMENT" && !form.content.trim()) {
       return "Loại bài học này cần có nội dung.";
     }
 
@@ -183,10 +467,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       orderIndex: Number(form.orderIndex),
       sectionId: section.id,
       lessonType: form.lessonType,
-
       quizTitle: "",
       quizDescription: "",
-
       assignmentTitle: "",
       assignmentDescription: "",
       assignmentType: "",
@@ -204,7 +486,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       case "READING":
         return {
           ...basePayload,
-          content: form.content.trim(),
+          content: form.content,
           thumbnailUrl: form.thumbnailUrl.trim(),
         };
 
@@ -247,7 +529,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       await updateLesson(lesson.id, payload);
 
       onClose();
-      if (onUpdated) onUpdated();
+      onUpdated?.();
     } catch (error) {
       setErrorText(
         error?.body?.message || error?.message || "Cập nhật bài học thất bại.",
@@ -367,15 +649,22 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
           {form.lessonType === "READING" && (
             <>
               <div className={styles.formGroup}>
-                <label htmlFor="content">Nội dung bài đọc</label>
-                <textarea
-                  id="content"
-                  name="content"
-                  rows="6"
-                  placeholder="Nhập nội dung bài học..."
-                  value={form.content}
-                  onChange={handleChange}
-                />
+                <label>Nội dung bài đọc</label>
+                <div className={styles.editorWrap}>
+                  <ReactQuill
+                    ref={quillRef}
+                    theme="snow"
+                    value={form.content}
+                    onChange={handleReadingContentChange}
+                    modules={readingEditorModules}
+                    formats={READING_EDITOR_FORMATS}
+                    placeholder="Soạn nội dung bài đọc..."
+                    className={styles.editor}
+                  />
+                </div>
+                <p className={styles.editorHint}>
+                  Có thể dùng in đậm, nghiêng, tiêu đề, danh sách, link, ảnh...
+                </p>
               </div>
 
               <div className={styles.formGroup}>
@@ -566,6 +855,148 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
           </div>
 
           {errorText && <div className={styles.error}>{errorText}</div>}
+
+          <div className={styles.resourceSection}>
+            <div className={styles.resourceHeader}>
+              <div>
+                <h3>Tai lieu dinh kem</h3>
+                <p>
+                  Quan ly file/link bo tro cho bai hoc nay ngay trong modal sua.
+                </p>
+              </div>
+              <span className={styles.resourceCount}>
+                {resourceLoading ? "Dang tai..." : `${resources.length} tai lieu`}
+              </span>
+            </div>
+
+            <div className={styles.resourceForm}>
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label htmlFor="resourceFileName">Ten tai lieu</label>
+                  <input
+                    id="resourceFileName"
+                    name="fileName"
+                    value={resourceForm.fileName}
+                    onChange={handleResourceChange}
+                    placeholder="Vi du: Slide chuong 1"
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="resourceFileType">Loai file</label>
+                  <input
+                    id="resourceFileType"
+                    name="fileType"
+                    value={resourceForm.fileType}
+                    onChange={handleResourceChange}
+                    placeholder="PDF, DOCX, Link..."
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label htmlFor="resourceFileUrl">Duong dan</label>
+                  <input
+                    id="resourceFileUrl"
+                    name="fileUrl"
+                    value={resourceForm.fileUrl}
+                    onChange={handleResourceChange}
+                    placeholder="https://... hoac /uploads/..."
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="resourceFileSize">Kich thuoc (bytes)</label>
+                  <input
+                    id="resourceFileSize"
+                    name="fileSize"
+                    type="number"
+                    min="0"
+                    value={resourceForm.fileSize}
+                    onChange={handleResourceChange}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div className={styles.resourceActions}>
+                {editingResourceId ? (
+                  <button
+                    type="button"
+                    className={styles.cancelBtn}
+                    onClick={resetResourceForm}
+                    disabled={resourceSaving}
+                  >
+                    Huy sua tai lieu
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  className={styles.submitBtn}
+                  disabled={resourceSaving}
+                  onClick={handleSubmitResource}
+                >
+                  {resourceSaving
+                    ? "Dang luu tai lieu..."
+                    : editingResourceId
+                      ? "Cap nhat tai lieu"
+                      : "Them tai lieu"}
+                </button>
+              </div>
+
+              {resourceError ? (
+                <div className={styles.error}>{resourceError}</div>
+              ) : null}
+            </div>
+
+            <div className={styles.resourceList}>
+              {resourceLoading ? (
+                <div className={styles.resourceEmpty}>Dang tai danh sach tai lieu...</div>
+              ) : resources.length === 0 ? (
+                <div className={styles.resourceEmpty}>
+                  Lesson nay chua co tai lieu dinh kem.
+                </div>
+              ) : (
+                resources.map((resource) => (
+                  <div key={resource.id} className={styles.resourceItem}>
+                    <div className={styles.resourceInfo}>
+                      <strong>{resource.fileName}</strong>
+                      <span>{resource.fileType || "File"}</span>
+                      <a
+                        href={resource.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.resourceLink}
+                      >
+                        {resource.fileUrl}
+                      </a>
+                    </div>
+
+                    <div className={styles.resourceItemActions}>
+                      <button
+                        type="button"
+                        className={styles.cancelBtn}
+                        onClick={() => handleEditResource(resource)}
+                        disabled={resourceSaving}
+                      >
+                        Sua
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.submitBtn}
+                        onClick={() => handleDeleteResource(resource.id)}
+                        disabled={deletingResourceId === resource.id}
+                      >
+                        {deletingResourceId === resource.id ? "Dang xoa..." : "Xoa"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
 
           <div className={styles.actions}>
             <button

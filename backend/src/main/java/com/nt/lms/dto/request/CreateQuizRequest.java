@@ -14,6 +14,8 @@ public class CreateQuizRequest {
     private String title;
     private String description;
     private String courseId;
+    private String lessonId;
+    private Integer maxAttempts;
     private List<QuestionRequest> questions;
 
     @Data
@@ -22,6 +24,7 @@ public class CreateQuizRequest {
     @AllArgsConstructor
     public static class QuestionRequest {
         private String content;
+        private String explanation;
         private String questionType;
         private Integer points;
         private Integer orderIndex;

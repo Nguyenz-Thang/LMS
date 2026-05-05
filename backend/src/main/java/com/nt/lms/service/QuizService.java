@@ -4,12 +4,15 @@ import java.util.List;
 
 import com.nt.lms.dto.request.CreateQuizRequest;
 import com.nt.lms.dto.request.SubmitQuizRequest;
+import com.nt.lms.dto.response.AdminQuizAttemptResponse;
 import com.nt.lms.dto.response.QuizResponse;
 import com.nt.lms.dto.response.QuizResultResponse;
 import com.nt.lms.entity.QuizOption;
 import com.nt.lms.entity.Course;
+import com.nt.lms.entity.Lesson;
 import com.nt.lms.entity.Question;
 import com.nt.lms.entity.Quiz;
+import com.nt.lms.entity.QuizAttempt;
 import com.nt.lms.entity.QuizResult;
 import com.nt.lms.entity.User;
 import com.nt.lms.exception.AppException;
@@ -17,17 +20,21 @@ import com.nt.lms.exception.ErrorCode;
 import com.nt.lms.repository.QuizOptionRepository;
 import com.nt.lms.repository.CourseRepository;
 import com.nt.lms.repository.QuestionRepository;
+import com.nt.lms.repository.QuizAttemptRepository;
 import com.nt.lms.repository.QuizRepository;
 import com.nt.lms.repository.QuizResultRepository;
 import com.nt.lms.repository.UserRepository;
+import com.nt.lms.repository.LessonRepository;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -37,26 +44,35 @@ public class QuizService {
     QuizRepository quizRepository;
     QuestionRepository questionRepository;
     QuizOptionRepository quizOptionRepository;
+    QuizAttemptRepository quizAttemptRepository;
     QuizResultRepository quizResultRepository;
     UserRepository userRepository;
     CourseRepository courseRepository;
+    LessonRepository lessonRepository;
 
     // ================= CREATE =================
     @Transactional
     public void createQuiz(CreateQuizRequest request) {
         validateQuizRequest(request);
+        User currentUser = getCurrentUser();
 
         Course course = null;
         if (request.getCourseId() != null && !request.getCourseId().isBlank()) {
             course = courseRepository.findById(request.getCourseId())
                     .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
         }
+        Lesson lesson = resolveLesson(request.getLessonId());
 
         Quiz quiz = Quiz.builder()
                 .title(request.getTitle().trim())
                 .description(trimToNull(request.getDescription()))
                 .course(course)
+                .lesson(lesson)
+                .maxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null))
                 .isPublished(false)
+                .quizScope(lesson != null ? "LESSON" : "INDEPENDENT")
+                .createdSource("MANUAL")
+                .createdBy(currentUser)
                 .build();
 
         quiz = quizRepository.saveAndFlush(quiz);
@@ -76,6 +92,9 @@ public class QuizService {
                 .title(quiz.getTitle())
                 .description(quiz.getDescription())
                 .courseId(quiz.getCourse() != null ? quiz.getCourse().getId() : null)
+                .lessonId(quiz.getLesson() != null ? quiz.getLesson().getId() : null)
+                .maxAttempts(quiz.getMaxAttempts())
+                .isPublished(quiz.getIsPublished())
                 .questions(
                         questions.stream().map(q -> {
                             List<QuizOption> options =
@@ -84,6 +103,7 @@ public class QuizService {
                             return QuizResponse.Question.builder()
                                     .id(q.getId())
                                     .content(q.getContent())
+                                    .explanation(q.getExplanation())
                                     .questionType(q.getQuestionType())
                                     .points(q.getPoints())
                                     .orderIndex(q.getOrderIndex())
@@ -111,12 +131,14 @@ public class QuizService {
 
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new AppException(ErrorCode.QUIZ_NOT_EXISTED));
+        User currentUser = getCurrentUser();
 
         Course course = null;
         if (request.getCourseId() != null && !request.getCourseId().isBlank()) {
             course = courseRepository.findById(request.getCourseId())
                     .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
         }
+        Lesson lesson = resolveLesson(request.getLessonId());
 
         List<Question> oldQuestions = questionRepository.findByQuizId(quizId);
 
@@ -131,6 +153,15 @@ public class QuizService {
         quiz.setTitle(request.getTitle().trim());
         quiz.setDescription(trimToNull(request.getDescription()));
         quiz.setCourse(course);
+        quiz.setLesson(lesson);
+        quiz.setMaxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null));
+        quiz.setQuizScope(lesson != null ? "LESSON" : "INDEPENDENT");
+        if (quiz.getCreatedSource() == null || quiz.getCreatedSource().isBlank()) {
+            quiz.setCreatedSource("MANUAL");
+        }
+        if (quiz.getCreatedBy() == null) {
+            quiz.setCreatedBy(currentUser);
+        }
 
         quiz = quizRepository.saveAndFlush(quiz);
 
@@ -221,6 +252,10 @@ public class QuizService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
+        if (request.getMaxAttempts() != null && request.getMaxAttempts() < 1) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
         for (CreateQuizRequest.QuestionRequest question : request.getQuestions()) {
             if (question == null) {
                 throw new AppException(ErrorCode.INVALID_REQUEST);
@@ -295,6 +330,7 @@ public class QuizService {
 
             Question question = Question.builder()
                     .content(q.getContent().trim())
+                    .explanation(trimToNull(q.getExplanation()))
                     .quiz(quiz)
                     .questionType(questionType)
                     .points(points)
@@ -330,17 +366,122 @@ public class QuizService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    private Lesson resolveLesson(String lessonId) {
+        if (lessonId == null || lessonId.isBlank()) {
+            return null;
+        }
+
+        return lessonRepository.findById(lessonId.trim())
+                .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
+    }
+
+    private User getCurrentUser() {
+        String username = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    }
+
     // ================= GET ALL =================
     public List<QuizResponse> getAllQuizzes() {
         return quizRepository.findAllByOrderByIdDesc().stream()
-                .map(q -> QuizResponse.builder()
-                        .id(q.getId())
-                        .title(q.getTitle())
-                        .description(q.getDescription())
-                        .courseId(q.getCourse() != null ? q.getCourse().getId() : null)
-                        .questions(null)
-                        .build()
-                )
+                .map(q -> {
+                    long attemptCount = quizAttemptRepository.countByQuizId(q.getId());
+
+                    return QuizResponse.builder()
+                            .id(q.getId())
+                            .title(q.getTitle())
+                            .description(q.getDescription())
+                            .courseId(q.getCourse() != null ? q.getCourse().getId() : null)
+                            .lessonId(q.getLesson() != null ? q.getLesson().getId() : null)
+                            .maxAttempts(q.getMaxAttempts())
+                            .isPublished(q.getIsPublished())
+                            .attemptCount(attemptCount)
+                            .questions(null)
+                            .build();
+                })
                 .toList();
+    }
+
+    public List<AdminQuizAttemptResponse> getQuizAttempts(String quizId) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new AppException(ErrorCode.QUIZ_NOT_EXISTED));
+
+        return quizAttemptRepository.findByQuizIdOrderBySubmittedAtDescStartedAtDesc(quizId)
+                .stream()
+                .map(attempt -> buildAdminAttemptResponse(quiz, attempt))
+                .toList();
+    }
+
+    @Transactional
+    public void updateQuizPublishStatus(String quizId, boolean published) {
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new AppException(ErrorCode.QUIZ_NOT_EXISTED));
+
+        User currentUser = getCurrentUser();
+        boolean isAdmin = currentUser.getRoles() != null
+                && currentUser.getRoles().stream().anyMatch(role -> "ADMIN".equalsIgnoreCase(role.getName()));
+        boolean isInstructor = currentUser.getRoles() != null
+                && currentUser.getRoles().stream().anyMatch(role -> "INSTRUCTOR".equalsIgnoreCase(role.getName()));
+        boolean isOwner = quiz.getCreatedBy() != null
+                && quiz.getCreatedBy().getId().equals(currentUser.getId());
+        boolean independentQuiz = quiz.getCourse() == null && quiz.getLesson() == null;
+
+        if (quiz.getCreatedBy() == null && independentQuiz && (isAdmin || isInstructor)) {
+            quiz.setCreatedBy(currentUser);
+            isOwner = true;
+        }
+
+        if (!isAdmin && !isOwner) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Ban khong co quyen cap nhat trang thai quiz nay");
+        }
+
+        quiz.setIsPublished(published);
+        quizRepository.save(quiz);
+    }
+
+    private Integer resolveMaxAttempts(Integer requestedMaxAttempts, boolean lessonLinked) {
+        if (lessonLinked) {
+            return 1;
+        }
+
+        if (requestedMaxAttempts == null || requestedMaxAttempts < 1) {
+            return 1;
+        }
+
+        return requestedMaxAttempts;
+    }
+
+    private AdminQuizAttemptResponse buildAdminAttemptResponse(Quiz quiz, QuizAttempt attempt) {
+        User user = attempt.getUser();
+        double totalScore = safeDouble(attempt.getTotalScore());
+        double score = safeDouble(attempt.getScore());
+
+        return AdminQuizAttemptResponse.builder()
+                .attemptId(attempt.getId())
+                .quizId(quiz.getId())
+                .quizTitle(quiz.getTitle())
+                .userId(user != null ? user.getId() : null)
+                .username(user != null ? user.getUsername() : null)
+                .fullName(user != null ? user.getFullName() : null)
+                .email(user != null ? user.getEmail() : null)
+                .attemptNo(attempt.getAttemptNo())
+                .status(attempt.getStatus() != null ? attempt.getStatus().name() : null)
+                .score(score)
+                .totalScore(totalScore)
+                .scorePercent(totalScore <= 0 ? 0.0 : roundTwoDecimals((score * 100.0) / totalScore))
+                .startedAt(attempt.getStartedAt())
+                .submittedAt(attempt.getSubmittedAt())
+                .build();
+    }
+
+    private double safeDouble(Number value) {
+        return value == null ? 0.0 : value.doubleValue();
+    }
+
+    private double roundTwoDecimals(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 }

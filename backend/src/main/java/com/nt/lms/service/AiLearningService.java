@@ -1,0 +1,652 @@
+package com.nt.lms.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
+import com.nt.lms.dto.request.AiLessonAssistantRequest;
+import com.nt.lms.dto.request.AiQuizGenerationRequest;
+import com.nt.lms.dto.response.AiLessonAssistantResponse;
+import com.nt.lms.dto.response.AiQuizDraftResponse;
+import com.nt.lms.entity.Lesson;
+import com.nt.lms.entity.LessonBlock;
+import com.nt.lms.entity.LessonResource;
+import com.nt.lms.entity.User;
+import com.nt.lms.enums.LessonBlockType;
+import com.nt.lms.repository.LessonBlockRepository;
+import com.nt.lms.repository.LessonRepository;
+import com.nt.lms.repository.LessonResourceRepository;
+import com.nt.lms.repository.UserRepository;
+import jakarta.annotation.PostConstruct;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class AiLearningService {
+
+	private final ObjectMapper objectMapper;
+	private final LessonRepository lessonRepository;
+	private final LessonBlockRepository lessonBlockRepository;
+	private final LessonResourceRepository lessonResourceRepository;
+	private final UserRepository userRepository;
+
+	@Value("${gemini.api-key:}")
+	private String geminiApiKey;
+
+	@Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
+	private String geminiBaseUrl;
+
+	@Value("${gemini.model:gemini-2.5-flash}")
+	private String geminiModel;
+
+	private static final int LESSON_CONTEXT_LIMIT = 6000;
+	private static final int LESSON_TEXT_LIMIT = 1200;
+	private static final int CHAT_HISTORY_LIMIT = 12;
+	private static final int CHAT_HISTORY_CONTENT_LIMIT = 900;
+	private static final int QUIZ_OUTPUT_TOKEN_LIMIT = 6000;
+	private static final int ASSISTANT_OUTPUT_TOKEN_LIMIT = 2200;
+
+	@PostConstruct
+	void logGeminiConfig() {
+		log.info(
+				"Gemini config loaded: baseUrl={}, model={}, apiKeyConfigured={}",
+				StringUtils.hasText(geminiBaseUrl) ? geminiBaseUrl.trim() : "",
+				getNormalizedModel(),
+				StringUtils.hasText(geminiApiKey));
+	}
+
+	public AiLessonAssistantResponse answerLessonQuestion(String lessonId, AiLessonAssistantRequest request, String username) {
+		validateApiKey();
+		Lesson lesson = getLessonOrThrow(lessonId);
+		User user = getUserOrThrow(username);
+
+		if (request == null || !StringUtils.hasText(request.getMessage())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Câu hỏi không được để trống");
+		}
+
+		String lessonContext = buildLessonContext(lesson);
+		Map<String, Object> schema = createLessonAssistantSchema();
+		List<Map<String, Object>> input = buildLessonAssistantInput(request, user, lessonContext);
+
+		JsonNode responseNode = callGeminiApi(
+				buildGeminiRequest(
+						"Bạn là trợ lý học tập thông minh cho hệ thống LMS. "
+								+ "Chỉ được trả lời dựa trên nội dung bài học đã cung cấp. "
+								+ "Nếu câu hỏi nằm ngoài bài học, hãy nói rõ rằng thông tin không có trong bài. "
+								+ "Trả lời bằng tiếng Việt ngắn gọn, dễ hiểu, có cấu trúc. "
+								+ "Tạo thêm 3 câu hỏi gợi ý để học tiếp.\n\n"
+								+ "Người học hiện tại: " + user.getUsername() + ".\n"
+								+ "Đây là ngữ cảnh bài học:\n" + lessonContext,
+						input,
+						schema,
+						ASSISTANT_OUTPUT_TOKEN_LIMIT));
+
+		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
+		List<String> suggestedQuestions = new ArrayList<>();
+		JsonNode suggestedNode = payload.path("suggestedQuestions");
+		if (suggestedNode.isArray()) {
+			suggestedNode.forEach(item -> {
+				if (item.isTextual() && StringUtils.hasText(item.asText())) {
+					suggestedQuestions.add(item.asText().trim());
+				}
+			});
+		}
+
+		String answer = buildDisplayAnswer(
+				payload.path("answer").asText(""),
+				suggestedQuestions);
+
+		return AiLessonAssistantResponse.builder()
+				.lessonId(lessonId)
+				.answer(answer)
+				.suggestedQuestions(suggestedQuestions)
+				.model(getNormalizedModel())
+				.build();
+	}
+
+	public AiQuizDraftResponse generateQuizDraftFromLesson(String lessonId, AiQuizGenerationRequest request, String username) {
+		validateApiKey();
+		Lesson lesson = getLessonOrThrow(lessonId);
+		getUserOrThrow(username);
+
+		int questionCount = request != null && request.getQuestionCount() != null
+				? Math.max(3, Math.min(10, request.getQuestionCount()))
+				: 5;
+		String difficulty = request != null && StringUtils.hasText(request.getDifficulty())
+				? request.getDifficulty().trim().toUpperCase()
+				: "MEDIUM";
+		boolean includeExplanation = request == null || request.getIncludeExplanation() == null || request.getIncludeExplanation();
+
+		Map<String, Object> schema = createQuizDraftSchema();
+		String lessonContext = buildLessonContext(lesson);
+		String instruction = "Hãy sinh ra " + questionCount + " câu hỏi quiz từ nội dung bài học. "
+				+ "Độ khó mong muốn: " + difficulty + ". "
+				+ "Tất cả câu hỏi phải bám sát nội dung bài học, không được suy đoán ngoài phạm vi bài. "
+				+ "Mỗi câu hỏi phải có ít nhất 2 đáp án. "
+				+ "SINGLE_CHOICE và TRUE_FALSE phải có đúng 1 đáp án đúng. "
+				+ "MULTIPLE_CHOICE phải có ít nhất 1 đáp án đúng. "
+				+ (includeExplanation
+						? "Bắt buộc viết explanation ngắn gọn, rõ ràng cho mỗi câu hỏi."
+						: "Nếu không cần, explanation để chuỗi rỗng.");
+
+		JsonNode responseNode = callGeminiApi(
+				buildGeminiRequest(
+						"Bạn là trợ lý tạo quiz cho hệ thống LMS. Đầu ra phải là JSON hợp lệ và bám sát bài học.\n\n"
+								+ "Đây là ngữ cảnh bài học:\n" + lessonContext,
+						List.of(message("user", instruction)),
+						schema,
+						QUIZ_OUTPUT_TOKEN_LIMIT));
+
+		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
+		return mapQuizDraftResponse(lesson, payload);
+	}
+
+	public AiLessonAssistantResponse answerSmartChat(
+			String messageText,
+			List<AiLessonAssistantRequest.ChatHistoryItem> history,
+			String systemContext,
+			String lessonId) {
+		validateApiKey();
+		if (!StringUtils.hasText(messageText)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Câu hỏi không được để trống");
+		}
+
+		AiLessonAssistantRequest request = AiLessonAssistantRequest.builder()
+				.message(messageText)
+				.history(history == null ? List.of() : history)
+				.build();
+		List<Map<String, Object>> input = buildLessonAssistantInput(request, null, systemContext);
+		JsonNode responseNode = callGeminiApi(
+				buildGeminiRequest(
+						"Bạn là chatbot AI hỗ trợ học tập thông minh trong hệ thống LMS. "
+								+ "Luôn đọc lịch sử hội thoại trước khi trả lời. Nếu câu hỏi mới dùng đại từ hoặc cụm mơ hồ như 'trong này', 'cái này', 'này', hãy hiểu nó theo câu hỏi gần nhất của người học. "
+								+ "Hãy cá nhân hóa câu trả lời dựa trên tiến độ, khóa học, bài học và lịch sử hội thoại nếu có. "
+								+ "Nếu thiếu dữ liệu để xác định chính xác bài học cụ thể, nói rõ giới hạn đó và đề xuất nơi người học có thể xem danh sách bài chưa hoàn thành. "
+								+ "Trường answer phải chứa câu trả lời đầy đủ để hiển thị trực tiếp cho người học; không được đặt nội dung chính vào suggestedQuestions. "
+								+ "Trường suggestedQuestions chỉ dùng cho các câu hỏi tiếp theo ngắn gọn, không dùng để chứa đáp án hoặc danh sách bài tập. "
+								+ "Trả lời bằng tiếng Việt, ngắn gọn, có cấu trúc, ưu tiên hành động học tập cụ thể.\n\n"
+								+ systemContext,
+						input,
+						createLessonAssistantSchema(),
+						ASSISTANT_OUTPUT_TOKEN_LIMIT));
+
+		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
+		List<String> suggestedQuestions = new ArrayList<>();
+		JsonNode suggestedNode = payload.path("suggestedQuestions");
+		if (suggestedNode.isArray()) {
+			suggestedNode.forEach(item -> {
+				if (item.isTextual() && StringUtils.hasText(item.asText())) {
+					suggestedQuestions.add(item.asText().trim());
+				}
+			});
+		}
+
+		String answer = buildDisplayAnswer(
+				payload.path("answer").asText(""),
+				suggestedQuestions);
+
+		return AiLessonAssistantResponse.builder()
+				.lessonId(lessonId)
+				.answer(answer)
+				.suggestedQuestions(suggestedQuestions)
+				.model(getNormalizedModel())
+				.build();
+	}
+
+	public AiQuizDraftResponse generateStandaloneQuizDraft(String prompt, String systemContext) {
+		validateApiKey();
+		if (!StringUtils.hasText(prompt)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Yêu cầu tạo quiz không được để trống");
+		}
+
+		String instruction = "Tạo một bài quiz độc lập từ yêu cầu sau của người học: \"" + prompt.trim() + "\".\n"
+				+ "Nếu người học không nêu số câu, tạo 5 câu. Nếu có số câu, giới hạn trong khoảng 3 đến 10 câu. "
+				+ "Ưu tiên câu hỏi SINGLE_CHOICE, chỉ dùng MULTIPLE_CHOICE khi thật sự cần nhiều đáp án đúng. "
+				+ "Mỗi câu SINGLE_CHOICE hoặc MULTIPLE_CHOICE có đúng 4 đáp án. "
+				+ "Nội dung phải phù hợp để lưu thành bài quiz trong hệ thống LMS. "
+				+ "Mỗi câu phải có explanation gồm 2 phần: giải thích đáp án đúng và một ví dụ ngắn minh họa thực tế. "
+				+ "Explanation tối đa 500 ký tự, không viết quá dài để tránh JSON bị cắt.";
+
+		JsonNode responseNode = callGeminiApi(
+				buildGeminiRequest(
+						"Bạn là trợ lý tạo quiz cho hệ thống LMS. "
+								+ "Đầu ra phải là JSON hợp lệ theo schema. "
+								+ "Không viết markdown, không giải thích ngoài JSON. "
+								+ "Tạo quiz bằng tiếng Việt, đáp án rõ ràng, không nhập nhằng.\n\n"
+								+ "Ngữ cảnh tổng quan nếu cần:\n" + (systemContext == null ? "" : systemContext),
+						List.of(message("user", instruction)),
+						createQuizDraftSchema(),
+						QUIZ_OUTPUT_TOKEN_LIMIT));
+
+		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
+		return mapStandaloneQuizDraftResponse(payload);
+	}
+
+	private String buildDisplayAnswer(String answer, List<String> suggestedQuestions) {
+		String trimmedAnswer = StringUtils.hasText(answer) ? answer.trim() : "";
+		if (trimmedAnswer.matches("(?is).*dưới đây là\\s*(một số\\s*)?(các\\s*)?(câu hỏi|bài tập|gợi ý).*:?\\s*$")
+				&& suggestedQuestions != null
+				&& !suggestedQuestions.isEmpty()) {
+			StringBuilder builder = new StringBuilder(trimmedAnswer);
+			for (int index = 0; index < suggestedQuestions.size(); index++) {
+				builder.append("\n").append(index + 1).append(". ").append(suggestedQuestions.get(index));
+			}
+			return builder.toString();
+		}
+		return trimmedAnswer;
+	}
+
+	private Map<String, Object> createLessonAssistantSchema() {
+		Map<String, Object> schema = new LinkedHashMap<>();
+		schema.put("type", "OBJECT");
+		schema.put("properties", Map.of(
+				"answer", Map.of("type", "STRING"),
+				"suggestedQuestions", Map.of("type", "ARRAY", "items", Map.of("type", "STRING"))));
+		schema.put("required", List.of("answer", "suggestedQuestions"));
+		return schema;
+	}
+
+	private List<Map<String, Object>> buildLessonAssistantInput(
+			AiLessonAssistantRequest request,
+			User user,
+			String lessonContext) {
+		List<Map<String, Object>> input = new ArrayList<>();
+		List<AiLessonAssistantRequest.ChatHistoryItem> history = request.getHistory() == null ? List.of() : request.getHistory();
+		for (AiLessonAssistantRequest.ChatHistoryItem item : history.stream().limit(CHAT_HISTORY_LIMIT).toList()) {
+			if (item == null || !StringUtils.hasText(item.getContent())) {
+				continue;
+			}
+			String role = "assistant".equalsIgnoreCase(item.getRole()) ? "model" : "user";
+			input.add(message(role, limitText(item.getContent().trim(), CHAT_HISTORY_CONTENT_LIMIT)));
+		}
+
+		input.add(message("user", request.getMessage().trim()));
+		return input;
+	}
+
+	private Map<String, Object> createQuizDraftSchema() {
+		Map<String, Object> answerSchema = new LinkedHashMap<>();
+		answerSchema.put("type", "OBJECT");
+		answerSchema.put("properties", Map.of(
+				"content", Map.of("type", "STRING"),
+				"isCorrect", Map.of("type", "BOOLEAN")));
+		answerSchema.put("required", List.of("content", "isCorrect"));
+
+		Map<String, Object> questionSchema = new LinkedHashMap<>();
+		questionSchema.put("type", "OBJECT");
+		questionSchema.put("properties", Map.of(
+				"content", Map.of("type", "STRING"),
+				"explanation", Map.of("type", "STRING"),
+				"questionType", Map.of("type", "STRING", "enum", List.of("SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE")),
+				"points", Map.of("type", "INTEGER"),
+				"orderIndex", Map.of("type", "INTEGER"),
+				"answers", Map.of("type", "ARRAY", "items", answerSchema)));
+		questionSchema.put("required", List.of("content", "explanation", "questionType", "points", "orderIndex", "answers"));
+
+		Map<String, Object> schema = new LinkedHashMap<>();
+		schema.put("type", "OBJECT");
+		schema.put("properties", Map.of(
+				"title", Map.of("type", "STRING"),
+				"description", Map.of("type", "STRING"),
+				"questions", Map.of("type", "ARRAY", "items", questionSchema)));
+		schema.put("required", List.of("title", "description", "questions"));
+		return schema;
+	}
+
+	private AiQuizDraftResponse mapQuizDraftResponse(Lesson lesson, JsonNode payload) {
+		JsonNode questionsNode = payload.path("questions");
+		if (!questionsNode.isArray() || questionsNode.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI không tạo được bộ câu hỏi hợp lệ");
+		}
+
+		List<AiQuizDraftResponse.QuestionDraft> questions = new ArrayList<>();
+		int index = 0;
+		for (JsonNode item : questionsNode) {
+			List<AiQuizDraftResponse.AnswerDraft> answers = new ArrayList<>();
+			JsonNode answersNode = item.path("answers");
+			if (answersNode.isArray()) {
+				for (JsonNode answerNode : answersNode) {
+					answers.add(AiQuizDraftResponse.AnswerDraft.builder()
+							.content(answerNode.path("content").asText(""))
+							.isCorrect(answerNode.path("isCorrect").asBoolean(false))
+							.build());
+				}
+			}
+
+			questions.add(AiQuizDraftResponse.QuestionDraft.builder()
+					.content(item.path("content").asText(""))
+					.explanation(item.path("explanation").asText(""))
+					.questionType(item.path("questionType").asText("SINGLE_CHOICE"))
+					.points(item.path("points").asInt(1))
+					.orderIndex(item.path("orderIndex").asInt(index))
+					.answers(answers)
+					.build());
+			index++;
+		}
+
+		return AiQuizDraftResponse.builder()
+				.title(payload.path("title").asText(lesson.getTitle() + " - Quiz"))
+				.description(payload.path("description").asText("Quiz được sinh từ nội dung bài học"))
+				.courseId(lesson.getSection() != null && lesson.getSection().getCourse() != null
+						? lesson.getSection().getCourse().getId()
+						: null)
+				.lessonId(lesson.getId())
+				.questions(questions)
+				.model(getNormalizedModel())
+				.build();
+	}
+
+	private AiQuizDraftResponse mapStandaloneQuizDraftResponse(JsonNode payload) {
+		JsonNode questionsNode = payload.path("questions");
+		if (!questionsNode.isArray() || questionsNode.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI không tạo được bộ câu hỏi hợp lệ");
+		}
+
+		List<AiQuizDraftResponse.QuestionDraft> questions = new ArrayList<>();
+		int index = 0;
+		for (JsonNode item : questionsNode) {
+			List<AiQuizDraftResponse.AnswerDraft> answers = new ArrayList<>();
+			JsonNode answersNode = item.path("answers");
+			if (answersNode.isArray()) {
+				for (JsonNode answerNode : answersNode) {
+					answers.add(AiQuizDraftResponse.AnswerDraft.builder()
+							.content(answerNode.path("content").asText(""))
+							.isCorrect(answerNode.path("isCorrect").asBoolean(false))
+							.build());
+				}
+			}
+
+			questions.add(AiQuizDraftResponse.QuestionDraft.builder()
+					.content(item.path("content").asText(""))
+					.explanation(item.path("explanation").asText(""))
+					.questionType(item.path("questionType").asText("SINGLE_CHOICE"))
+					.points(item.path("points").asInt(1))
+					.orderIndex(item.path("orderIndex").asInt(index))
+					.answers(answers)
+					.build());
+			index++;
+		}
+
+		return AiQuizDraftResponse.builder()
+				.title(payload.path("title").asText("Quiz ôn tập"))
+				.description(payload.path("description").asText("Quiz được tạo tự động từ chatbot AI"))
+				.questions(questions)
+				.model(getNormalizedModel())
+				.build();
+	}
+
+	private Lesson getLessonOrThrow(String lessonId) {
+		return lessonRepository.findById(lessonId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bài học"));
+	}
+
+	private User getUserOrThrow(String username) {
+		return userRepository.findByUsername(username)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không xác định được người dùng"));
+	}
+
+	private void validateApiKey() {
+		if (!StringUtils.hasText(geminiApiKey)) {
+			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chưa cấu hình GEMINI_API_KEY");
+		}
+	}
+
+	private String getNormalizedModel() {
+		return StringUtils.hasText(geminiModel) ? geminiModel.trim() : "gemini-2.5-flash";
+	}
+
+	private JsonNode callGeminiApi(Map<String, Object> requestBody) {
+		try {
+			log.info("Calling Gemini API: model={}, baseUrl={}", getNormalizedModel(), geminiBaseUrl.trim());
+			RestClient client = RestClient.builder()
+					.baseUrl(geminiBaseUrl.trim())
+					.defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+					.build();
+
+			String rawBody = client.post()
+					.uri(uriBuilder -> uriBuilder
+							.path("/models/{model}:generateContent")
+							.queryParam("key", geminiApiKey.trim())
+							.build(getNormalizedModel()))
+					.body(requestBody)
+					.retrieve()
+					.body(String.class);
+
+			return objectMapper.readTree(rawBody);
+		} catch (RestClientResponseException exception) {
+			log.warn(
+					"Gemini API returned error: model={}, status={}, body={}",
+					getNormalizedModel(),
+					exception.getStatusCode(),
+					exception.getResponseBodyAsString());
+			throw mapGeminiError(exception);
+		} catch (ResponseStatusException exception) {
+			log.warn("Gemini API call aborted: model={}, reason={}", getNormalizedModel(), exception.getReason());
+			throw exception;
+		} catch (Exception exception) {
+			log.warn("Gemini API call failed: model={}, message={}", getNormalizedModel(), exception.getMessage(), exception);
+			throw new ResponseStatusException(
+					HttpStatus.BAD_GATEWAY,
+					"Không thể gọi Gemini API: " + exception.getMessage(),
+					exception);
+		}
+	}
+
+	private String extractOutputText(JsonNode responseNode) {
+		if (responseNode == null || responseNode.isMissingNode()) {
+			return "";
+		}
+		JsonNode candidatesNode = responseNode.path("candidates");
+		if (candidatesNode.isArray()) {
+			StringBuilder builder = new StringBuilder();
+			for (JsonNode item : candidatesNode) {
+				JsonNode contentNode = item.path("content");
+				JsonNode partsNode = contentNode.path("parts");
+				if (!partsNode.isArray()) {
+					continue;
+				}
+				for (JsonNode partItem : partsNode) {
+					if (partItem.hasNonNull("text")) {
+						builder.append(partItem.path("text").asText(""));
+					}
+				}
+			}
+			return builder.toString();
+		}
+		return "";
+	}
+
+	private JsonNode parseJsonPayload(String text) {
+		String normalizedText = normalizeJsonText(text);
+		try {
+			return objectMapper.readTree(normalizedText);
+		} catch (Exception exception) {
+			try {
+				return objectMapper.copy()
+						.configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true)
+						.readTree(normalizedText);
+			} catch (Exception ignored) {
+				// Continue with extraction fallback.
+			}
+			int start = normalizedText.indexOf('{');
+			int end = normalizedText.lastIndexOf('}');
+			if (start >= 0 && end > start) {
+				try {
+					String jsonSlice = normalizedText.substring(start, end + 1);
+					return objectMapper.copy()
+							.configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true)
+							.readTree(jsonSlice);
+				} catch (Exception ignored) {
+					// Fall through to the structured error below with the raw preview.
+				}
+			}
+			log.warn("Gemini returned non-JSON output: {}", toLogPreview(normalizedText));
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI trả về JSON không hợp lệ", exception);
+		}
+	}
+
+	private String toLogPreview(String value) {
+		return limitText(value, 1000)
+				.replace("\\", "\\\\")
+				.replace("\r", "\\r")
+				.replace("\n", "\\n");
+	}
+
+	private String normalizeJsonText(String text) {
+		if (!StringUtils.hasText(text)) {
+			return "";
+		}
+		String normalized = text.trim();
+		if (normalized.startsWith("```")) {
+			normalized = normalized
+					.replaceFirst("^```(?:json|JSON)?\\s*", "")
+					.replaceFirst("\\s*```$", "")
+					.trim();
+		}
+		return normalized;
+	}
+
+	private Map<String, Object> message(String role, String content) {
+		return Map.of(
+				"role", role,
+				"parts", List.of(Map.of("text", content)));
+	}
+
+	private Map<String, Object> buildGeminiRequest(
+			String systemInstruction,
+			List<Map<String, Object>> contents,
+			Map<String, Object> schema,
+			int maxOutputTokens) {
+		return Map.of(
+				"system_instruction", Map.of("parts", List.of(Map.of("text", systemInstruction))),
+				"contents", contents,
+				"generationConfig", Map.of(
+						"responseMimeType", "application/json",
+						"responseSchema", schema,
+						"maxOutputTokens", maxOutputTokens,
+						"temperature", 0.3));
+	}
+
+	private ResponseStatusException mapGeminiError(RestClientResponseException exception) {
+		String responseBody = exception.getResponseBodyAsString();
+		if (exception.getStatusCode().value() == 404
+				|| (responseBody != null && responseBody.contains("not found for API version"))) {
+			return new ResponseStatusException(
+					HttpStatus.BAD_GATEWAY,
+					"Không tìm thấy model Gemini '" + getNormalizedModel()
+							+ "' trên endpoint hiện tại. Hãy đổi GEMINI_MODEL sang model đang hỗ trợ generateContent, ví dụ gemini-2.5-flash.",
+					exception);
+		}
+		if (exception.getStatusCode().value() == 429
+				|| (responseBody != null && responseBody.contains("RESOURCE_EXHAUSTED"))
+				|| (responseBody != null && responseBody.contains("generate_content_free_tier"))) {
+			return new ResponseStatusException(
+					HttpStatus.BAD_GATEWAY,
+					"Gemini API đã hết quota hoặc đang bị giới hạn tốc độ. Vui lòng đợi ít phút, đổi model/API key, hoặc bật billing cho project.",
+					exception);
+		}
+		if (responseBody != null && responseBody.contains("insufficient_quota")) {
+			return new ResponseStatusException(
+					HttpStatus.BAD_GATEWAY,
+					"Tài khoản Gemini API hiện không đủ quota hoặc billing chưa được bật",
+					exception);
+		}
+		if (responseBody != null && responseBody.contains("API_KEY_INVALID")) {
+			return new ResponseStatusException(
+					HttpStatus.BAD_GATEWAY,
+					"GEMINI_API_KEY không hợp lệ",
+					exception);
+		}
+		if (responseBody != null && responseBody.contains("PERMISSION_DENIED")) {
+			return new ResponseStatusException(
+					HttpStatus.BAD_GATEWAY,
+					"Gemini API từ chối truy cập. Kiểm tra API key và quyền của project",
+					exception);
+		}
+		return new ResponseStatusException(
+				HttpStatus.BAD_GATEWAY,
+				"Không thể gọi Gemini API: " + exception.getStatusCode() + " " + responseBody,
+				exception);
+	}
+
+	private String buildLessonContext(Lesson lesson) {
+		StringBuilder builder = new StringBuilder();
+		builder.append("Tiêu đề bài học: ").append(safeText(lesson.getTitle())).append("\n");
+		builder.append("Mô tả: ").append(safeText(lesson.getDescription())).append("\n");
+		builder.append("Nội dung chính: ").append(safeText(toPlainText(lesson.getContent()))).append("\n");
+
+		List<LessonBlock> blocks = lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
+		if (!blocks.isEmpty()) {
+			builder.append("Các block nội dung:\n");
+			for (LessonBlock block : blocks) {
+				builder.append("- [")
+						.append(block.getBlockType() == null ? "UNKNOWN" : block.getBlockType().name())
+						.append("] ")
+						.append(safeText(block.getTitle()))
+						.append(": ");
+				if (block.getBlockType() == LessonBlockType.TEXT) {
+					builder.append(safeText(toPlainText(block.getContent())));
+				} else if (block.getBlockType() == LessonBlockType.FILE) {
+					builder.append(safeText(block.getMediaUrl()));
+				} else {
+					builder.append(safeText(block.getContent()));
+				}
+				builder.append("\n");
+			}
+		}
+
+		List<LessonResource> resources = lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lesson.getId());
+		if (!resources.isEmpty()) {
+			builder.append("Tài liệu bổ trợ:\n");
+			for (LessonResource resource : resources) {
+				builder.append("- ")
+						.append(safeText(resource.getFileName()))
+						.append(" (")
+						.append(safeText(resource.getFileType()))
+						.append(")\n");
+			}
+		}
+
+		String context = builder.toString().trim();
+		return limitText(context, LESSON_CONTEXT_LIMIT);
+	}
+
+	private String toPlainText(String html) {
+		if (!StringUtils.hasText(html)) {
+			return "";
+		}
+		return html.replaceAll("<[^>]+>", " ")
+				.replace("&nbsp;", " ")
+				.replaceAll("\\s+", " ")
+				.trim();
+	}
+
+	private String safeText(String value) {
+		if (!StringUtils.hasText(value)) {
+			return "";
+		}
+		return limitText(value.trim(), LESSON_TEXT_LIMIT);
+	}
+
+	private String limitText(String value, int maxLength) {
+		if (!StringUtils.hasText(value)) {
+			return "";
+		}
+		String trimmed = value.trim();
+		return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
+	}
+}

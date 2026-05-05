@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "lessons")
 @Data
@@ -17,11 +19,14 @@ public class Lesson {
     @GeneratedValue(strategy = GenerationType.UUID)
     String id;
 
+    @Column(name = "title", nullable = false)
     String title;
 
-    @Column(columnDefinition = "TEXT")
+    @Lob
+    @Column(name = "content", columnDefinition = "LONGTEXT")
     String content;
 
+    @Column(name = "description", columnDefinition = "TEXT")
     String description;
 
     @Column(name = "video_url")
@@ -40,9 +45,43 @@ public class Lesson {
     Boolean isPreview;
 
     @Column(name = "order_index")
-    int orderIndex;
+    Integer orderIndex;
+
+    @Column(name = "created_at")
+    LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    LocalDateTime updatedAt;
 
     @ManyToOne
     @JoinColumn(name = "section_id")
     Section section;
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+        if (isPublished == null) {
+            isPublished = true;
+        }
+        if (isPreview == null) {
+            isPreview = false;
+        }
+        if (durationMinutes == null) {
+            durationMinutes = 0;
+        }
+        if (orderIndex == null) {
+            orderIndex = 0;
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

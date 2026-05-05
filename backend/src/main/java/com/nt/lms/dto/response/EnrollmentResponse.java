@@ -14,8 +14,12 @@ public class EnrollmentResponse {
     String id;
     String userId;
     String username;
+    String fullName;
+    String email;
+    String avatar;
     String courseId;
     String courseTitle;
+    String courseThumbnailUrl;
     String status;
     Double progressPercent;
     LocalDateTime enrolledAt;

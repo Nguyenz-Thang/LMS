@@ -1,4 +1,4 @@
-import { useContext, useCallback } from "react";
+import { useCallback, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
 export const LMS_BASE_URL = "http://localhost:8080/lms";
@@ -32,9 +32,9 @@ export function useCourseApi() {
         headers,
       });
 
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         logout?.();
-        throw new Error("Phiên đăng nhập đã hết hạn hoặc bạn không có quyền.");
+        throw new Error("Phiên đăng nhập đã hết hạn.");
       }
 
       return res;
@@ -43,10 +43,18 @@ export function useCourseApi() {
   );
 
   const listCourses = useCallback(
-    async ({ keyword = "", page = 0, size = 6 } = {}) => {
+    async ({
+      keyword = "",
+      manageOnly = false,
+      status = "",
+      page = 0,
+      size = 6,
+    } = {}) => {
       const searchParams = new URLSearchParams();
 
       if (keyword?.trim()) searchParams.set("keyword", keyword.trim());
+      if (manageOnly) searchParams.set("manageOnly", "true");
+      if (status?.trim()) searchParams.set("status", status.trim());
       searchParams.set("page", page);
       searchParams.set("size", size);
 
@@ -104,6 +112,26 @@ export function useCourseApi() {
     [authedFetch],
   );
 
+  const approveCourse = useCallback(
+    async (courseId) =>
+      toJson(
+        await authedFetch(`${BASE}/${courseId}/approve`, {
+          method: "POST",
+        }),
+      ),
+    [authedFetch],
+  );
+
+  const rejectCourse = useCallback(
+    async (courseId) =>
+      toJson(
+        await authedFetch(`${BASE}/${courseId}/reject`, {
+          method: "POST",
+        }),
+      ),
+    [authedFetch],
+  );
+
   const uploadCourseImage = useCallback(
     async (file) => {
       const formData = new FormData();
@@ -126,6 +154,8 @@ export function useCourseApi() {
     createCourse,
     updateCourse,
     deleteCourse,
+    approveCourse,
+    rejectCourse,
     uploadCourseImage,
   };
 }

@@ -1,28 +1,105 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import {
-  Search,
-  Plus,
-  BookOpen,
-  User,
-  Tag,
+  Archive,
+  Check,
+  CircleAlert,
+  CircleDashed,
+  Eye,
   FileText,
+  Globe2,
+  Lock,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
   Trash2,
+  X,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import AddCourseModal from "../../../components/AddCourseModal";
 import EditCourseModal from "../../../components/EditCourseModal";
 import DeleteCourseModal from "../../../components/DeleteCourseModal";
-import styles from "./Courses.module.scss";
-import { useNavigate } from "react-router-dom";
 import { LMS_BASE_URL, useCourseApi } from "../../../api/courseApi";
 import { getCategories } from "../../../api/categoryApi";
+import { AuthContext } from "../../../context/AuthContext";
+import styles from "./Courses.module.scss";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 8;
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
 
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Nháp" },
+  { value: "PENDING_APPROVAL", label: "Chờ duyệt" },
+  { value: "PUBLISHED", label: "Đã duyệt" },
+  { value: "REJECTED", label: "Bị từ chối" },
+  { value: "ARCHIVED", label: "Lưu trữ" },
+];
+
+const VISIBILITY_OPTIONS = [
+  { value: "PUBLIC", label: "Công khai" },
+  { value: "PRIVATE", label: "Riêng tư" },
+  { value: "UNLISTED", label: "Không liệt kê" },
+];
+
+function getStatusMeta(status) {
+  switch (status) {
+    case "PUBLISHED":
+      return {
+        label: "Đã duyệt",
+        className: "statusPublished",
+        icon: Check,
+      };
+    case "PENDING_APPROVAL":
+      return {
+        label: "Chờ duyệt",
+        className: "statusPending",
+        icon: CircleAlert,
+      };
+    case "REJECTED":
+      return {
+        label: "Bị từ chối",
+        className: "statusRejected",
+        icon: X,
+      };
+    case "ARCHIVED":
+      return {
+        label: "Lưu trữ",
+        className: "statusArchived",
+        icon: Archive,
+      };
+    case "DRAFT":
+    default:
+      return {
+        label: "Bản nháp",
+        className: "statusDraft",
+        icon: CircleDashed,
+      };
+  }
+}
+
+function getVisibilityMeta(visibility) {
+  if (visibility === "PRIVATE") {
+    return {
+      label: "Riêng tư",
+      className: "visibilityPrivate",
+      icon: Lock,
+    };
+  }
+
+  return {
+    label: "Công khai",
+    className: "visibilityPublic",
+    icon: Globe2,
+  };
+}
+
 export default function Courses() {
   const navigate = useNavigate();
-  const { listCourses } = useCourseApi();
+  const { listCourses, updateCourse, approveCourse, rejectCourse } =
+    useCourseApi();
+  const { hasRole } = useContext(AuthContext);
 
   const [courses, setCourses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -32,24 +109,23 @@ export default function Courses() {
     totalElements: 0,
     totalPages: 0,
   });
-
   const [loading, setLoading] = useState(true);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [errorText, setErrorText] = useState("");
-
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(0);
-
   const [isOpenAddModal, setIsOpenAddModal] = useState(false);
   const [isOpenEditModal, setIsOpenEditModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [isOpenDeleteModal, setIsOpenDeleteModal] = useState(false);
   const [deletingCourse, setDeletingCourse] = useState(null);
+  const [quickSavingKey, setQuickSavingKey] = useState("");
 
   useEffect(() => {
     fetchCourses(page);
-  }, [page]);
+  }, [page, statusFilter]);
 
   useEffect(() => {
     fetchCategories();
@@ -61,6 +137,8 @@ export default function Courses() {
       setErrorText("");
 
       const res = await listCourses({
+        manageOnly: true,
+        status: statusFilter,
         page: currentPage,
         size: PAGE_SIZE,
       });
@@ -99,20 +177,24 @@ export default function Courses() {
     }
   };
 
-  const categoryMap = useMemo(() => {
-    return categories.reduce((acc, item) => {
-      acc[item.id] = item.name;
-      return acc;
-    }, {});
-  }, [categories]);
+  const categoryMap = useMemo(
+    () =>
+      categories.reduce((acc, item) => {
+        acc[item.id] = item.name;
+        return acc;
+      }, {}),
+    [categories],
+  );
 
   const filteredCourses = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
     return courses.filter((course) => {
       const matchSearch =
-        !search ||
-        course?.title?.toLowerCase().includes(search.toLowerCase()) ||
-        course?.description?.toLowerCase().includes(search.toLowerCase()) ||
-        course?.instructorName?.toLowerCase().includes(search.toLowerCase());
+        !normalizedSearch ||
+        course?.title?.toLowerCase().includes(normalizedSearch) ||
+        course?.description?.toLowerCase().includes(normalizedSearch) ||
+        course?.instructorName?.toLowerCase().includes(normalizedSearch);
 
       const matchCategory =
         !selectedCategory || course?.categoryId === selectedCategory;
@@ -124,6 +206,8 @@ export default function Courses() {
   const handleResetFilter = () => {
     setSearch("");
     setSelectedCategory("");
+    setStatusFilter("");
+    setPage(0);
   };
 
   const handleCreatedCourse = async () => {
@@ -132,28 +216,73 @@ export default function Courses() {
     await fetchCategories();
   };
 
-  const handleOpenEditModal = (course) => {
-    setEditingCourse(course);
-    setIsOpenEditModal(true);
-  };
-
-  const handleOpenDeleteModal = (course) => {
-    setDeletingCourse(course);
-    setIsOpenDeleteModal(true);
-  };
-
   const handleDeletedCourse = async () => {
     if (filteredCourses.length === 1 && page > 0) {
       setPage((prev) => prev - 1);
       return;
     }
-
     await fetchCourses(page);
   };
 
   const handleUpdatedCourse = async () => {
     await fetchCourses(page);
     await fetchCategories();
+  };
+
+  const buildCoursePayload = (course, overrides = {}) => ({
+    title: course.title || "",
+    description: course.description || "",
+    thumbnailUrl: course.thumbnailUrl || "",
+    categoryId: course.categoryId || "",
+    status: course.status || "DRAFT",
+    visibility: course.visibility || "PUBLIC",
+    level: course.level || "BEGINNER",
+    estimatedHours: Number(course.estimatedHours) || 0,
+    ...overrides,
+  });
+
+  const handleQuickUpdate = async (course, field, value) => {
+    if (!course?.id || course[field] === value) return;
+
+    const savingKey = `${course.id}-${field}`;
+    try {
+      setQuickSavingKey(savingKey);
+      setErrorText("");
+      await updateCourse(course.id, buildCoursePayload(course, { [field]: value }));
+      await fetchCourses(page);
+    } catch (error) {
+      setErrorText(
+        error?.body?.message ||
+          error?.message ||
+          "Không cập nhật được khóa học.",
+      );
+    } finally {
+      setQuickSavingKey("");
+    }
+  };
+
+  const handleApproveCourse = async (courseId) => {
+    try {
+      setErrorText("");
+      await approveCourse(courseId);
+      await fetchCourses(page);
+    } catch (error) {
+      setErrorText(
+        error?.body?.message || error?.message || "Duyệt khóa học thất bại.",
+      );
+    }
+  };
+
+  const handleRejectCourse = async (courseId) => {
+    try {
+      setErrorText("");
+      await rejectCourse(courseId);
+      await fetchCourses(page);
+    } catch (error) {
+      setErrorText(
+        error?.body?.message || error?.message || "Từ chối khóa học thất bại.",
+      );
+    }
   };
 
   const getImageSrc = (thumbnailUrl) => {
@@ -164,13 +293,10 @@ export default function Courses() {
 
   return (
     <div className={styles.coursesPage}>
-      <div className={styles.heroCard}>
+      <div className={styles.headerBar}>
         <div>
-          <h1>Quản lí khóa học</h1>
-          <p>
-            Theo dõi danh sách course, tìm kiếm nhanh và quản lí nội dung học
-            tập trong hệ thống.
-          </p>
+          <h1>Quản lý khóa học</h1>
+          <p>Theo dõi, duyệt và cập nhật khóa học trong hệ thống.</p>
         </div>
 
         <button
@@ -188,147 +314,293 @@ export default function Courses() {
           <Search size={18} />
           <input
             type="text"
-            placeholder="Tìm theo tên khóa học, mô tả, giảng viên..."
+            placeholder="Tìm khóa học, mô tả, giảng viên..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
           />
         </div>
 
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className={styles.categorySelect}
-          disabled={loadingCategories}
-        >
-          <option value="">Tất cả danh mục</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
+        <div className={styles.filterBox}>
+          <SlidersHorizontal size={16} />
+          <select
+            value={selectedCategory}
+            onChange={(event) => setSelectedCategory(event.target.value)}
+            disabled={loadingCategories}
+          >
+            <option value="">Tất cả danh mục</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.filterBox}>
+          <SlidersHorizontal size={16} />
+          <select
+            value={statusFilter}
+            onChange={(event) => {
+              setPage(0);
+              setStatusFilter(event.target.value);
+            }}
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="PENDING_APPROVAL">Chờ duyệt</option>
+            <option value="PUBLISHED">Đã duyệt</option>
+            <option value="REJECTED">Bị từ chối</option>
+            <option value="DRAFT">Nháp</option>
+            <option value="ARCHIVED">Lưu trữ</option>
+          </select>
+        </div>
 
         <button
           type="button"
           className={styles.resetBtn}
           onClick={handleResetFilter}
+          title="Đặt lại bộ lọc"
+          aria-label="Đặt lại bộ lọc"
         >
-          Đặt lại
+          <RotateCcw size={16} />
         </button>
       </div>
 
-      {errorText && <div className={styles.errorBox}>{errorText}</div>}
+      {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryRow}>
-        <div className={styles.summaryCard}>
-          <span>Tổng khóa học</span>
+      <div className={styles.summaryStrip}>
+        <div>
+          <span>Tổng</span>
           <strong>{pageInfo.totalElements}</strong>
         </div>
-
-        <div className={styles.summaryCard}>
-          <span>Trang hiện tại</span>
-          <strong>{pageInfo.page + 1}</strong>
-        </div>
-
-        <div className={styles.summaryCard}>
-          <span>Hiển thị</span>
+        <div>
+          <span>Đang hiển thị</span>
           <strong>{filteredCourses.length}</strong>
+        </div>
+        <div>
+          <span>Trang</span>
+          <strong>
+            {pageInfo.page + 1}/{Math.max(pageInfo.totalPages, 1)}
+          </strong>
         </div>
       </div>
 
-      {loading ? (
-        <div className={styles.loadingBox}>Đang tải danh sách khóa học...</div>
-      ) : filteredCourses.length === 0 ? (
-        <div className={styles.emptyBox}>
-          Không có khóa học phù hợp với bộ lọc hiện tại.
-        </div>
-      ) : (
-        <div className={styles.courseGrid}>
-          {filteredCourses.map((course) => (
-            <div className={styles.courseCard} key={course.id}>
-              <div className={styles.thumbnailWrap}>
-                <img
-                  src={getImageSrc(course.thumbnailUrl)}
-                  alt={course.title}
-                  className={styles.thumbnail}
-                />
-                <span className={styles.categoryBadge}>
-                  {course.categoryName ||
-                    categoryMap[course.categoryId] ||
-                    "Chưa phân loại"}
-                </span>
-              </div>
+      <div className={styles.tableCard}>
+        {loading ? (
+          <div className={styles.stateBox}>Đang tải danh sách khóa học...</div>
+        ) : filteredCourses.length === 0 ? (
+          <div className={styles.stateBox}>
+            Không có khóa học phù hợp với bộ lọc hiện tại.
+          </div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.courseTable}>
+              <thead>
+                <tr>
+                  <th>Khóa học</th>
+                  <th>Giảng viên</th>
+                  <th>Danh mục</th>
+                  <th>Cấp độ</th>
+                  <th>Giờ</th>
+                  <th>Trạng thái</th>
+                  <th>Hiển thị</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
 
-              <div className={styles.cardBody}>
-                <h3>{course.title}</h3>
-                <p>{course.description || "Chưa có mô tả cho khóa học này."}</p>
+              <tbody>
+                {filteredCourses.map((course) => {
+                  const statusMeta = getStatusMeta(course.status || "DRAFT");
+                  const visibilityMeta = getVisibilityMeta(
+                    course.visibility || "PUBLIC",
+                  );
+                  const StatusIcon = statusMeta.icon;
+                  const VisibilityIcon = visibilityMeta.icon;
 
-                <div className={styles.statusRow}>
-                  <span className={styles.statusBadge}>
-                    {course.status || "DRAFT"}
-                  </span>
-                  <span className={styles.visibilityBadge}>
-                    {course.visibility || "PUBLIC"}
-                  </span>
-                </div>
+                  return (
+                    <tr key={course.id}>
+                      <td>
+                        <div className={styles.courseCell}>
+                          <img
+                            src={getImageSrc(course.thumbnailUrl)}
+                            alt={course.title}
+                            className={styles.thumb}
+                          />
+                          <div className={styles.courseInfo}>
+                            <strong>{course.title}</strong>
+                            <span>
+                              {course.description || "Chưa có mô tả."}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
 
-                <div className={styles.metaList}>
-                  <div className={styles.metaItem}>
-                    <User size={16} />
-                    <span>{course.instructorName || "Chưa có giảng viên"}</span>
-                  </div>
+                      <td>
+                        <span className={styles.textCell}>
+                          {course.instructorName || "Chưa có"}
+                        </span>
+                      </td>
 
-                  <div className={styles.metaItem}>
-                    <Tag size={16} />
-                    <span>
-                      {course.categoryName ||
-                        categoryMap[course.categoryId] ||
-                        "Chưa có danh mục"}
-                    </span>
-                  </div>
+                      <td>
+                        <span className={styles.categoryCell}>
+                          {course.categoryName ||
+                            categoryMap[course.categoryId] ||
+                            "Chưa phân loại"}
+                        </span>
+                      </td>
 
-                  <div className={styles.metaItem}>
-                    <BookOpen size={16} />
-                    <span>Cấp độ: {course.level || "BEGINNER"}</span>
-                  </div>
+                      <td>
+                        <span className={styles.textCell}>
+                          {course.level || "BEGINNER"}
+                        </span>
+                      </td>
 
-                  <div className={styles.metaItem}>
-                    <FileText size={16} />
-                    <span>Thời lượng: {course.estimatedHours ?? 0} giờ</span>
-                  </div>
-                </div>
+                      <td>
+                        <span className={styles.hoursCell}>
+                          <FileText size={15} />
+                          {course.estimatedHours ?? 0}
+                        </span>
+                      </td>
 
-                <div className={styles.cardActions}>
-                  <button
-                    type="button"
-                    className={styles.outlineBtn}
-                    onClick={() => navigate(`/admin/courses/${course.id}`)}
-                  >
-                    Chi tiết
-                  </button>
+                      <td>
+                        <div className={styles.quickEditControl}>
+                          <span
+                            className={`${styles.iconState} ${styles[statusMeta.className]}`}
+                            title={statusMeta.label}
+                            aria-label={statusMeta.label}
+                          >
+                            <StatusIcon size={16} />
+                          </span>
+                          <select
+                            value={course.status || "DRAFT"}
+                            onChange={(event) =>
+                              handleQuickUpdate(
+                                course,
+                                "status",
+                                event.target.value,
+                              )
+                            }
+                            disabled={
+                              !hasRole("ADMIN") ||
+                              quickSavingKey === `${course.id}-status`
+                            }
+                            title="Đổi trạng thái"
+                            aria-label="Đổi trạng thái"
+                          >
+                            {STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </td>
 
-                  <button
-                    type="button"
-                    className={styles.editBtn}
-                    onClick={() => handleOpenEditModal(course)}
-                  >
-                    Sửa
-                  </button>
+                      <td>
+                        <div className={styles.quickEditControl}>
+                          <span
+                            className={`${styles.iconState} ${styles[visibilityMeta.className]}`}
+                            title={visibilityMeta.label}
+                            aria-label={visibilityMeta.label}
+                          >
+                            <VisibilityIcon size={16} />
+                          </span>
+                          <select
+                            value={course.visibility || "PUBLIC"}
+                            onChange={(event) =>
+                              handleQuickUpdate(
+                                course,
+                                "visibility",
+                                event.target.value,
+                              )
+                            }
+                            disabled={
+                              !hasRole("ADMIN") ||
+                              quickSavingKey === `${course.id}-visibility`
+                            }
+                            title="Đổi hiển thị"
+                            aria-label="Đổi hiển thị"
+                          >
+                            {VISIBILITY_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </td>
 
-                  <button
-                    type="button"
-                    className={styles.deleteBtn}
-                    onClick={() => handleOpenDeleteModal(course)}
-                  >
-                    <Trash2 size={16} />
-                    <span>Xóa</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                      <td>
+                        <div className={styles.actionGroup}>
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            title="Chi tiết"
+                            aria-label="Chi tiết"
+                            onClick={() => navigate(`/admin/courses/${course.id}`)}
+                          >
+                            <Eye size={16} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            title="Sửa"
+                            aria-label="Sửa"
+                            onClick={() => {
+                              setEditingCourse(course);
+                              setIsOpenEditModal(true);
+                            }}
+                          >
+                            <Pencil size={16} />
+                          </button>
+
+                          {hasRole("ADMIN") && course.status !== "PUBLISHED" ? (
+                            <button
+                              type="button"
+                              className={`${styles.iconBtn} ${styles.approveAction}`}
+                              title="Duyệt"
+                              aria-label="Duyệt"
+                              onClick={() => handleApproveCourse(course.id)}
+                            >
+                              <Check size={16} />
+                            </button>
+                          ) : null}
+
+                          {hasRole("ADMIN") &&
+                          course.status === "PENDING_APPROVAL" ? (
+                            <button
+                              type="button"
+                              className={`${styles.iconBtn} ${styles.rejectAction}`}
+                              title="Từ chối"
+                              aria-label="Từ chối"
+                              onClick={() => handleRejectCourse(course.id)}
+                            >
+                              <X size={16} />
+                            </button>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            className={`${styles.iconBtn} ${styles.deleteAction}`}
+                            title="Xóa"
+                            aria-label="Xóa"
+                            onClick={() => {
+                              setDeletingCourse(course);
+                              setIsOpenDeleteModal(true);
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <div className={styles.pagination}>
         <button

@@ -7,4 +7,5 @@ import java.util.Optional;
 
 public interface AssignmentRepository extends JpaRepository<Assignment, String> {
     Optional<Assignment> findByLessonId(String lessonId);
+    Optional<Assignment> findFirstByLessonId(String lessonId);
 }

@@ -2,11 +2,13 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #f8fafc;
 }
 
 .body {
   flex: 1;
   display: flex;
+  min-height: calc(100vh - 64px);
 }
 
 .main {

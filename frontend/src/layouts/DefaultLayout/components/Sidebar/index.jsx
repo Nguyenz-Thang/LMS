@@ -16,11 +16,11 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Layers3,
   ClipboardCheck,
   Trophy,
   Library,
-  CirclePlus,
+  MessageSquare,
+  Bot,
 } from "lucide-react";
 import { useMemo, useState, useContext } from "react";
 import { AuthContext } from "../../../../context/AuthContext";
@@ -71,6 +71,16 @@ export default function Sidebar() {
         label: "Kết quả quiz",
         to: "/quiz-results",
         icon: Trophy,
+      },
+      {
+        label: "Thảo luận",
+        to: "/discussions",
+        icon: MessageSquare,
+      },
+      {
+        label: "Chatbot AI",
+        to: "/chatbot",
+        icon: Bot,
       },
     ],
     [],

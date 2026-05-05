@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ShieldCheck,
-  Plus,
-  Search,
   Pencil,
-  Trash2,
-  RefreshCw,
-  X,
+  Plus,
+  RotateCcw,
   Save,
+  Search,
+  ShieldCheck,
+  Trash2,
+  X,
 } from "lucide-react";
 import {
-  getAllRoles,
   createRole,
-  updateRole,
   deleteRole,
+  getAllRoles,
+  updateRole,
 } from "../../api/roleApi";
 import styles from "./Roles.module.scss";
 
@@ -22,7 +22,7 @@ const INITIAL_FORM = {
   description: "",
 };
 
-const SYSTEM_ROLES = ["ADMIN", "STUDENT"];
+const SYSTEM_ROLES = ["ADMIN", "INSTRUCTOR", "STUDENT"];
 
 function normalizeRole(rawRole) {
   return {
@@ -31,17 +31,29 @@ function normalizeRole(rawRole) {
   };
 }
 
+function getRoleLabel(roleName) {
+  switch (roleName) {
+    case "ADMIN":
+      return "Quản trị viên";
+    case "INSTRUCTOR":
+      return "Giảng viên";
+    case "STUDENT":
+      return "Học viên";
+    default:
+      return roleName;
+  }
+}
+
 export default function RoleManagement() {
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState("");
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingRoleName, setEditingRoleName] = useState("");
   const [form, setForm] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
-
+  const [deletingName, setDeletingName] = useState("");
   const [errorText, setErrorText] = useState("");
   const [modalErrorText, setModalErrorText] = useState("");
 
@@ -52,9 +64,9 @@ export default function RoleManagement() {
 
       const res = await getAllRoles();
       const data = Array.isArray(res?.result) ? res.result : [];
-
       setRoles(data.map(normalizeRole));
     } catch (error) {
+      setRoles([]);
       setErrorText(
         error?.response?.data?.message ||
           error?.message ||
@@ -77,10 +89,16 @@ export default function RoleManagement() {
 
       return (
         role.name.toLowerCase().includes(normalizedKeyword) ||
-        role.description.toLowerCase().includes(normalizedKeyword)
+        role.description.toLowerCase().includes(normalizedKeyword) ||
+        getRoleLabel(role.name).toLowerCase().includes(normalizedKeyword)
       );
     });
   }, [roles, keyword]);
+
+  const systemRolesCount = roles.filter((role) =>
+    SYSTEM_ROLES.includes(role.name),
+  ).length;
+  const customRolesCount = Math.max(0, roles.length - systemRolesCount);
 
   const openCreateModal = () => {
     setIsModalOpen(true);
@@ -111,8 +129,8 @@ export default function RoleManagement() {
     setModalErrorText("");
   };
 
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
+  const handleFormChange = (event) => {
+    const { name, value } = event.target;
     setForm((prev) => ({
       ...prev,
       [name]: value,
@@ -131,8 +149,8 @@ export default function RoleManagement() {
     return "";
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     const validationError = validateForm();
     if (validationError) {
@@ -172,52 +190,49 @@ export default function RoleManagement() {
 
   const handleDelete = async (role) => {
     const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa vai trò "${role.name}" không?`,
+      `Bạn có chắc muốn xóa vai trò "${getRoleLabel(role.name)}"?`,
     );
-
     if (!confirmed) return;
 
     try {
+      setDeletingName(role.name);
+      setErrorText("");
       await deleteRole(role.name);
       await fetchRoles();
     } catch (error) {
-      alert(
+      setErrorText(
         error?.response?.data?.message ||
           error?.message ||
           "Xóa vai trò thất bại.",
       );
+    } finally {
+      setDeletingName("");
     }
   };
 
-  const totalRoles = roles.length;
-  const systemRolesCount = roles.filter((role) =>
-    SYSTEM_ROLES.includes(role.name),
-  ).length;
-  const customRolesCount = Math.max(0, totalRoles - systemRolesCount);
+  const resetSearch = () => {
+    setKeyword("");
+  };
 
   return (
     <div className={styles.page}>
-      <div className={styles.headerCard}>
-        <div className={styles.headerLeft}>
-          <div className={styles.headerIcon}>
-            <ShieldCheck size={24} />
-          </div>
-
+      <div className={styles.headerBar}>
+        <div className={styles.titleGroup}>
+          <span className={styles.titleIcon}>
+            <ShieldCheck size={22} />
+          </span>
           <div>
             <h1>Quản lý vai trò</h1>
-            <p>
-              Quản lý danh sách vai trò hệ thống, tạo mới, cập nhật và kiểm soát
-              phân quyền theo vai trò.
-            </p>
+            <p>Quản lý danh sách vai trò và phân quyền trong hệ thống.</p>
           </div>
         </div>
 
         <button
           type="button"
-          className={styles.primaryBtn}
+          className={styles.addBtn}
           onClick={openCreateModal}
         >
-          <Plus size={16} />
+          <Plus size={18} />
           <span>Thêm vai trò</span>
         </button>
       </div>
@@ -227,40 +242,40 @@ export default function RoleManagement() {
           <Search size={18} />
           <input
             type="text"
-            placeholder="Tìm theo tên vai trò hoặc mô tả..."
+            placeholder="Tìm tên vai trò hoặc mô tả..."
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(event) => setKeyword(event.target.value)}
           />
         </div>
 
         <button
           type="button"
-          className={styles.refreshBtn}
-          onClick={fetchRoles}
+          className={styles.resetBtn}
+          onClick={resetSearch}
+          title="Đặt lại tìm kiếm"
+          aria-label="Đặt lại tìm kiếm"
         >
-          <RefreshCw size={16} />
-          <span>Làm mới</span>
+          <RotateCcw size={16} />
         </button>
       </div>
 
-      <div className={styles.summaryRow}>
-        <div className={styles.summaryCard}>
-          <span>Tổng vai trò</span>
-          <strong>{totalRoles}</strong>
-        </div>
+      {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-        <div className={styles.summaryCard}>
+      <div className={styles.summaryStrip}>
+        <div>
+          <span>Tổng vai trò</span>
+          <strong>{roles.length}</strong>
+        </div>
+        <div>
           <span>Vai trò hệ thống</span>
           <strong>{systemRolesCount}</strong>
         </div>
-
-        <div className={styles.summaryCard}>
+        <div>
           <span>Vai trò tùy chỉnh</span>
           <strong>{customRolesCount}</strong>
         </div>
-
-        <div className={styles.summaryCard}>
-          <span>Kết quả hiển thị</span>
+        <div>
+          <span>Đang hiển thị</span>
           <strong>{filteredRoles.length}</strong>
         </div>
       </div>
@@ -268,49 +283,54 @@ export default function RoleManagement() {
       <div className={styles.tableCard}>
         {loading ? (
           <div className={styles.stateBox}>Đang tải danh sách vai trò...</div>
-        ) : errorText ? (
-          <div className={styles.errorBox}>{errorText}</div>
         ) : filteredRoles.length === 0 ? (
-          <div className={styles.stateBox}>Không có vai trò nào phù hợp.</div>
+          <div className={styles.stateBox}>
+            Không có vai trò phù hợp với tìm kiếm hiện tại.
+          </div>
         ) : (
           <div className={styles.tableWrap}>
-            <table className={styles.table}>
+            <table className={styles.roleTable}>
               <thead>
                 <tr>
-                  <th style={{ width: "70px" }}>STT</th>
-                  <th style={{ width: "220px" }}>Tên vai trò</th>
+                  <th>Vai trò</th>
                   <th>Mô tả</th>
-                  <th style={{ width: "170px" }}>Loại</th>
-                  <th style={{ width: "230px" }}>Thao tác</th>
+                  <th>Loại</th>
+                  <th>Thao tác</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredRoles.map((role, index) => {
+                {filteredRoles.map((role) => {
                   const isSystemRole = SYSTEM_ROLES.includes(role.name);
 
                   return (
                     <tr key={role.name}>
-                      <td>{index + 1}</td>
-
                       <td>
                         <div className={styles.roleCell}>
-                          <span className={styles.roleName}>{role.name}</span>
+                          <span className={styles.roleIcon}>
+                            <ShieldCheck size={17} />
+                          </span>
+                          <div>
+                            <strong>{getRoleLabel(role.name)}</strong>
+                            <span>{role.name}</span>
+                          </div>
                         </div>
                       </td>
 
                       <td>
                         <span className={styles.descriptionText}>
-                          {role.description || "Không có mô tả"}
+                          {role.description || "Chưa có mô tả"}
                         </span>
                       </td>
 
                       <td>
-                        {isSystemRole ? (
-                          <span className={styles.typeSystem}>Hệ thống</span>
-                        ) : (
-                          <span className={styles.typeCustom}>Tùy chỉnh</span>
-                        )}
+                        <span
+                          className={
+                            isSystemRole ? styles.typeSystem : styles.typeCustom
+                          }
+                        >
+                          {isSystemRole ? "Hệ thống" : "Tùy chỉnh"}
+                        </span>
                       </td>
 
                       <td>
@@ -319,31 +339,32 @@ export default function RoleManagement() {
                             type="button"
                             className={styles.iconBtn}
                             onClick={() => openEditModal(role)}
-                            title="Chỉnh sửa"
+                            title="Sửa vai trò"
+                            aria-label="Sửa vai trò"
                           >
                             <Pencil size={16} />
-                            <span>Sửa</span>
                           </button>
 
                           {!isSystemRole ? (
                             <button
                               type="button"
-                              className={styles.dangerBtn}
+                              className={`${styles.iconBtn} ${styles.deleteAction}`}
                               onClick={() => handleDelete(role)}
+                              disabled={deletingName === role.name}
                               title="Xóa vai trò"
+                              aria-label="Xóa vai trò"
                             >
                               <Trash2 size={16} />
-                              <span>Xóa</span>
                             </button>
                           ) : (
                             <button
                               type="button"
-                              className={styles.disabledBtn}
+                              className={styles.iconBtn}
                               disabled
                               title="Không thể xóa vai trò hệ thống"
+                              aria-label="Không thể xóa vai trò hệ thống"
                             >
                               <Trash2 size={16} />
-                              <span>Khóa</span>
                             </button>
                           )}
                         </div>
@@ -358,78 +379,78 @@ export default function RoleManagement() {
       </div>
 
       {isModalOpen ? (
-        <div className={styles.modalOverlay} onClick={closeModal}>
-          <div
-            className={styles.modalCard}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className={styles.modalOverlay} role="presentation">
+          <div className={styles.modal} role="dialog" aria-modal="true">
             <div className={styles.modalHeader}>
               <div>
-                <h2>{isEditMode ? "Chỉnh sửa vai trò" : "Thêm vai trò mới"}</h2>
+                <h2>{isEditMode ? "Sửa vai trò" : "Thêm vai trò"}</h2>
                 <p>
                   {isEditMode
-                    ? "Cập nhật thông tin mô tả vai trò."
-                    : "Tạo mới một vai trò để phục vụ phân quyền hệ thống."}
+                    ? "Cập nhật mô tả vai trò."
+                    : "Tạo vai trò mới để phân quyền trong hệ thống."}
                 </p>
               </div>
 
               <button
                 type="button"
-                className={styles.closeBtn}
+                className={styles.iconBtn}
                 onClick={closeModal}
                 disabled={saving}
+                title="Đóng"
+                aria-label="Đóng"
               >
-                <X size={18} />
+                <X size={17} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className={styles.modalForm}>
-              <div className={styles.formGroup}>
-                <label htmlFor="name">Tên vai trò</label>
+            <form onSubmit={handleSubmit} className={styles.form}>
+              {modalErrorText ? (
+                <div className={styles.modalError}>{modalErrorText}</div>
+              ) : null}
+
+              <label className={styles.formGroup}>
+                <span>Tên vai trò</span>
                 <input
-                  id="name"
                   name="name"
                   value={form.name}
                   onChange={handleFormChange}
                   placeholder="Ví dụ: INSTRUCTOR"
                   disabled={isEditMode || saving}
                 />
-              </div>
+              </label>
 
-              <div className={styles.formGroup}>
-                <label htmlFor="description">Mô tả</label>
+              <label className={styles.formGroup}>
+                <span>Mô tả</span>
                 <textarea
-                  id="description"
                   name="description"
                   rows="4"
                   value={form.description}
                   onChange={handleFormChange}
-                  placeholder="Nhập mô tả vai trò..."
+                  placeholder="Nhập mô tả vai trò"
                   disabled={saving}
                 />
-              </div>
-
-              {modalErrorText ? (
-                <div className={styles.modalErrorBox}>{modalErrorText}</div>
-              ) : null}
+              </label>
 
               <div className={styles.modalActions}>
                 <button
                   type="button"
-                  className={styles.cancelBtn}
+                  className={styles.iconBtn}
                   onClick={closeModal}
                   disabled={saving}
+                  title="Hủy"
+                  aria-label="Hủy"
                 >
-                  Hủy
+                  <X size={17} />
                 </button>
 
                 <button
                   type="submit"
-                  className={styles.submitBtn}
+                  className={`${styles.iconBtn} ${styles.saveAction}`}
                   disabled={saving}
+                  title="Lưu thay đổi"
+                  aria-label="Lưu thay đổi"
                 >
-                  <Save size={16} />
-                  <span>{saving ? "Đang lưu..." : "Lưu thay đổi"}</span>
+                  <Save size={17} />
                 </button>
               </div>
             </form>

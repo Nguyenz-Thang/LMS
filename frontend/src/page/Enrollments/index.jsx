@@ -1,29 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  GraduationCap,
-  Search,
-  RefreshCw,
-  Filter,
-  BookOpen,
-  CircleCheck,
   Ban,
-  ArrowRight,
-  User,
+  BookOpen,
   CalendarDays,
+  Check,
+  Eye,
+  GraduationCap,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  UserRound,
 } from "lucide-react";
 import {
   getAllEnrollments,
   markEnrollmentAccess,
 } from "../../api/enrollmentApi";
+import { LMS_BASE_URL } from "../../api/courseApi";
 import styles from "./Enrollments.module.scss";
 
-const STATUS_OPTIONS = {
-  ALL: "ALL",
-  ACTIVE: "ACTIVE",
-  COMPLETED: "COMPLETED",
-  CANCELLED: "CANCELLED",
-};
+const STATUS_OPTIONS = [
+  { value: "ALL", label: "Tất cả trạng thái" },
+  { value: "ACTIVE", label: "Đang học" },
+  { value: "COMPLETED", label: "Hoàn thành" },
+  { value: "CANCELLED", label: "Đã hủy" },
+];
+
+const FALLBACK_THUMB =
+  "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
 
 function formatDateTime(value) {
   if (!value) return "Chưa cập nhật";
@@ -31,7 +35,13 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Chưa cập nhật";
 
-  return date.toLocaleString("vi-VN");
+  return date.toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 function normalizeEnrollment(rawEnrollment) {
@@ -39,8 +49,12 @@ function normalizeEnrollment(rawEnrollment) {
     id: rawEnrollment?.id || "",
     userId: rawEnrollment?.userId || "",
     username: rawEnrollment?.username || "Không xác định",
+    fullName: rawEnrollment?.fullName || "",
+    email: rawEnrollment?.email || "",
+    avatar: rawEnrollment?.avatar || "",
     courseId: rawEnrollment?.courseId || "",
     courseTitle: rawEnrollment?.courseTitle || "Khóa học không xác định",
+    courseThumbnailUrl: rawEnrollment?.courseThumbnailUrl || "",
     status: rawEnrollment?.status || "ACTIVE",
     progressPercent: Number(rawEnrollment?.progressPercent) || 0,
     enrolledAt: rawEnrollment?.enrolledAt || null,
@@ -48,21 +62,46 @@ function normalizeEnrollment(rawEnrollment) {
   };
 }
 
-function getStatusLabel(status) {
-  switch (status) {
-    case "COMPLETED":
-      return "Hoàn thành";
-    case "CANCELLED":
-      return "Đã hủy";
-    case "ACTIVE":
-    default:
-      return "Đang học";
+function getStatusMeta(status) {
+  if (status === "COMPLETED") {
+    return {
+      label: "Hoàn thành",
+      className: "statusCompleted",
+      icon: Check,
+    };
   }
+
+  if (status === "CANCELLED") {
+    return {
+      label: "Đã hủy",
+      className: "statusCancelled",
+      icon: Ban,
+    };
+  }
+
+  return {
+    label: "Đang học",
+    className: "statusActive",
+    icon: BookOpen,
+  };
 }
 
-function getProgressText(progressPercent) {
-  const normalized = Math.max(0, Math.min(100, Number(progressPercent) || 0));
-  return `${normalized}%`;
+function getProgressValue(progressPercent) {
+  return Math.max(0, Math.min(100, Number(progressPercent) || 0));
+}
+
+function getImageSrc(thumbnailUrl) {
+  if (!thumbnailUrl) return FALLBACK_THUMB;
+  if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
+  if (thumbnailUrl.startsWith("/")) return `${LMS_BASE_URL}${thumbnailUrl}`;
+  return `${LMS_BASE_URL}/${thumbnailUrl}`;
+}
+
+function buildImageUrl(value) {
+  if (!value) return "";
+  if (value.startsWith("http")) return value;
+  if (value.startsWith("/")) return `${LMS_BASE_URL}${value}`;
+  return `${LMS_BASE_URL}/${value}`;
 }
 
 export default function EnrollmentManagement() {
@@ -71,7 +110,7 @@ export default function EnrollmentManagement() {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState(STATUS_OPTIONS.ALL);
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [errorText, setErrorText] = useState("");
   const [accessingCourseId, setAccessingCourseId] = useState("");
 
@@ -85,6 +124,7 @@ export default function EnrollmentManagement() {
 
       setEnrollments(data.map(normalizeEnrollment));
     } catch (error) {
+      setEnrollments([]);
       setErrorText(
         error?.response?.data?.message ||
           error?.message ||
@@ -100,6 +140,8 @@ export default function EnrollmentManagement() {
   }, []);
 
   const handleViewCourse = async (enrollment) => {
+    if (!enrollment.courseId) return;
+
     try {
       setAccessingCourseId(enrollment.courseId);
 
@@ -130,46 +172,58 @@ export default function EnrollmentManagement() {
     const normalizedKeyword = keyword.trim().toLowerCase();
 
     return enrollments.filter((enrollment) => {
+      const searchableText = [
+        enrollment.courseTitle,
+        enrollment.courseId,
+        enrollment.username,
+        enrollment.fullName,
+        enrollment.email,
+        enrollment.userId,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
       const matchesKeyword =
-        !normalizedKeyword ||
-        enrollment.courseTitle.toLowerCase().includes(normalizedKeyword) ||
-        enrollment.courseId.toLowerCase().includes(normalizedKeyword) ||
-        enrollment.username.toLowerCase().includes(normalizedKeyword) ||
-        enrollment.userId.toLowerCase().includes(normalizedKeyword);
+        !normalizedKeyword || searchableText.includes(normalizedKeyword);
 
       const matchesStatus =
-        statusFilter === STATUS_OPTIONS.ALL ||
-        enrollment.status === statusFilter;
+        statusFilter === "ALL" || enrollment.status === statusFilter;
 
       return matchesKeyword && matchesStatus;
     });
   }, [enrollments, keyword, statusFilter]);
 
-  const totalCount = enrollments.length;
-  const activeCount = enrollments.filter(
-    (item) => item.status === "ACTIVE",
-  ).length;
+  const activeCount = enrollments.filter((item) => item.status === "ACTIVE").length;
   const completedCount = enrollments.filter(
     (item) => item.status === "COMPLETED",
   ).length;
-  const cancelledCount = enrollments.filter(
-    (item) => item.status === "CANCELLED",
-  ).length;
+  const averageProgress =
+    enrollments.length === 0
+      ? 0
+      : Math.round(
+          enrollments.reduce(
+            (total, item) => total + getProgressValue(item.progressPercent),
+            0,
+          ) / enrollments.length,
+        );
+
+  const resetFilters = () => {
+    setKeyword("");
+    setStatusFilter("ALL");
+  };
 
   return (
     <div className={styles.page}>
-      <div className={styles.headerCard}>
-        <div className={styles.headerLeft}>
-          <div className={styles.headerIcon}>
-            <GraduationCap size={24} />
-          </div>
+      <div className={styles.headerBar}>
+        <div className={styles.titleGroup}>
+          <span className={styles.titleIcon}>
+            <GraduationCap size={22} />
+          </span>
 
           <div>
             <h1>Quản lý đăng ký học</h1>
-            <p>
-              Theo dõi danh sách người học đã đăng ký khóa học, trạng thái học
-              tập và tiến độ hoàn thành.
-            </p>
+            <p>Theo dõi người học đã đăng ký khóa học và tiến độ học tập.</p>
           </div>
         </div>
       </div>
@@ -179,58 +233,56 @@ export default function EnrollmentManagement() {
           <Search size={18} />
           <input
             type="text"
-            placeholder="Tìm theo người học, khóa học hoặc mã..."
+            placeholder="Tìm học viên, email, khóa học hoặc mã..."
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(event) => setKeyword(event.target.value)}
           />
         </div>
 
         <div className={styles.filterBox}>
-          <div className={styles.filterLabel}>
-            <Filter size={16} />
-            <span>Trạng thái</span>
-          </div>
-
+          <SlidersHorizontal size={16} />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            aria-label="Lọc trạng thái đăng ký học"
           >
-            <option value={STATUS_OPTIONS.ALL}>Tất cả</option>
-            <option value={STATUS_OPTIONS.ACTIVE}>Đang học</option>
-            <option value={STATUS_OPTIONS.COMPLETED}>Hoàn thành</option>
-            <option value={STATUS_OPTIONS.CANCELLED}>Đã hủy</option>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
 
         <button
           type="button"
-          className={styles.refreshBtn}
-          onClick={fetchEnrollments}
+          className={styles.resetBtn}
+          onClick={resetFilters}
+          title="Đặt lại bộ lọc"
+          aria-label="Đặt lại bộ lọc"
         >
-          <RefreshCw size={16} />
-          <span>Làm mới</span>
+          <RotateCcw size={16} />
         </button>
       </div>
 
-      <div className={styles.summaryRow}>
-        <div className={styles.summaryCard}>
-          <span>Tổng đăng ký</span>
-          <strong>{totalCount}</strong>
-        </div>
+      {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-        <div className={styles.summaryCard}>
+      <div className={styles.summaryStrip}>
+        <div>
+          <span>Tổng đăng ký</span>
+          <strong>{enrollments.length}</strong>
+        </div>
+        <div>
           <span>Đang học</span>
           <strong>{activeCount}</strong>
         </div>
-
-        <div className={styles.summaryCard}>
+        <div>
           <span>Hoàn thành</span>
           <strong>{completedCount}</strong>
         </div>
-
-        <div className={styles.summaryCard}>
-          <span>Đã hủy</span>
-          <strong>{cancelledCount}</strong>
+        <div>
+          <span>Tiến độ trung bình</span>
+          <strong>{averageProgress}%</strong>
         </div>
       </div>
 
@@ -239,130 +291,124 @@ export default function EnrollmentManagement() {
           <div className={styles.stateBox}>
             Đang tải danh sách đăng ký học...
           </div>
-        ) : errorText ? (
-          <div className={styles.errorBox}>{errorText}</div>
         ) : filteredEnrollments.length === 0 ? (
-          <div className={styles.stateBox}>Không có dữ liệu phù hợp.</div>
+          <div className={styles.stateBox}>
+            Không có đăng ký học phù hợp với bộ lọc hiện tại.
+          </div>
         ) : (
           <div className={styles.tableWrap}>
-            <table className={styles.table}>
+            <table className={styles.enrollmentTable}>
               <thead>
                 <tr>
-                  <th style={{ width: "70px" }}>STT</th>
-                  <th style={{ width: "220px" }}>Người học</th>
+                  <th>Học viên</th>
                   <th>Khóa học</th>
-                  <th style={{ width: "180px" }}>Trạng thái</th>
-                  <th style={{ width: "220px" }}>Tiến độ</th>
-                  <th style={{ width: "190px" }}>Ngày đăng ký</th>
-                  <th style={{ width: "190px" }}>Truy cập gần nhất</th>
-                  <th style={{ width: "180px" }}>Thao tác</th>
+                  <th>Trạng thái</th>
+                  <th>Tiến độ</th>
+                  <th>Ngày đăng ký</th>
+                  <th>Truy cập gần nhất</th>
+                  <th>Thao tác</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredEnrollments.map((enrollment, index) => (
-                  <tr key={enrollment.id}>
-                    <td>{index + 1}</td>
+                {filteredEnrollments.map((enrollment) => {
+                  const statusMeta = getStatusMeta(enrollment.status);
+                  const StatusIcon = statusMeta.icon;
+                  const progress = getProgressValue(enrollment.progressPercent);
 
-                    <td>
-                      <div className={styles.userCell}>
-                        <div className={styles.userNameRow}>
-                          <User size={14} />
-                          <span className={styles.userName}>
-                            {enrollment.username}
+                  return (
+                    <tr key={enrollment.id}>
+                      <td>
+                        <div className={styles.userCell}>
+                          <span className={styles.userIcon}>
+                            {enrollment.avatar ? (
+                              <img
+                                src={buildImageUrl(enrollment.avatar)}
+                                alt={enrollment.fullName || enrollment.username}
+                              />
+                            ) : (
+                              <UserRound size={17} />
+                            )}
                           </span>
+                          <div>
+                            <strong>
+                              {enrollment.fullName || enrollment.username}
+                            </strong>
+                            <span>
+                              {enrollment.email || enrollment.username}
+                            </span>
+                          </div>
                         </div>
-                        <span className={styles.userId}>
-                          {enrollment.userId || "Không có mã"}
-                        </span>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td>
-                      <div className={styles.courseCell}>
-                        <span className={styles.courseTitle}>
-                          {enrollment.courseTitle}
-                        </span>
-                        <span className={styles.courseId}>
-                          {enrollment.courseId}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td>
-                      {enrollment.status === "COMPLETED" ? (
-                        <span className={styles.statusCompleted}>
-                          <CircleCheck size={14} />
-                          <span>{getStatusLabel(enrollment.status)}</span>
-                        </span>
-                      ) : enrollment.status === "CANCELLED" ? (
-                        <span className={styles.statusCancelled}>
-                          <Ban size={14} />
-                          <span>{getStatusLabel(enrollment.status)}</span>
-                        </span>
-                      ) : (
-                        <span className={styles.statusActive}>
-                          <BookOpen size={14} />
-                          <span>{getStatusLabel(enrollment.status)}</span>
-                        </span>
-                      )}
-                    </td>
-
-                    <td>
-                      <div className={styles.progressCell}>
-                        <div className={styles.progressTrack}>
-                          <div
-                            className={styles.progressBar}
-                            style={{
-                              width: `${Math.max(
-                                0,
-                                Math.min(
-                                  100,
-                                  Number(enrollment.progressPercent) || 0,
-                                ),
-                              )}%`,
-                            }}
+                      <td>
+                        <div className={styles.courseCell}>
+                          <img
+                            src={getImageSrc(enrollment.courseThumbnailUrl)}
+                            alt={enrollment.courseTitle}
+                            className={styles.thumb}
                           />
+                          <div>
+                            <strong>{enrollment.courseTitle}</strong>
+                            <span>{enrollment.courseId || "Chưa có mã"}</span>
+                          </div>
                         </div>
-                        <span className={styles.progressText}>
-                          {getProgressText(enrollment.progressPercent)}
-                        </span>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td>
-                      <div className={styles.timeCell}>
-                        <CalendarDays size={14} />
-                        <span>{formatDateTime(enrollment.enrolledAt)}</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className={styles.timeCell}>
-                        <CalendarDays size={14} />
-                        <span>{formatDateTime(enrollment.lastAccessedAt)}</span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className={styles.actionGroup}>
-                        <button
-                          type="button"
-                          className={styles.primaryActionBtn}
-                          onClick={() => handleViewCourse(enrollment)}
-                          disabled={accessingCourseId === enrollment.courseId}
+                      <td>
+                        <span
+                          className={`${styles.statusBadge} ${
+                            styles[statusMeta.className]
+                          }`}
                         >
-                          <ArrowRight size={16} />
-                          <span>
-                            {accessingCourseId === enrollment.courseId
-                              ? "Đang mở..."
-                              : "Xem khóa học"}
-                          </span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <StatusIcon size={15} />
+                          {statusMeta.label}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className={styles.progressCell}>
+                          <div className={styles.progressTrack}>
+                            <div
+                              className={styles.progressBar}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <span>{progress}%</span>
+                        </div>
+                      </td>
+
+                      <td>
+                        <span className={styles.timeCell}>
+                          <CalendarDays size={14} />
+                          {formatDateTime(enrollment.enrolledAt)}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className={styles.timeCell}>
+                          <CalendarDays size={14} />
+                          {formatDateTime(enrollment.lastAccessedAt)}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className={styles.actionGroup}>
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            onClick={() => handleViewCourse(enrollment)}
+                            disabled={accessingCourseId === enrollment.courseId}
+                            title="Xem khóa học"
+                            aria-label="Xem khóa học"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

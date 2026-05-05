@@ -48,6 +48,20 @@ public class CourseController {
                 .build();
     }
 
+    @PostMapping("/{id}/approve")
+    public ApiResponse<CourseResponse> approve(@PathVariable String id) {
+        return ApiResponse.<CourseResponse>builder()
+                .result(courseService.approveCourse(id))
+                .build();
+    }
+
+    @PostMapping("/{id}/reject")
+    public ApiResponse<CourseResponse> reject(@PathVariable String id) {
+        return ApiResponse.<CourseResponse>builder()
+                .result(courseService.rejectCourse(id))
+                .build();
+    }
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable String id) {
         courseService.deleteCourse(id);
@@ -57,11 +71,13 @@ public class CourseController {
     @GetMapping
     public ApiResponse<PageResponse<CourseResponse>> getCourses(
             @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "false") boolean manageOnly,
+            @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size
     ) {
         return ApiResponse.<PageResponse<CourseResponse>>builder()
-                .result(courseService.getCoursesPage(keyword, page, size))
+                .result(courseService.getCoursesPage(keyword, manageOnly, status, page, size))
                 .build();
     }
 }

@@ -1,7 +1,11 @@
 package com.nt.lms.service;
 
 import com.nt.lms.dto.request.CourseRequest;
-import com.nt.lms.dto.response.*;
+import com.nt.lms.dto.response.CourseCurriculumResponse;
+import com.nt.lms.dto.response.CourseResponse;
+import com.nt.lms.dto.response.CurriculumLessonResponse;
+import com.nt.lms.dto.response.CurriculumSectionResponse;
+import com.nt.lms.dto.response.PageResponse;
 import com.nt.lms.entity.Assignment;
 import com.nt.lms.entity.Category;
 import com.nt.lms.entity.Course;
@@ -13,18 +17,26 @@ import com.nt.lms.enums.LessonType;
 import com.nt.lms.exception.AppException;
 import com.nt.lms.exception.ErrorCode;
 import com.nt.lms.mapper.CourseMapper;
-import com.nt.lms.repository.*;
+import com.nt.lms.repository.AssignmentRepository;
+import com.nt.lms.repository.CategoryRepository;
+import com.nt.lms.repository.CourseRepository;
+import com.nt.lms.repository.EnrollmentRepository;
+import com.nt.lms.repository.LessonRepository;
+import com.nt.lms.repository.QuizRepository;
+import com.nt.lms.repository.SectionRepository;
+import com.nt.lms.repository.UserRepository;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -35,17 +47,15 @@ public class CourseService {
     CategoryRepository categoryRepository;
     UserRepository userRepository;
     CourseMapper courseMapper;
+    EnrollmentRepository enrollmentRepository;
     SectionRepository sectionRepository;
     LessonRepository lessonRepository;
     QuizRepository quizRepository;
     AssignmentRepository assignmentRepository;
 
     public CourseResponse createCourse(CourseRequest request) {
-        String username = SecurityContextHolder.getContext()
-                .getAuthentication().getName();
-
-        User instructor = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        User currentUser = getCurrentUser();
+        boolean isAdmin = hasRole(currentUser, "ADMIN");
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_EXISTED));
@@ -54,10 +64,10 @@ public class CourseService {
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .thumbnailUrl(request.getThumbnailUrl())
-                .instructor(instructor)
+                .instructor(currentUser)
                 .category(category)
-                .status(request.getStatus() == null ? "DRAFT" : request.getStatus())
-                .visibility(request.getVisibility() == null ? "PUBLIC" : request.getVisibility())
+                .status(isAdmin ? defaultStatus(request.getStatus()) : "PENDING_APPROVAL")
+                .visibility(isAdmin ? defaultVisibility(request.getVisibility()) : "PRIVATE")
                 .level(request.getLevel() == null ? "BEGINNER" : request.getLevel())
                 .estimatedHours(request.getEstimatedHours() == null ? 0 : request.getEstimatedHours())
                 .build();
@@ -66,7 +76,7 @@ public class CourseService {
     }
 
     public List<CourseResponse> getCourses() {
-        return courseRepository.findAll()
+        return filterAccessibleCourses(null, false, null)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -75,20 +85,19 @@ public class CourseService {
     public CourseResponse getCourse(String id) {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
+        ensureCanViewCourse(course);
 
         return mapToResponse(course);
     }
 
     public CourseResponse getCourseById(String id) {
-        Course course = courseRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
-
-        return mapToResponse(course);
+        return getCourse(id);
     }
 
     public CourseCurriculumResponse getCourseCurriculum(String id) {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
+        ensureCanViewCourse(course);
 
         List<Section> sections = sectionRepository.findByCourseOrderByOrderIndexAsc(course);
 
@@ -158,6 +167,7 @@ public class CourseService {
                 .thumbnailUrl(course.getThumbnailUrl())
                 .instructorId(course.getInstructor() != null ? course.getInstructor().getId() : null)
                 .instructorName(getInstructorDisplayName(course))
+                .instructorAvatar(course.getInstructor() != null ? course.getInstructor().getAvatar() : null)
                 .categoryId(course.getCategory() != null ? course.getCategory().getId() : null)
                 .categoryName(course.getCategory() != null ? course.getCategory().getName() : null)
                 .status(course.getStatus())
@@ -172,12 +182,20 @@ public class CourseService {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
 
+        User currentUser = getCurrentUser();
+        boolean isAdmin = hasRole(currentUser, "ADMIN");
+        ensureCanManageCourse(course, currentUser, isAdmin);
+
         courseRepository.delete(course);
     }
 
     public CourseResponse updateCourse(String id, CourseRequest request) {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
+
+        User currentUser = getCurrentUser();
+        boolean isAdmin = hasRole(currentUser, "ADMIN");
+        ensureCanManageCourse(course, currentUser, isAdmin);
 
         if (request.getCategoryId() != null) {
             Category category = categoryRepository.findById(request.getCategoryId())
@@ -197,14 +215,6 @@ public class CourseService {
             course.setThumbnailUrl(request.getThumbnailUrl());
         }
 
-        if (request.getStatus() != null) {
-            course.setStatus(request.getStatus());
-        }
-
-        if (request.getVisibility() != null) {
-            course.setVisibility(request.getVisibility());
-        }
-
         if (request.getLevel() != null) {
             course.setLevel(request.getLevel());
         }
@@ -213,28 +223,51 @@ public class CourseService {
             course.setEstimatedHours(request.getEstimatedHours());
         }
 
+        if (isAdmin) {
+            if (request.getStatus() != null) {
+                course.setStatus(request.getStatus());
+            }
+            if (request.getVisibility() != null) {
+                course.setVisibility(request.getVisibility());
+            }
+        } else {
+            course.setStatus("PENDING_APPROVAL");
+            course.setVisibility("PRIVATE");
+        }
+
         return mapToResponse(courseRepository.save(course));
     }
 
-    public Page<Course> getCourses(String keyword, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+    public CourseResponse approveCourse(String id) {
+        User currentUser = getCurrentUser();
+        ensureAdmin(currentUser);
 
-        if (keyword != null && !keyword.isBlank()) {
-            return courseRepository.findByTitleContainingIgnoreCase(keyword, pageable);
-        }
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
+        course.setStatus("PUBLISHED");
+        course.setVisibility("PUBLIC");
 
-        return courseRepository.findAll(pageable);
+        return mapToResponse(courseRepository.save(course));
     }
 
-    public PageResponse<CourseResponse> getCoursesPage(String keyword, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+    public CourseResponse rejectCourse(String id) {
+        User currentUser = getCurrentUser();
+        ensureAdmin(currentUser);
 
-        Page<Course> coursePage;
-        if (keyword != null && !keyword.isBlank()) {
-            coursePage = courseRepository.findByTitleContainingIgnoreCase(keyword, pageable);
-        } else {
-            coursePage = courseRepository.findAll(pageable);
-        }
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
+        course.setStatus("REJECTED");
+        course.setVisibility("PRIVATE");
+
+        return mapToResponse(courseRepository.save(course));
+    }
+
+    public Page<Course> getCourses(String keyword, boolean manageOnly, String status, int page, int size) {
+        return paginate(filterAccessibleCourses(keyword, manageOnly, status), page, size);
+    }
+
+    public PageResponse<CourseResponse> getCoursesPage(String keyword, boolean manageOnly, String status, int page, int size) {
+        Page<Course> coursePage = paginate(filterAccessibleCourses(keyword, manageOnly, status), page, size);
 
         return PageResponse.<CourseResponse>builder()
                 .content(coursePage.getContent().stream()
@@ -255,12 +288,14 @@ public class CourseService {
                 .thumbnailUrl(course.getThumbnailUrl())
                 .instructorId(course.getInstructor() != null ? course.getInstructor().getId() : null)
                 .instructorName(getInstructorDisplayName(course))
+                .instructorAvatar(course.getInstructor() != null ? course.getInstructor().getAvatar() : null)
                 .categoryId(course.getCategory() != null ? course.getCategory().getId() : null)
                 .categoryName(course.getCategory() != null ? course.getCategory().getName() : null)
                 .status(course.getStatus())
                 .visibility(course.getVisibility())
                 .level(course.getLevel())
                 .estimatedHours(course.getEstimatedHours())
+                .enrollmentCount(enrollmentRepository.countByCourseId(course.getId()))
                 .build();
     }
 
@@ -274,5 +309,106 @@ public class CourseService {
         }
 
         return course.getInstructor().getUsername();
+    }
+
+    private List<Course> filterAccessibleCourses(String keyword, boolean manageOnly, String status) {
+        User currentUser = getCurrentUser();
+        boolean isAdmin = hasRole(currentUser, "ADMIN");
+        boolean isInstructor = hasRole(currentUser, "INSTRUCTOR");
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
+        String normalizedStatus = status == null ? "" : status.trim().toUpperCase();
+
+        return courseRepository.findAll().stream()
+                .filter(course -> {
+                    if (isAdmin) {
+                        return true;
+                    }
+
+                    if (manageOnly) {
+                        return isInstructor && isOwner(course, currentUser);
+                    }
+
+                    boolean ownedByInstructor = isInstructor && isOwner(course, currentUser);
+                    return ownedByInstructor || isApprovedForStudents(course);
+                })
+                .filter(course -> !manageOnly || isAdmin || isOwner(course, currentUser))
+                .filter(course -> normalizedStatus.isBlank() || normalizedStatus.equalsIgnoreCase(safeText(course.getStatus()).toUpperCase()))
+                .filter(course -> normalizedKeyword.isBlank()
+                        || safeText(course.getTitle()).contains(normalizedKeyword)
+                        || safeText(course.getDescription()).contains(normalizedKeyword)
+                        || safeText(getInstructorDisplayName(course)).contains(normalizedKeyword)
+                        || safeText(course.getCategory() != null ? course.getCategory().getName() : null).contains(normalizedKeyword))
+                .toList();
+    }
+
+    private Page<Course> paginate(List<Course> courses, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        int start = Math.min((int) pageable.getOffset(), courses.size());
+        int end = Math.min(start + pageable.getPageSize(), courses.size());
+        List<Course> content = start <= end ? new ArrayList<>(courses.subList(start, end)) : List.of();
+        return new PageImpl<>(content, pageable, courses.size());
+    }
+
+    private void ensureCanViewCourse(Course course) {
+        User currentUser = getCurrentUser();
+        if (hasRole(currentUser, "ADMIN")) {
+            return;
+        }
+        if (hasRole(currentUser, "INSTRUCTOR") && isOwner(course, currentUser)) {
+            return;
+        }
+        if (!isApprovedForStudents(course)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+    }
+
+    private void ensureCanManageCourse(Course course, User currentUser, boolean isAdmin) {
+        if (isAdmin) {
+            return;
+        }
+        if (!isOwner(course, currentUser)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+    }
+
+    private void ensureAdmin(User user) {
+        if (!hasRole(user, "ADMIN")) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+    }
+
+    private User getCurrentUser() {
+        String username = SecurityContextHolder.getContext()
+                .getAuthentication().getName();
+
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    }
+
+    private boolean hasRole(User user, String roleName) {
+        return user.getRoles() != null && user.getRoles().stream().anyMatch(role -> roleName.equals(role.getName()));
+    }
+
+    private boolean isOwner(Course course, User user) {
+        return course.getInstructor() != null
+                && user != null
+                && Objects.equals(course.getInstructor().getId(), user.getId());
+    }
+
+    private boolean isApprovedForStudents(Course course) {
+        return "PUBLISHED".equalsIgnoreCase(course.getStatus())
+                && "PUBLIC".equalsIgnoreCase(course.getVisibility());
+    }
+
+    private String defaultStatus(String status) {
+        return status == null || status.isBlank() ? "DRAFT" : status.trim();
+    }
+
+    private String defaultVisibility(String visibility) {
+        return visibility == null || visibility.isBlank() ? "PUBLIC" : visibility.trim();
+    }
+
+    private String safeText(String value) {
+        return value == null ? "" : value.toLowerCase();
     }
 }

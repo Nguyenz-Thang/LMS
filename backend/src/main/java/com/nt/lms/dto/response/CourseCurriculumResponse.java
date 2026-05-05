@@ -18,6 +18,7 @@ public class CourseCurriculumResponse {
 
     String instructorId;
     String instructorName;
+    String instructorAvatar;
 
     String categoryId;
     String categoryName;

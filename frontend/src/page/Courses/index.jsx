@@ -1,99 +1,80 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  GraduationCap,
-  Search,
-  RefreshCw,
-  ArrowRight,
-  BookOpen,
-  Layers3,
-  Clock3,
-  CircleCheck,
-} from "lucide-react";
-import { useCourseApi } from "../../api/courseApi";
-import { enrollCourse, getMyEnrollments } from "../../api/enrollmentApi";
+import { Search } from "lucide-react";
 import styles from "./Courses.module.scss";
+import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
+import { useLearningApi } from "../../api/learningApi";
+import CourseShowcaseCard from "../../components/CourseShowcaseCard";
 
-function normalizeCourse(rawCourse) {
+const PAGE_SIZE = 8;
+
+function buildCourseStats(curriculum) {
+  const sections = curriculum?.sections || [];
+
+  let totalLessons = 0;
+  let totalDurationMinutes = 0;
+
+  sections.forEach((section) => {
+    const lessons = section?.lessons || [];
+    totalLessons += section?.totalLessons || lessons.length || 0;
+    totalDurationMinutes += section?.totalDurationMinutes || 0;
+  });
+
   return {
-    id: rawCourse?.id || "",
-    title: rawCourse?.title || "Khóa học không xác định",
-    description: rawCourse?.description || "",
-    thumbnailUrl: rawCourse?.thumbnailUrl || "",
-    instructorName: rawCourse?.instructorName || "Chưa cập nhật",
-    categoryName: rawCourse?.categoryName || "Chưa phân loại",
-    status: rawCourse?.status || "DRAFT",
-    visibility: rawCourse?.visibility || "PUBLIC",
-    level: rawCourse?.level || "BEGINNER",
-    estimatedHours: Number(rawCourse?.estimatedHours) || 0,
+    sectionCount: sections.length,
+    totalLessons,
+    totalDurationMinutes,
   };
-}
-
-function getLevelLabel(level) {
-  switch (level) {
-    case "ADVANCED":
-      return "Nâng cao";
-    case "INTERMEDIATE":
-      return "Trung cấp";
-    case "BEGINNER":
-    default:
-      return "Cơ bản";
-  }
 }
 
 export default function Courses() {
   const navigate = useNavigate();
-  const { listCourses } = useCourseApi();
+  const { listCourses, getCourseCurriculum } = useCourseApi();
+  const { getLearningCourse } = useLearningApi();
 
   const [courses, setCourses] = useState([]);
-  const [myCourseIds, setMyCourseIds] = useState([]);
-  const [inputKeyword, setInputKeyword] = useState("");
-  const [keyword, setKeyword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [enrollingId, setEnrollingId] = useState("");
+  const [courseStatsMap, setCourseStatsMap] = useState({});
+  const [pageInfo, setPageInfo] = useState({
+    page: 0,
+    size: PAGE_SIZE,
+    totalElements: 0,
+    totalPages: 0,
+  });
+  const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
-
+  const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(0);
-  const [size] = useState(6);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
+  const [openingCourseId, setOpeningCourseId] = useState("");
 
-  const fetchMyEnrollments = async () => {
-    try {
-      const res = await getMyEnrollments();
-      const items = Array.isArray(res?.result) ? res.result : [];
-      setMyCourseIds(items.map((item) => item?.courseId).filter(Boolean));
-    } catch (error) {
-      console.error("Fetch my enrollments error:", error);
-    }
-  };
+  useEffect(() => {
+    fetchCourses(page);
+  }, [page]);
 
-  const fetchCourses = async (nextPage = page, nextKeyword = keyword) => {
+  const fetchCourses = async (currentPage = 0) => {
     try {
       setLoading(true);
       setErrorText("");
 
       const res = await listCourses({
-        keyword: nextKeyword || "",
-        page: nextPage,
-        size,
+        page: currentPage,
+        size: PAGE_SIZE,
       });
 
-      const pageData = res?.result || {};
-      const content = Array.isArray(pageData?.content) ? pageData.content : [];
+      const payload = res?.result || {};
+      const content = Array.isArray(payload?.content) ? payload.content : [];
 
-      const studentVisibleCourses = content
-        .map(normalizeCourse)
-        .filter(
-          (course) =>
-            course.status === "PUBLISHED" && course.visibility !== "PRIVATE",
-        );
+      setCourses(content);
+      setPageInfo({
+        page: payload?.page ?? 0,
+        size: payload?.size ?? PAGE_SIZE,
+        totalElements: payload?.totalElements ?? 0,
+        totalPages: payload?.totalPages ?? 0,
+      });
 
-      setCourses(studentVisibleCourses);
-      setPage(Number(pageData?.page) || 0);
-      setTotalPages(Number(pageData?.totalPages) || 0);
-      setTotalElements(Number(pageData?.totalElements) || 0);
+      await fetchCurriculumStats(content);
     } catch (error) {
+      setCourses([]);
+      setCourseStatsMap({});
       setErrorText(
         error?.body?.message ||
           error?.message ||
@@ -104,253 +85,147 @@ export default function Courses() {
     }
   };
 
-  useEffect(() => {
-    fetchCourses(0, "");
-    fetchMyEnrollments();
-  }, []);
+  const fetchCurriculumStats = async (courseList) => {
+    if (!Array.isArray(courseList) || courseList.length === 0) {
+      setCourseStatsMap({});
+      return;
+    }
 
-  const publishedCourses = useMemo(
-    () => courses.filter((course) => course.status === "PUBLISHED"),
-    [courses],
-  );
+    const statsEntries = await Promise.all(
+      courseList.map(async (course) => {
+        try {
+          const res = await getCourseCurriculum(course.id);
+          return [course.id, buildCourseStats(res?.result || null)];
+        } catch {
+          return [
+            course.id,
+            {
+              sectionCount: 0,
+              totalLessons: 0,
+              totalDurationMinutes: 0,
+            },
+          ];
+        }
+      }),
+    );
 
-  const enrolledVisibleCount = useMemo(
-    () => courses.filter((course) => myCourseIds.includes(course.id)).length,
-    [courses, myCourseIds],
-  );
-
-  const handleSearch = () => {
-    const nextKeyword = inputKeyword.trim();
-    setKeyword(nextKeyword);
-    fetchCourses(0, nextKeyword);
+    setCourseStatsMap(Object.fromEntries(statsEntries));
   };
 
-  const handleRefresh = () => {
-    setInputKeyword("");
-    setKeyword("");
-    fetchCourses(0, "");
-    fetchMyEnrollments();
-  };
+  const visibleCourses = useMemo(() => {
+    const text = keyword.trim().toLowerCase();
+    if (!text) return courses;
 
-  const handleEnroll = async (course) => {
-    try {
-      setEnrollingId(course.id);
-      await enrollCourse({ courseId: course.id });
-      await fetchMyEnrollments();
-    } catch (error) {
-      alert(
-        error?.response?.data?.message ||
-          error?.body?.message ||
-          error?.message ||
-          "Đăng ký khóa học thất bại.",
+    return courses.filter((course) => {
+      return (
+        course?.title?.toLowerCase().includes(text) ||
+        course?.description?.toLowerCase().includes(text) ||
+        course?.instructorName?.toLowerCase().includes(text) ||
+        course?.categoryName?.toLowerCase().includes(text)
       );
+    });
+  }, [courses, keyword]);
+
+  const handleOpenCourse = async (courseId) => {
+    try {
+      setOpeningCourseId(courseId);
+      const res = await getLearningCourse(courseId);
+      const learningData = res?.result || null;
+
+      if (learningData?.enrolled && learningData?.currentLessonId) {
+        navigate(`/learning/${courseId}/${learningData.currentLessonId}`);
+        return;
+      }
+
+      if (learningData?.enrolled) {
+        navigate(`/learning/${courseId}`);
+        return;
+      }
+
+      navigate(`/courses/${courseId}`);
+    } catch {
+      navigate(`/courses/${courseId}`);
     } finally {
-      setEnrollingId("");
+      setOpeningCourseId("");
     }
   };
 
   return (
     <div className={styles.page}>
-      <div className={styles.headerCard}>
-        <div className={styles.headerLeft}>
-          <div className={styles.headerIcon}>
-            <GraduationCap size={24} />
-          </div>
-
-          <div>
-            <h1>Khóa học</h1>
-            <p>
-              Xem danh sách khóa học đang mở, tìm kiếm nhanh và đăng ký học trực
-              tiếp.
-            </p>
-          </div>
+      <div className={styles.headerBlock}>
+        <div>
+          <h1>Khóa học</h1>
+          <p>
+            Chọn một khóa học phù hợp với mục tiêu hiện tại và vào thẳng phần học
+            hoặc xem chi tiết.
+          </p>
         </div>
-      </div>
 
-      <div className={styles.toolbar}>
         <div className={styles.searchBox}>
           <Search size={18} />
           <input
             type="text"
-            placeholder="Tìm theo tên khóa học..."
-            value={inputKeyword}
-            onChange={(e) => setInputKeyword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSearch();
-              }
-            }}
+            placeholder="Tìm theo tên khóa học, giảng viên, danh mục..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
           />
         </div>
-
-        <button
-          type="button"
-          className={styles.primaryBtn}
-          onClick={handleSearch}
-        >
-          <Search size={16} />
-          <span>Tìm kiếm</span>
-        </button>
-
-        <button
-          type="button"
-          className={styles.refreshBtn}
-          onClick={handleRefresh}
-        >
-          <RefreshCw size={16} />
-          <span>Làm mới</span>
-        </button>
       </div>
 
-      <div className={styles.summaryRow}>
-        <div className={styles.summaryCard}>
-          <span>Tổng khóa học</span>
-          <strong>{totalElements}</strong>
-        </div>
-
-        <div className={styles.summaryCard}>
-          <span>Đang hiển thị</span>
-          <strong>{courses.length}</strong>
-        </div>
-
-        <div className={styles.summaryCard}>
-          <span>Đã publish</span>
-          <strong>{publishedCourses.length}</strong>
-        </div>
-
-        <div className={styles.summaryCard}>
-          <span>Đã đăng ký</span>
-          <strong>{enrolledVisibleCount}</strong>
-        </div>
-      </div>
+      {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
       {loading ? (
         <div className={styles.stateBox}>Đang tải danh sách khóa học...</div>
-      ) : errorText ? (
-        <div className={styles.errorBox}>{errorText}</div>
-      ) : courses.length === 0 ? (
-        <div className={styles.stateBox}>Không có khóa học phù hợp.</div>
+      ) : visibleCourses.length === 0 ? (
+        <div className={styles.stateBox}>
+          Không có khóa học phù hợp với từ khóa hiện tại.
+        </div>
       ) : (
-        <>
-          <div className={styles.grid}>
-            {courses.map((course) => {
-              const isEnrolled = myCourseIds.includes(course.id);
-
-              return (
-                <div key={course.id} className={styles.courseCard}>
-                  <div className={styles.thumbnailWrap}>
-                    {course.thumbnailUrl ? (
-                      <img
-                        src={course.thumbnailUrl}
-                        alt={course.title}
-                        className={styles.thumbnail}
-                      />
-                    ) : (
-                      <div className={styles.thumbnailPlaceholder}>
-                        <BookOpen size={28} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={styles.cardBody}>
-                    <div className={styles.badgeRow}>
-                      <span className={styles.statusBadge}>
-                        {course.status}
-                      </span>
-                      <span className={styles.levelBadge}>
-                        {getLevelLabel(course.level)}
-                      </span>
-                    </div>
-
-                    <h3>{course.title}</h3>
-
-                    <p className={styles.description}>
-                      {course.description || "Chưa có mô tả khóa học."}
-                    </p>
-
-                    <div className={styles.metaList}>
-                      <div className={styles.metaItem}>
-                        <Layers3 size={15} />
-                        <span>{course.categoryName}</span>
-                      </div>
-
-                      <div className={styles.metaItem}>
-                        <Clock3 size={15} />
-                        <span>{course.estimatedHours} giờ</span>
-                      </div>
-
-                      <div className={styles.metaItem}>
-                        <BookOpen size={15} />
-                        <span>{course.instructorName}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={styles.cardActions}>
-                    <button
-                      type="button"
-                      className={styles.viewBtn}
-                      onClick={() => navigate(`/courses/${course.id}`)}
-                    >
-                      <ArrowRight size={16} />
-                      <span>Xem chi tiết</span>
-                    </button>
-
-                    {isEnrolled ? (
-                      <button
-                        type="button"
-                        className={styles.enrolledBtn}
-                        onClick={() => navigate("/my-courses")}
-                      >
-                        <CircleCheck size={16} />
-                        <span>Đã đăng ký</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className={styles.enrollBtn}
-                        onClick={() => handleEnroll(course)}
-                        disabled={enrollingId === course.id}
-                      >
-                        <GraduationCap size={16} />
-                        <span>
-                          {enrollingId === course.id
-                            ? "Đang đăng ký..."
-                            : "Đăng ký học"}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className={styles.pagination}>
-            <button
-              type="button"
-              className={styles.pageBtn}
-              disabled={page <= 0}
-              onClick={() => fetchCourses(page - 1, keyword)}
-            >
-              Trước
-            </button>
-
-            <span className={styles.pageInfo}>
-              Trang {page + 1} / {Math.max(totalPages, 1)}
-            </span>
-
-            <button
-              type="button"
-              className={styles.pageBtn}
-              disabled={page + 1 >= totalPages}
-              onClick={() => fetchCourses(page + 1, keyword)}
-            >
-              Sau
-            </button>
-          </div>
-        </>
+        <div className={styles.courseGrid}>
+          {visibleCourses.map((course) => (
+            <div key={course.id} className={styles.cardShell}>
+              <CourseShowcaseCard
+                course={course}
+                stats={courseStatsMap[course.id]}
+                baseUrl={LMS_BASE_URL}
+                onClick={() => handleOpenCourse(course.id)}
+                busy={openingCourseId === course.id}
+              />
+            </div>
+          ))}
+        </div>
       )}
+
+      <div className={styles.pagination}>
+        <button
+          type="button"
+          className={styles.pageBtn}
+          onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
+          disabled={page === 0}
+        >
+          Trước
+        </button>
+
+        <div className={styles.pageInfo}>
+          Trang <strong>{pageInfo.page + 1}</strong> /{" "}
+          <strong>{Math.max(pageInfo.totalPages, 1)}</strong>
+        </div>
+
+        <button
+          type="button"
+          className={styles.pageBtn}
+          onClick={() =>
+            setPage((prev) =>
+              prev + 1 < pageInfo.totalPages ? prev + 1 : prev,
+            )
+          }
+          disabled={
+            pageInfo.totalPages === 0 || page + 1 >= pageInfo.totalPages
+          }
+        >
+          Sau
+        </button>
+      </div>
     </div>
   );
 }

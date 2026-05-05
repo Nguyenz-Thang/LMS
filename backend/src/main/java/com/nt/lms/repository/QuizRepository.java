@@ -9,6 +9,9 @@ import java.util.Optional;
 public interface QuizRepository extends JpaRepository<Quiz, String> {
 
     Optional<Quiz> findByLessonId(String lessonId);
+    Optional<Quiz> findFirstByLessonId(String lessonId);
 
     List<Quiz> findAllByOrderByIdDesc();
+    List<Quiz> findByCourseIsNullAndLessonIsNullOrderByIdDesc();
+    List<Quiz> findByCourseIsNullAndLessonIsNullAndIsPublishedTrueOrderByIdDesc();
 }

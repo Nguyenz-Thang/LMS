@@ -8,15 +8,148 @@
   margin-bottom: 18px;
 }
 
+.courseTableCard {
+  background: #fff;
+  border: 1px solid #e5eaf2;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.tableHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+
+  h1 {
+    margin: 0 0 4px;
+    color: #0f172a;
+    font-size: 24px;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+  }
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.courseOverviewWrap {
+  overflow-x: auto;
+}
+
+.courseOverviewTable {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  overflow: hidden;
+
+  thead {
+    background: #f8fafc;
+  }
+
+  th,
+  td {
+    padding: 12px;
+    border-bottom: 1px solid #eef2f7;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  td {
+    color: #334155;
+    font-size: 13px;
+  }
+}
+
+.courseInfoCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 360px;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  strong {
+    color: #0f172a;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 360px;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 440px;
+  }
+}
+
+.courseThumb {
+  width: 76px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.textCell {
+  color: #334155;
+  white-space: nowrap;
+}
+
+.numberCell {
+  width: 34px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+  font-weight: 700;
+}
+
 .backBtn {
   height: 42px;
+  width: 42px;
   border: 1px solid #dbe2ea;
   background: #fff;
   color: #334155;
   border-radius: 10px;
-  padding: 0 16px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   cursor: pointer;
   font-weight: 600;
@@ -123,10 +256,12 @@
 .darkBtn,
 .addLessonBtn {
   height: 42px;
+  min-width: 42px;
   border-radius: 10px;
-  padding: 0 16px;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
 }
 
@@ -143,6 +278,17 @@
 .darkBtn {
   background: #0f172a;
   color: #fff;
+}
+
+.primaryBtn:disabled,
+.dangerBtn:disabled,
+.darkBtn:disabled,
+.addLessonBtn:disabled,
+.smallBtn:disabled,
+.inlineAddBtn:disabled,
+.iconActionBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .contentGrid {
@@ -294,28 +440,54 @@
   justify-content: center;
 }
 
-.lessonList {
-  padding: 10px 16px 16px;
-  display: grid;
-  gap: 10px;
+.lessonTableWrap {
+  padding: 12px 14px 16px;
+  overflow-x: auto;
 }
 
-.lessonRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
+.lessonTable {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
   border: 1px solid #eef2f7;
-  background: #fff;
-  border-radius: 14px;
-  padding: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+
+  thead {
+    background: #f8fafc;
+  }
+
+  th,
+  td {
+    padding: 12px;
+    border-bottom: 1px solid #eef2f7;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  td {
+    color: #334155;
+    font-size: 13px;
+  }
+
+  tbody tr:hover {
+    background: #fbfdff;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
 }
 
-.lessonLeft {
-  display: flex;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
+.lessonDraftRow {
+  opacity: 0.68;
 }
 
 .lessonOrder {
@@ -331,29 +503,42 @@
   flex-shrink: 0;
 }
 
-.lessonMain {
-  min-width: 0;
-}
-
-.lessonTop {
+.lessonNameCell {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
+  gap: 10px;
+  min-width: 300px;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  strong {
+    color: #0f172a;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 360px;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 420px;
+  }
 }
 
 .lessonIcon {
   color: #475569;
   display: inline-flex;
   align-items: center;
-}
-
-.lessonTop h4 {
-  margin: 0;
-  font-size: 15px;
-  color: #0f172a;
-  font-weight: 600;
 }
 
 .previewBadge {
@@ -377,7 +562,6 @@
   flex-wrap: wrap;
 }
 
-.lessonType,
 .lessonDuration {
   display: inline-flex;
   align-items: center;
@@ -400,11 +584,16 @@
 }
 
 .smallBtn {
+  width: 34px;
   height: 34px;
   border-radius: 9px;
-  padding: 0 12px;
+  padding: 0;
   background: #f8fafc;
   color: #334155;
+  border: 1px solid #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .smallDangerBtn {
@@ -413,7 +602,7 @@
 }
 
 .addLessonInline {
-  padding-top: 4px;
+  padding-top: 12px;
 }
 
 .inlineAddBtn {
@@ -519,68 +708,97 @@
   flex-wrap: wrap;
 }
 
-.statusBadge,
-.visibilityBadge,
-.levelBadge {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+.iconBadge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.statusBadge {
+.statusPublished {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #047857;
+}
+
+.statusPending {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.statusRejected {
   background: #fef2f2;
-  color: #ef4444;
+  border-color: #fecaca;
+  color: #dc2626;
 }
 
-.visibilityBadge {
+.statusArchived,
+.statusDraft,
+.visibilityUnlisted {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.visibilityPublic {
   background: #eff6ff;
+  border-color: #bfdbfe;
   color: #2563eb;
 }
 
-.levelBadge {
+.visibilityPrivate {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.levelBeginner {
   background: #ecfdf5;
+  border-color: #bbf7d0;
   color: #059669;
 }
+
+.levelIntermediate {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+.levelAdvanced {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
 .draftBadge {
-  margin-left: 8px;
   background: #f1f5f9;
   color: #64748b;
   font-size: 11px;
   padding: 3px 8px;
   border-radius: 999px;
 }
-.lessonDesc {
-  font-size: 13px;
-  color: #64748b;
-  margin-top: 4px;
+.publishedBadge {
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
 }
-.quizBadge {
-  margin-left: 8px;
+.lessonTypeBadge {
   background: #eff6ff;
   color: #2563eb;
   font-size: 11px;
   padding: 3px 8px;
   border-radius: 999px;
+  font-weight: 700;
 }
-
-.assignmentBadge {
-  margin-left: 8px;
-  background: #ecfdf5;
-  color: #059669;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 999px;
-}
-.lessonTitleRow {
+.lessonStatusGroup {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.lessonBadges {
-  display: flex;
   gap: 6px;
-  margin-top: 4px;
   flex-wrap: wrap;
 }

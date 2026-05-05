@@ -1,8 +1,37 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 import Modal from "../Modal";
 import styles from "./AddLessonModal.module.scss";
 import { useLessonApi } from "../../api/LessonApi";
+
+const READING_EDITOR_FORMATS = [
+  "header",
+  "size",
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "color",
+  "background",
+  "align",
+  "list",
+  "bullet",
+  "indent",
+  "script",
+  "blockquote",
+  "code-block",
+  "link",
+  "image",
+];
+
+function stripHtml(html = "") {
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
 
 function AddLessonModal({
   isOpen,
@@ -12,6 +41,7 @@ function AddLessonModal({
   nextOrderIndex = 1,
 }) {
   const { createLesson } = useLessonApi();
+  const quillRef = useRef(null);
 
   const initialForm = useMemo(
     () => ({
@@ -39,6 +69,102 @@ function AddLessonModal({
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
+  function resolveUploadedImageUrl(data) {
+    const raw =
+      data?.result?.url ||
+      data?.result?.fileUrl ||
+      data?.result?.path ||
+      data?.result?.imageUrl ||
+      data?.url ||
+      data?.fileUrl ||
+      data?.path ||
+      data?.imageUrl ||
+      (typeof data?.result === "string" ? data.result : "");
+
+    if (!raw) return "";
+
+    return raw.startsWith("http")
+      ? raw
+      : `http://localhost:8080/lms${raw.startsWith("/") ? "" : "/"}${raw}`;
+  }
+  const handleEditorImageUpload = () => {
+    const input = document.createElement("input");
+    input.setAttribute("type", "file");
+    input.setAttribute("accept", "image/*");
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const token = localStorage.getItem("token");
+
+        const res = await fetch("http://localhost:8080/lms/courses/upload", {
+          method: "POST",
+          headers: token
+            ? {
+                Authorization: `Bearer ${token}`,
+              }
+            : undefined,
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data?.message || "Upload ảnh thất bại");
+        }
+
+        const imageUrl = resolveUploadedImageUrl(data);
+
+        if (!imageUrl) {
+          console.log("UPLOAD_IMAGE_RESPONSE =", data);
+          throw new Error("Không lấy được URL ảnh");
+        }
+
+        const editor = quillRef.current?.getEditor();
+        if (!editor) return;
+
+        const range = editor.getSelection(true);
+        editor.insertEmbed(
+          range?.index ?? editor.getLength(),
+          "image",
+          imageUrl.startsWith("http")
+            ? imageUrl
+            : `http://localhost:8080/lms${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`,
+        );
+      } catch (error) {
+        setErrorText(error?.message || "Upload ảnh thất bại.");
+      }
+    };
+  };
+
+  const readingEditorModules = useMemo(
+    () => ({
+      toolbar: {
+        container: [
+          [{ header: [1, 2, 3, 4, false] }],
+          [{ size: ["small", false, "large", "huge"] }],
+          ["bold", "italic", "underline", "strike"],
+          [{ color: [] }, { background: [] }],
+          [{ align: ["", "center", "right", "justify"] }],
+          [{ list: "ordered" }, { list: "bullet" }],
+          [{ indent: "-1" }, { indent: "+1" }],
+          [{ script: "sub" }, { script: "super" }],
+          ["blockquote", "code-block"],
+          ["link", "image"],
+          ["clean"],
+        ],
+        handlers: {
+          image: handleEditorImageUpload,
+        },
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -62,6 +188,13 @@ function AddLessonModal({
     }));
   };
 
+  const handleReadingContentChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      content: value,
+    }));
+  };
+
   const handleClose = () => {
     if (loading) return;
     setErrorText("");
@@ -76,7 +209,7 @@ function AddLessonModal({
       return "Vui lòng nhập video URL.";
     }
 
-    if (form.lessonType === "READING" && !form.content.trim()) {
+    if (form.lessonType === "READING" && !stripHtml(form.content)) {
       return "Vui lòng nhập nội dung bài đọc.";
     }
 
@@ -104,7 +237,7 @@ function AddLessonModal({
         title: form.title.trim(),
         description: form.description.trim(),
         lessonType: form.lessonType,
-        content: form.lessonType === "READING" ? form.content.trim() : "",
+        content: form.lessonType === "READING" ? form.content : "",
         videoUrl: form.lessonType === "VIDEO" ? form.videoUrl.trim() : "",
         thumbnailUrl: form.thumbnailUrl.trim(),
         durationMinutes: Number(form.durationMinutes) || 0,
@@ -130,7 +263,7 @@ function AddLessonModal({
       await createLesson(payload);
 
       onClose();
-      if (onCreated) onCreated();
+      onCreated?.();
     } catch (error) {
       setErrorText(
         error?.body?.message || error?.message || "Tạo bài học thất bại.",
@@ -202,15 +335,22 @@ function AddLessonModal({
 
           {form.lessonType === "READING" && (
             <div className={styles.formGroup}>
-              <label htmlFor="content">Nội dung bài đọc</label>
-              <textarea
-                id="content"
-                name="content"
-                rows="6"
-                value={form.content}
-                onChange={handleChange}
-                placeholder="Nhập nội dung bài học..."
-              />
+              <label>Nội dung bài đọc</label>
+              <div className={styles.editorWrap}>
+                <ReactQuill
+                  ref={quillRef}
+                  theme="snow"
+                  value={form.content}
+                  onChange={handleReadingContentChange}
+                  modules={readingEditorModules}
+                  formats={READING_EDITOR_FORMATS}
+                  placeholder="Soạn nội dung bài đọc..."
+                  className={styles.editor}
+                />
+              </div>
+              <p className={styles.editorHint}>
+                Có thể dùng in đậm, nghiêng, tiêu đề, danh sách, link, ảnh...
+              </p>
             </div>
           )}
 

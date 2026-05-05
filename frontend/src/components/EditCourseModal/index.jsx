@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import Modal from "../Modal";
 import styles from "./EditCourseModal.module.scss";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
+import { AuthContext } from "../../context/AuthContext";
+import { Save, Upload, X } from "lucide-react";
 
 function EditCourseModal({
   isOpen,
@@ -12,13 +14,15 @@ function EditCourseModal({
   categories = [],
 }) {
   const { updateCourse, uploadCourseImage } = useCourseApi();
+  const { hasRole } = useContext(AuthContext);
+  const isAdmin = hasRole("ADMIN");
 
   const [form, setForm] = useState({
     title: "",
     description: "",
     thumbnailUrl: "",
     categoryId: "",
-    status: "PUBLISHED",
+    status: "DRAFT",
     visibility: "PUBLIC",
     level: "BEGINNER",
     estimatedHours: 0,
@@ -32,56 +36,43 @@ function EditCourseModal({
 
   const currentCategoryId = useMemo(() => {
     if (course?.categoryId) return course.categoryId;
-
-    const matched = categories.find(
-      (item) => item.name === course?.categoryName,
-    );
+    const matched = categories.find((item) => item.name === course?.categoryName);
     return matched?.id || "";
   }, [course, categories]);
 
   const buildImageUrl = (value) => {
     if (!value) return "";
-
     const trimmed = value.trim();
     if (!trimmed) return "";
-
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
       return trimmed;
     }
-
     if (trimmed.startsWith("/")) {
       return `${LMS_BASE_URL}${trimmed}`;
     }
-
     return `${LMS_BASE_URL}/${trimmed}`;
   };
 
   useEffect(() => {
     if (!isOpen || !course) return;
-
     setForm({
       title: course.title || "",
       description: course.description || "",
       thumbnailUrl: course.thumbnailUrl || "",
       categoryId: currentCategoryId || "",
-      status: course.status || "PUBLISHED",
+      status: course.status || "DRAFT",
       visibility: course.visibility || "PUBLIC",
       level: course.level || "BEGINNER",
       estimatedHours: course.estimatedHours ?? 0,
     });
-
     setThumbnailMode("url");
-    setPreviewUrl(buildImageUrl(course.thumbnailUrl));
+    setPreviewUrl(buildImageUrl(course.thumbnailUrl || ""));
     setErrorText("");
   }, [isOpen, course, currentCategoryId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
 
     if (name === "thumbnailUrl" && thumbnailMode === "url") {
       setPreviewUrl(buildImageUrl(value));
@@ -95,40 +86,22 @@ function EditCourseModal({
     onClose();
   };
 
-  const handleSwitchMode = (mode) => {
-    setThumbnailMode(mode);
-    setErrorText("");
-
-    if (mode === "url") {
-      setPreviewUrl(buildImageUrl(form.thumbnailUrl));
-    } else {
-      setPreviewUrl(buildImageUrl(form.thumbnailUrl));
-    }
-  };
-
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
       setErrorText("Vui lòng chọn file ảnh hợp lệ.");
       return;
     }
 
-    const localPreview = URL.createObjectURL(file);
-    setPreviewUrl(localPreview);
+    setPreviewUrl(URL.createObjectURL(file));
 
     try {
       setUploadingImage(true);
       setErrorText("");
-
       const res = await uploadCourseImage(file);
       const imageUrl = res?.result || "";
-
-      setForm((prev) => ({
-        ...prev,
-        thumbnailUrl: imageUrl,
-      }));
+      setForm((prev) => ({ ...prev, thumbnailUrl: imageUrl }));
     } catch (error) {
       setErrorText(
         error?.body?.message || error?.message || "Upload ảnh thất bại.",
@@ -146,22 +119,18 @@ function EditCourseModal({
       setErrorText("Không tìm thấy khóa học để cập nhật.");
       return;
     }
-
     if (!form.title.trim()) {
       setErrorText("Vui lòng nhập tên khóa học.");
       return;
     }
-
     if (!form.description.trim()) {
       setErrorText("Vui lòng nhập mô tả khóa học.");
       return;
     }
-
     if (!form.categoryId) {
       setErrorText("Vui lòng chọn danh mục.");
       return;
     }
-
     if (thumbnailMode === "file" && !form.thumbnailUrl) {
       setErrorText("Ảnh đang chưa upload xong hoặc upload thất bại.");
       return;
@@ -183,9 +152,8 @@ function EditCourseModal({
       };
 
       await updateCourse(course.id, payload);
-
       onClose();
-      if (onUpdated) onUpdated();
+      onUpdated?.();
     } catch (error) {
       setErrorText(
         error?.body?.message || error?.message || "Cập nhật khóa học thất bại.",
@@ -204,7 +172,11 @@ function EditCourseModal({
       <div className={styles.wrapper}>
         <div className={styles.header}>
           <h2>Sửa khóa học</h2>
-          <p>Cập nhật thông tin khóa học trong hệ thống LMS.</p>
+          <p>
+            {isAdmin
+              ? "Admin có thể cập nhật nội dung và trạng thái hiển thị của khóa học."
+              : "Mọi thay đổi của giảng viên sẽ đưa khóa học quay lại trạng thái chờ duyệt và ẩn với học viên cho đến khi admin duyệt lại."}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
@@ -232,7 +204,6 @@ function EditCourseModal({
 
           <div className={styles.formGroup}>
             <label>Thumbnail</label>
-
             <div className={styles.thumbMode}>
               <button
                 type="button"
@@ -241,11 +212,10 @@ function EditCourseModal({
                     ? `${styles.modeBtn} ${styles.active}`
                     : styles.modeBtn
                 }
-                onClick={() => handleSwitchMode("url")}
+                onClick={() => setThumbnailMode("url")}
               >
                 Dùng URL
               </button>
-
               <button
                 type="button"
                 className={
@@ -253,9 +223,10 @@ function EditCourseModal({
                     ? `${styles.modeBtn} ${styles.active}`
                     : styles.modeBtn
                 }
-                onClick={() => handleSwitchMode("file")}
+                onClick={() => setThumbnailMode("file")}
               >
-                Chọn ảnh
+                <Upload size={15} />
+                <span>Chọn ảnh</span>
               </button>
             </div>
 
@@ -264,7 +235,6 @@ function EditCourseModal({
                 id="edit-thumbnailUrl"
                 name="thumbnailUrl"
                 type="text"
-                placeholder="https://example.com/image.jpg hoặc /uploads/courses/abc.jpg"
                 value={form.thumbnailUrl}
                 onChange={handleChange}
               />
@@ -279,11 +249,7 @@ function EditCourseModal({
 
             {previewUrl ? (
               <div className={styles.previewBox}>
-                <img
-                  src={previewUrl}
-                  alt="Thumbnail preview"
-                  onError={() => setErrorText("Không tải được ảnh preview.")}
-                />
+                <img src={previewUrl} alt="Xem trước thumbnail" />
               </div>
             ) : null}
           </div>
@@ -305,33 +271,48 @@ function EditCourseModal({
             </select>
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="edit-status">Trạng thái</label>
-            <select
-              id="edit-status"
-              name="status"
-              value={form.status}
-              onChange={handleChange}
-            >
-              <option value="DRAFT">DRAFT</option>
-              <option value="PUBLISHED">PUBLISHED</option>
-              <option value="ARCHIVED">ARCHIVED</option>
-            </select>
-          </div>
+          {isAdmin ? (
+            <>
+              <div className={styles.formGroup}>
+                <label htmlFor="edit-status">Trạng thái</label>
+                <select
+                  id="edit-status"
+                  name="status"
+                  value={form.status}
+                  onChange={handleChange}
+                >
+                  <option value="DRAFT">Nháp</option>
+                  <option value="PENDING_APPROVAL">Chờ duyệt</option>
+                  <option value="PUBLISHED">Đã duyệt</option>
+                  <option value="REJECTED">Bị từ chối</option>
+                  <option value="ARCHIVED">Lưu trữ</option>
+                </select>
+              </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="edit-visibility">Hiển thị</label>
-            <select
-              id="edit-visibility"
-              name="visibility"
-              value={form.visibility}
-              onChange={handleChange}
-            >
-              <option value="PUBLIC">PUBLIC</option>
-              <option value="PRIVATE">PRIVATE</option>
-              <option value="UNLISTED">UNLISTED</option>
-            </select>
-          </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="edit-visibility">Hiển thị</label>
+                <select
+                  id="edit-visibility"
+                  name="visibility"
+                  value={form.visibility}
+                  onChange={handleChange}
+                >
+                  <option value="PUBLIC">Công khai</option>
+                  <option value="PRIVATE">Riêng tư</option>
+                  <option value="UNLISTED">Không liệt kê</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className={styles.formGroup}>
+              <label>Trạng thái phê duyệt</label>
+              <input
+                type="text"
+                readOnly
+                value={`Hiện tại: ${course?.status || "PENDING_APPROVAL"} - Sau khi sửa sẽ quay lại Chờ duyệt.`}
+              />
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="edit-level">Cấp độ</label>
@@ -341,9 +322,9 @@ function EditCourseModal({
               value={form.level}
               onChange={handleChange}
             >
-              <option value="BEGINNER">BEGINNER</option>
-              <option value="INTERMEDIATE">INTERMEDIATE</option>
-              <option value="ADVANCED">ADVANCED</option>
+              <option value="BEGINNER">Cơ bản</option>
+              <option value="INTERMEDIATE">Trung cấp</option>
+              <option value="ADVANCED">Nâng cao</option>
             </select>
           </div>
 
@@ -359,7 +340,7 @@ function EditCourseModal({
             />
           </div>
 
-          {errorText && <div className={styles.errorBox}>{errorText}</div>}
+          {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
           <div className={styles.actions}>
             <button
@@ -367,20 +348,23 @@ function EditCourseModal({
               className={styles.cancelBtn}
               onClick={handleClose}
               disabled={loading || uploadingImage}
+              title="Hủy"
+              aria-label="Hủy"
             >
-              Hủy
+              <X size={17} />
             </button>
-
             <button
               type="submit"
               className={styles.submitBtn}
               disabled={loading || uploadingImage}
+              title="Lưu thay đổi"
+              aria-label="Lưu thay đổi"
             >
               {uploadingImage
                 ? "Đang upload ảnh..."
                 : loading
                   ? "Đang lưu..."
-                  : "Lưu thay đổi"}
+                  : <Save size={17} />}
             </button>
           </div>
         </form>

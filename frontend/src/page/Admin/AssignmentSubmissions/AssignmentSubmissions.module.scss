@@ -1,0 +1,324 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 100%;
+  padding: 24px;
+  background: #f6f8fb;
+}
+
+.topBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.backBtn,
+.refreshBtn,
+.gradeBtn {
+  border: none;
+  outline: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.backBtn,
+.refreshBtn {
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+}
+
+.headerCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #e9edf5;
+  border-radius: 18px;
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 24px;
+    color: #0f172a;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+  }
+}
+
+.headerIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ecfdf5;
+  color: #047857;
+  flex-shrink: 0;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.summaryCard {
+  background: #fff;
+  border: 1px solid #e9edf5;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  span {
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  strong {
+    color: #0f172a;
+    font-size: 24px;
+  }
+}
+
+.toolbar {
+  display: flex;
+}
+
+.searchBox {
+  height: 48px;
+  flex: 1;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  color: #64748b;
+
+  input {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: #0f172a;
+  }
+}
+
+.successBox,
+.errorBox,
+.stateBox {
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.successBox {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #bbf7d0;
+}
+
+.errorBox {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.stateBox {
+  background: #fff;
+  border: 1px solid #e9edf5;
+  color: #64748b;
+  text-align: center;
+}
+
+.submissionList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.submissionCard {
+  background: #fff;
+  border: 1px solid #e9edf5;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.submissionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+
+  h2 {
+    margin: 0 0 4px;
+    color: #0f172a;
+    font-size: 18px;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+  }
+}
+
+.statusSubmitted,
+.statusGraded {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.statusSubmitted {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.statusGraded {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.metaRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.answerBox,
+.gradeBox {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.answerBox {
+  h3 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #0f172a;
+  }
+
+  p {
+    margin: 0;
+    color: #334155;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+}
+
+.fileList {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.fileLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gradeBox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  input,
+  textarea {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    color: #0f172a;
+    outline: none;
+    background: #fff;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+}
+
+.gradeBtn {
+  height: 42px;
+  border-radius: 11px;
+  background: #2563eb;
+  color: #fff;
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+}
+
+@media (max-width: 900px) {
+  .summaryGrid,
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 16px;
+  }
+
+  .topBar,
+  .submissionHead {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface QuestionRepository extends JpaRepository<Question, String> {
     List<Question> findByQuizId(String quizId);
+    List<Question> findByQuizIdOrderByOrderIndexAsc(String quizId);
 }

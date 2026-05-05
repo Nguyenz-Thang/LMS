@@ -123,6 +123,23 @@ public class UserService {
         return userMapper.toUserResponse(user);
     }
 
+    public UserResponse updateMyInfo(UserUpdateRequest request) {
+        String username = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        userMapper.updateUser(user, request);
+
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+
+        return userMapper.toUserResponse(userRepository.save(user));
+    }
+
     public UserResponse updateUser(String userId, UserUpdateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));

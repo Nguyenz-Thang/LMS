@@ -2,129 +2,142 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  BookOpen,
-  Layers3,
-  Clock3,
-  PlayCircle,
+  ChevronDown,
+  ChevronUp,
+  CirclePlay,
   FileText,
-  ClipboardCheck,
-  FilePenLine,
+  HelpCircle,
+  Pencil,
+  BookOpen,
+  Clock3,
+  User,
+  Tag,
+  Play,
+  Layers3,
+  Eye,
   GraduationCap,
-  CircleCheck,
 } from "lucide-react";
-import { useCourseApi } from "../../api/courseApi";
-import { enrollCourse, getMyEnrollments } from "../../api/enrollmentApi";
 import styles from "./CourseDetail.module.scss";
+import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
+import { useLearningApi } from "../../api/learningApi";
 
-function normalizeCourse(rawCourse) {
-  return {
-    id: rawCourse?.id || "",
-    title: rawCourse?.title || "Khóa học không xác định",
-    description: rawCourse?.description || "",
-    thumbnailUrl: rawCourse?.thumbnailUrl || "",
-    instructorName: rawCourse?.instructorName || "Chưa cập nhật",
-    categoryName: rawCourse?.categoryName || "Chưa phân loại",
-    status: rawCourse?.status || "DRAFT",
-    visibility: rawCourse?.visibility || "PUBLIC",
-    level: rawCourse?.level || "BEGINNER",
-    estimatedHours: Number(rawCourse?.estimatedHours) || 0,
-  };
+const FALLBACK_THUMB =
+  "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
+
+function formatDuration(totalMinutes) {
+  if (!totalMinutes || totalMinutes <= 0) return "Chưa cập nhật";
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  if (hours > 0 && mins > 0) return `${hours} giờ ${mins} phút`;
+  if (hours > 0) return `${hours} giờ`;
+  return `${mins} phút`;
 }
 
-function normalizeCurriculum(rawCurriculum) {
-  return {
-    id: rawCurriculum?.id || "",
-    sections: Array.isArray(rawCurriculum?.sections)
-      ? rawCurriculum.sections.map((section) => ({
-          id: section?.id || "",
-          title: section?.title || "Chương học",
-          description: section?.description || "",
-          orderIndex: Number(section?.orderIndex) || 0,
-          totalLessons: Number(section?.totalLessons) || 0,
-          totalDurationMinutes: Number(section?.totalDurationMinutes) || 0,
-          lessons: Array.isArray(section?.lessons)
-            ? section.lessons.map((lesson) => ({
-                id: lesson?.id || "",
-                title: lesson?.title || "Bài học",
-                description: lesson?.description || "",
-                durationMinutes: Number(lesson?.durationMinutes) || 0,
-                isPreview: !!lesson?.isPreview,
-                isPublished: !!lesson?.isPublished,
-                orderIndex: Number(lesson?.orderIndex) || 0,
-                lessonType: lesson?.lessonType || "READING",
-                quizId: lesson?.quizId || "",
-                assignmentId: lesson?.assignmentId || "",
-              }))
-            : [],
-        }))
-      : [],
-  };
-}
+function formatClockDuration(totalMinutes) {
+  if (!totalMinutes || totalMinutes <= 0) return "--:--";
 
-function getLessonTypeLabel(lessonType) {
-  switch (lessonType) {
-    case "VIDEO":
-      return "Video";
-    case "QUIZ":
-      return "Quiz";
-    case "ASSIGNMENT":
-      return "Bài tập";
-    case "READING":
-    default:
-      return "Bài đọc";
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
   }
+
+  return `00:${String(mins).padStart(2, "0")}`;
+}
+
+function formatLevel(level) {
+  const map = {
+    BEGINNER: "Cơ bản",
+    INTERMEDIATE: "Trung cấp",
+    ADVANCED: "Nâng cao",
+  };
+
+  return map[level] || level || "Chưa cập nhật";
 }
 
 function getLessonIcon(lessonType) {
   switch (lessonType) {
     case "VIDEO":
-      return PlayCircle;
-    case "QUIZ":
-      return ClipboardCheck;
-    case "ASSIGNMENT":
-      return FilePenLine;
+      return <CirclePlay size={15} />;
     case "READING":
+      return <FileText size={15} />;
+    case "QUIZ":
+      return <HelpCircle size={15} />;
+    case "ASSIGNMENT":
+      return <Pencil size={15} />;
     default:
-      return FileText;
+      return <BookOpen size={15} />;
   }
 }
 
-export default function CourseDetail() {
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const { getCourseById, getCourseCurriculum } = useCourseApi();
-
-  const [course, setCourse] = useState(null);
-  const [curriculum, setCurriculum] = useState({ sections: [] });
-  const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState("");
-  const [enrolling, setEnrolling] = useState(false);
-  const [isEnrolled, setIsEnrolled] = useState(false);
-
-  const fetchMyEnrollments = async (courseId) => {
-    try {
-      const res = await getMyEnrollments();
-      const items = Array.isArray(res?.result) ? res.result : [];
-      setIsEnrolled(items.some((item) => item?.courseId === courseId));
-    } catch (error) {
-      console.error("Fetch my enrollments error:", error);
-    }
+function getLessonTypeLabel(lessonType) {
+  const map = {
+    VIDEO: "Video",
+    READING: "Bài đọc",
+    QUIZ: "Quiz",
+    ASSIGNMENT: "Bài tập",
+    FILE: "Tài liệu",
+    LESSON: "Bài học",
   };
 
-  const fetchCourseDetail = async () => {
+  return map[lessonType] || lessonType || "Bài học";
+}
+
+export default function CourseDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { getCourseById, getCourseCurriculum } = useCourseApi();
+  const { startLearning, getLearningCourse } = useLearningApi();
+
+  const [course, setCourse] = useState(null);
+  const [curriculum, setCurriculum] = useState(null);
+  const [openSections, setOpenSections] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [errorText, setErrorText] = useState("");
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [id]);
+
+  const fetchDetail = async () => {
     try {
       setLoading(true);
       setErrorText("");
+
+      try {
+        const learningRes = await getLearningCourse(id);
+        const learningData = learningRes?.result || null;
+
+        if (learningData?.enrolled && learningData?.currentLessonId) {
+          navigate(`/learning/${id}/${learningData.currentLessonId}`, {
+            replace: true,
+          });
+          return;
+        }
+      } catch {
+        // ignore, continue load detail
+      }
 
       const [courseRes, curriculumRes] = await Promise.all([
         getCourseById(id),
         getCourseCurriculum(id),
       ]);
 
-      const normalizedCourse = normalizeCourse(courseRes?.result);
-      setCourse(normalizedCourse);
-      setCurriculum(normalizeCurriculum(curriculumRes?.result));
-      await fetchMyEnrollments(normalizedCourse.id);
+      const courseData = courseRes?.result || null;
+      const curriculumData = curriculumRes?.result || null;
+
+      setCourse(courseData);
+      setCurriculum(curriculumData);
+
+      const initialOpenState = {};
+      (curriculumData?.sections || []).forEach((section, index) => {
+        initialOpenState[section.id] = index === 0;
+      });
+      setOpenSections(initialOpenState);
     } catch (error) {
       setErrorText(
         error?.body?.message ||
@@ -136,48 +149,94 @@ export default function CourseDetail() {
     }
   };
 
-  useEffect(() => {
-    if (id) {
-      fetchCourseDetail();
-    }
-  }, [id]);
+  const getImageSrc = (thumbnailUrl) => {
+    if (!thumbnailUrl) return FALLBACK_THUMB;
+    if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
+    if (thumbnailUrl.startsWith("/")) return `${LMS_BASE_URL}${thumbnailUrl}`;
+    return `${LMS_BASE_URL}/${thumbnailUrl}`;
+  };
 
-  const totalSections = curriculum.sections.length;
+  const toggleSection = (sectionId) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
+  };
 
-  const totalLessons = useMemo(
-    () =>
-      curriculum.sections.reduce(
-        (sum, section) => sum + section.lessons.length,
-        0,
-      ),
-    [curriculum],
-  );
+  const stats = useMemo(() => {
+    const sections = curriculum?.sections || [];
 
-  const totalDurationMinutes = useMemo(
-    () =>
-      curriculum.sections.reduce(
-        (sum, section) => sum + (section.totalDurationMinutes || 0),
-        0,
-      ),
-    [curriculum],
-  );
+    let totalLessons = 0;
+    let totalDurationMinutes = 0;
+    let previewLessons = 0;
+    let firstPreviewLesson = null;
 
-  const handleEnroll = async () => {
-    if (!course?.id) return;
+    sections.forEach((section) => {
+      const lessons = section?.lessons || [];
+      totalLessons += section?.totalLessons || lessons.length || 0;
+      totalDurationMinutes += section?.totalDurationMinutes || 0;
 
+      lessons.forEach((lesson) => {
+        if (lesson?.isPreview) {
+          previewLessons += 1;
+          if (!firstPreviewLesson) {
+            firstPreviewLesson = lesson;
+          }
+        }
+      });
+    });
+
+    return {
+      sectionCount: sections.length,
+      totalLessons,
+      totalDurationMinutes,
+      previewLessons,
+      firstPreviewLesson,
+    };
+  }, [curriculum]);
+
+  const handleStartLearning = async () => {
     try {
-      setEnrolling(true);
-      await enrollCourse({ courseId: course.id });
-      setIsEnrolled(true);
+      setStarting(true);
+      const res = await startLearning(id);
+      const data = res?.result || null;
+
+      if (data?.firstLessonId) {
+        navigate(`/learning/${id}/${data.firstLessonId}`, {
+          state: { from: `/courses/${id}` },
+        });
+        return;
+      }
+
+      navigate(`/learning/${id}`, {
+        state: { from: `/courses/${id}` },
+      });
     } catch (error) {
-      alert(
-        error?.response?.data?.message ||
-          error?.body?.message ||
-          error?.message ||
-          "Đăng ký khóa học thất bại.",
+      setErrorText(
+        error?.body?.message || error?.message || "Không thể bắt đầu khóa học.",
       );
     } finally {
-      setEnrolling(false);
+      setStarting(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (stats.firstPreviewLesson?.id) {
+      navigate(`/learning/${id}/${stats.firstPreviewLesson.id}`, {
+        state: { from: `/courses/${id}` },
+      });
+      return;
+    }
+
+    const firstSection = curriculum?.sections?.find(
+      (section) => (section?.lessons || []).length > 0,
+    );
+    const firstLesson = firstSection?.lessons?.[0];
+
+    if (firstLesson?.id) {
+      navigate(`/learning/${id}/${firstLesson.id}`, {
+        state: { from: `/courses/${id}` },
+      });
     }
   };
 
@@ -189,8 +248,8 @@ export default function CourseDetail() {
     return <div className={styles.errorBox}>{errorText}</div>;
   }
 
-  if (!course) {
-    return <div className={styles.stateBox}>Không có dữ liệu khóa học.</div>;
+  if (!course || !curriculum) {
+    return <div className={styles.stateBox}>Không tìm thấy khóa học.</div>;
   }
 
   return (
@@ -199,174 +258,206 @@ export default function CourseDetail() {
         <button
           type="button"
           className={styles.backBtn}
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/courses")}
         >
           <ArrowLeft size={18} />
           <span>Quay lại</span>
         </button>
       </div>
 
-      <div className={styles.heroCard}>
-        <div className={styles.heroMedia}>
-          {course.thumbnailUrl ? (
-            <img
-              src={course.thumbnailUrl}
-              alt={course.title}
-              className={styles.heroImage}
-            />
-          ) : (
-            <div className={styles.heroPlaceholder}>
-              <BookOpen size={32} />
-            </div>
-          )}
+      <div className={styles.leftCol}>
+        <h1>{course.title}</h1>
+
+        <p className={styles.description}>
+          {course.description || "Chưa có mô tả cho khóa học này."}
+        </p>
+
+        <div className={styles.metaLine}>
+          <span className={styles.metaItem}>
+            <User size={15} />
+            <span>{course.instructorName || "Chưa có giảng viên"}</span>
+          </span>
+
+          <span className={styles.metaItem}>
+            <Tag size={15} />
+            <span>{course.categoryName || "Chưa có danh mục"}</span>
+          </span>
         </div>
 
-        <div className={styles.heroContent}>
-          <div className={styles.badgeRow}>
-            <span className={styles.badge}>{course.status}</span>
-            <span className={styles.badgeMuted}>{course.level}</span>
-          </div>
+        <div className={styles.summaryLine}>
+          <span>
+            <Layers3 size={15} />
+            {stats.sectionCount} chương
+          </span>
+          <span>
+            <BookOpen size={15} />
+            {stats.totalLessons} bài học
+          </span>
+          <span>
+            <Clock3 size={15} />
+            {formatDuration(stats.totalDurationMinutes)}
+          </span>
+          <span>
+            <Eye size={15} />
+            {stats.previewLessons > 0
+              ? `${stats.previewLessons} bài học thử`
+              : "Không có học thử"}
+          </span>
+        </div>
+      </div>
 
-          <h1>{course.title}</h1>
-          <p>{course.description || "Chưa có mô tả khóa học."}</p>
+      <div className={styles.rightCol}>
+        <div className={styles.thumbWrap}>
+          <img
+            src={getImageSrc(course.thumbnailUrl || curriculum.thumbnailUrl)}
+            alt={course.title}
+            className={styles.thumbnail}
+          />
+          <button
+            type="button"
+            className={styles.playBtn}
+            onClick={handlePreview}
+          >
+            <Play size={20} />
+          </button>
+        </div>
 
-          <div className={styles.metaGrid}>
-            <div className={styles.metaItem}>
-              <BookOpen size={16} />
-              <span>Giảng viên: {course.instructorName}</span>
+        <div className={styles.sideContent}>
+          <button
+            type="button"
+            className={styles.primaryBtn}
+            onClick={handleStartLearning}
+            disabled={starting}
+          >
+            {starting ? "Đang vào học..." : "Bắt đầu học"}
+          </button>
+
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={handlePreview}
+          >
+            Xem trước
+          </button>
+
+          <div className={styles.sideInfo}>
+            <div className={styles.sideInfoItem}>
+              <GraduationCap size={15} />
+              <span>Trình độ: {formatLevel(course.level)}</span>
             </div>
 
-            <div className={styles.metaItem}>
-              <Layers3 size={16} />
-              <span>Danh mục: {course.categoryName}</span>
+            <div className={styles.sideInfoItem}>
+              <BookOpen size={15} />
+              <span>Tổng số bài học: {stats.totalLessons}</span>
             </div>
 
-            <div className={styles.metaItem}>
-              <Layers3 size={16} />
-              <span>{totalSections} chương</span>
+            <div className={styles.sideInfoItem}>
+              <Clock3 size={15} />
+              <span>
+                Thời lượng: {formatDuration(stats.totalDurationMinutes)}
+              </span>
             </div>
-
-            <div className={styles.metaItem}>
-              <BookOpen size={16} />
-              <span>{totalLessons} bài học</span>
-            </div>
-
-            <div className={styles.metaItem}>
-              <Clock3 size={16} />
-              <span>{totalDurationMinutes} phút nội dung</span>
-            </div>
-
-            <div className={styles.metaItem}>
-              <Clock3 size={16} />
-              <span>{course.estimatedHours} giờ ước tính</span>
-            </div>
-          </div>
-
-          <div className={styles.heroActions}>
-            {isEnrolled ? (
-              <button
-                type="button"
-                className={styles.enrolledBtn}
-                onClick={() => navigate("/my-courses")}
-              >
-                <CircleCheck size={16} />
-                <span>Đã đăng ký</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={styles.enrollBtn}
-                onClick={handleEnroll}
-                disabled={enrolling}
-              >
-                <GraduationCap size={16} />
-                <span>{enrolling ? "Đang đăng ký..." : "Đăng ký học"}</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
 
-      <div className={styles.curriculumCard}>
-        <div className={styles.sectionHeader}>
-          <h2>Chương trình học</h2>
-          <p>Dữ liệu hiển thị theo curriculum backend hiện tại.</p>
+      <div className={styles.contentSection}>
+        <div className={styles.sectionHead}>
+          <h2>Nội dung khóa học</h2>
+          <p>
+            {stats.sectionCount} chương • {stats.totalLessons} bài học •{" "}
+            {formatDuration(stats.totalDurationMinutes)}
+          </p>
         </div>
 
-        {curriculum.sections.length === 0 ? (
-          <div className={styles.stateBox}>
-            Khóa học chưa có chương/bài học.
-          </div>
-        ) : (
-          <div className={styles.sectionList}>
-            {curriculum.sections.map((section, sectionIndex) => (
-              <div key={section.id} className={styles.sectionCard}>
-                <div className={styles.sectionTop}>
-                  <div>
-                    <span className={styles.sectionOrder}>
-                      Chương {sectionIndex + 1}
+        <div className={styles.sectionList}>
+          {(curriculum.sections || []).map((section, sectionIndex) => {
+            const isOpen = !!openSections[section.id];
+
+            return (
+              <div key={section.id} className={styles.sectionBlock}>
+                <button
+                  type="button"
+                  className={styles.sectionToggle}
+                  onClick={() => toggleSection(section.id)}
+                >
+                  <div className={styles.sectionLeft}>
+                    <div className={styles.sectionTitleRow}>
+                      <span className={styles.sectionIndex}>
+                        {isOpen ? "−" : "+"}
+                      </span>
+                      <h3>
+                        {sectionIndex + 1}. {section.title}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className={styles.sectionRight}>
+                    <span>{section.totalLessons || 0} bài học</span>
+                    <span className={styles.sectionChevron}>
+                      {isOpen ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
                     </span>
-                    <h3>{section.title}</h3>
-                    <p>{section.description || "Chưa có mô tả chương."}</p>
                   </div>
+                </button>
 
-                  <div className={styles.sectionStats}>
-                    <span>{section.totalLessons} bài</span>
-                    <span>{section.totalDurationMinutes} phút</span>
-                  </div>
-                </div>
-
-                <div className={styles.lessonList}>
-                  {section.lessons.map((lesson, lessonIndex) => {
-                    const LessonIcon = getLessonIcon(lesson.lessonType);
-
-                    return (
-                      <div key={lesson.id} className={styles.lessonItem}>
+                {isOpen ? (
+                  <div className={styles.lessonList}>
+                    {(section.lessons || []).map((lesson, lessonIndex) => (
+                      <div key={lesson.id} className={styles.lessonRow}>
                         <div className={styles.lessonLeft}>
-                          <div className={styles.lessonIcon}>
-                            <LessonIcon size={18} />
-                          </div>
+                          <span className={styles.lessonIcon}>
+                            {getLessonIcon(lesson.lessonType)}
+                          </span>
 
-                          <div className={styles.lessonInfo}>
-                            <div className={styles.lessonTitleRow}>
-                              <strong>
-                                {sectionIndex + 1}.{lessonIndex + 1}{" "}
-                                {lesson.title}
-                              </strong>
-                              <span className={styles.lessonType}>
+                          <div className={styles.lessonContent}>
+                            <h4>
+                              {lesson.orderIndex ?? lessonIndex + 1}.{" "}
+                              {lesson.title}
+                            </h4>
+
+                            <div className={styles.lessonInlineMeta}>
+                              <span>
                                 {getLessonTypeLabel(lesson.lessonType)}
                               </span>
-                            </div>
-
-                            <span className={styles.lessonDescription}>
-                              {lesson.description || "Chưa có mô tả bài học."}
-                            </span>
-
-                            <div className={styles.lessonMeta}>
-                              <span>{lesson.durationMinutes} phút</span>
-                              <span>
-                                {lesson.isPublished ? "Đã publish" : "Bản nháp"}
-                              </span>
-                              <span>
-                                {lesson.isPreview
-                                  ? "Cho xem thử"
-                                  : "Không preview"}
-                              </span>
-                              {lesson.quizId ? <span>Quiz: Có</span> : null}
-                              {lesson.assignmentId ? (
-                                <span>Bài tập: Có</span>
+                              {lesson.isPreview ? <span>Học thử</span> : null}
+                              {lesson.description ? (
+                                <span className={styles.lessonShortDesc}>
+                                  {lesson.description}
+                                </span>
                               ) : null}
                             </div>
                           </div>
                         </div>
+
+                        <div className={styles.lessonRight}>
+                          <span className={styles.lessonTime}>
+                            {formatClockDuration(lesson.durationMinutes)}
+                          </span>
+
+                          {lesson.isPreview && (
+                            <button
+                              type="button"
+                              className={styles.lessonBtn}
+                              onClick={() =>
+                                navigate(`/learning/${id}/${lesson.id}`)
+                              }
+                            >
+                              Học
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

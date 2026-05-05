@@ -16,6 +16,7 @@ public class CourseResponse {
 
     String instructorId;
     String instructorName;
+    String instructorAvatar;
 
     String categoryId;
     String categoryName;
@@ -24,4 +25,5 @@ public class CourseResponse {
     String visibility;
     String level;
     Integer estimatedHours;
+    Long enrollmentCount;
 }

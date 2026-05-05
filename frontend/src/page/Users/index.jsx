@@ -1,25 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Users,
-  Search,
-  RefreshCw,
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Save,
-  Mail,
-  Shield,
   CalendarDays,
-  User as UserIcon,
+  Mail,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Shield,
+  Trash2,
+  UserRound,
+  Users,
+  X,
 } from "lucide-react";
 import {
-  getUsers,
   createUser,
-  updateUser,
   deleteUser,
+  getUsers,
+  updateUser,
 } from "../../api/userApi";
 import { getAllRoles } from "../../api/roleApi";
+import { LMS_BASE_URL } from "../../api/courseApi";
 import styles from "./Users.module.scss";
 
 const INITIAL_FORM = {
@@ -62,20 +63,37 @@ function formatDate(value) {
   return date.toLocaleDateString("vi-VN");
 }
 
+function buildImageUrl(value) {
+  if (!value) return "";
+  if (value.startsWith("http")) return value;
+  if (value.startsWith("/")) return `${LMS_BASE_URL}${value}`;
+  return `${LMS_BASE_URL}/${value}`;
+}
+
+function getRoleLabel(roleName) {
+  switch (roleName) {
+    case "ADMIN":
+      return "Quản trị viên";
+    case "INSTRUCTOR":
+      return "Giảng viên";
+    case "STUDENT":
+      return "Học viên";
+    default:
+      return roleName;
+  }
+}
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
-
   const [loading, setLoading] = useState(false);
   const [loadingRoles, setLoadingRoles] = useState(false);
   const [saving, setSaving] = useState(false);
-
+  const [deletingId, setDeletingId] = useState("");
   const [keyword, setKeyword] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
-
   const [errorText, setErrorText] = useState("");
   const [modalErrorText, setModalErrorText] = useState("");
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingUserId, setEditingUserId] = useState("");
@@ -90,6 +108,7 @@ export default function UserManagement() {
       const data = Array.isArray(res?.result) ? res.result : [];
       setUsers(data.map(normalizeUser));
     } catch (error) {
+      setUsers([]);
       setErrorText(
         error?.response?.data?.message ||
           error?.message ||
@@ -103,7 +122,6 @@ export default function UserManagement() {
   const fetchRoles = async () => {
     try {
       setLoadingRoles(true);
-
       const res = await getAllRoles();
       const data = Array.isArray(res?.result) ? res.result : [];
       setRoles(data.map(normalizeRole));
@@ -123,12 +141,19 @@ export default function UserManagement() {
     const normalizedKeyword = keyword.trim().toLowerCase();
 
     return users.filter((user) => {
+      const searchableText = [
+        user.username,
+        user.email,
+        user.fullName,
+        user.id,
+        ...user.roles,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
       const matchesKeyword =
-        !normalizedKeyword ||
-        user.username.toLowerCase().includes(normalizedKeyword) ||
-        user.email.toLowerCase().includes(normalizedKeyword) ||
-        user.fullName.toLowerCase().includes(normalizedKeyword) ||
-        user.id.toLowerCase().includes(normalizedKeyword);
+        !normalizedKeyword || searchableText.includes(normalizedKeyword);
 
       const matchesRole =
         roleFilter === "ALL" || user.roles.includes(roleFilter);
@@ -137,13 +162,18 @@ export default function UserManagement() {
     });
   }, [users, keyword, roleFilter]);
 
-  const totalUsers = users.length;
-  const adminCount = users.filter((user) =>
-    user.roles.includes("ADMIN"),
+  const adminCount = users.filter((user) => user.roles.includes("ADMIN")).length;
+  const instructorCount = users.filter((user) =>
+    user.roles.includes("INSTRUCTOR"),
   ).length;
   const studentCount = users.filter((user) =>
     user.roles.includes("STUDENT"),
   ).length;
+
+  const resetFilters = () => {
+    setKeyword("");
+    setRoleFilter("ALL");
+  };
 
   const openCreateModal = () => {
     setIsModalOpen(true);
@@ -179,9 +209,8 @@ export default function UserManagement() {
     setForm(INITIAL_FORM);
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
+  const handleChange = (event) => {
+    const { name, value } = event.target;
     setForm((prev) => ({
       ...prev,
       [name]: value,
@@ -203,44 +232,31 @@ export default function UserManagement() {
   };
 
   const validateForm = () => {
-    if (!form.username.trim()) {
-      return "Vui lòng nhập username.";
-    }
-
-    if (!isEditMode && !form.email.trim()) {
-      return "Vui lòng nhập email.";
-    }
-
-    if (!isEditMode && !form.password.trim()) {
-      return "Vui lòng nhập mật khẩu.";
-    }
-
+    if (!form.username.trim()) return "Vui lòng nhập tên đăng nhập.";
+    if (!isEditMode && !form.email.trim()) return "Vui lòng nhập email.";
+    if (!isEditMode && !form.password.trim()) return "Vui lòng nhập mật khẩu.";
     return "";
   };
 
-  const buildCreatePayload = () => {
-    return {
-      username: form.username.trim(),
-      email: form.email.trim(),
-      password: form.password,
-      fullName: form.fullName.trim(),
-      dob: form.dob || null,
-    };
-  };
+  const buildCreatePayload = () => ({
+    username: form.username.trim(),
+    email: form.email.trim(),
+    password: form.password,
+    fullName: form.fullName.trim(),
+    dob: form.dob || null,
+  });
 
-  const buildUpdatePayload = () => {
-    return {
-      email: form.email.trim(),
-      password: form.password.trim() || null,
-      fullName: form.fullName.trim(),
-      avatar: form.avatar.trim(),
-      dob: form.dob || null,
-      roles: form.roles,
-    };
-  };
+  const buildUpdatePayload = () => ({
+    email: form.email.trim(),
+    password: form.password.trim() || null,
+    fullName: form.fullName.trim(),
+    avatar: form.avatar.trim(),
+    dob: form.dob || null,
+    roles: form.roles,
+  });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     const validationError = validateForm();
     if (validationError) {
@@ -273,45 +289,45 @@ export default function UserManagement() {
 
   const handleDelete = async (user) => {
     const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa người dùng "${user.username}" không?`,
+      `Bạn có chắc muốn xóa người dùng "${user.username}"?`,
     );
     if (!confirmed) return;
 
     try {
+      setDeletingId(user.id);
+      setErrorText("");
       await deleteUser(user.id);
       await fetchUsers();
     } catch (error) {
-      alert(
+      setErrorText(
         error?.response?.data?.message ||
           error?.message ||
           "Xóa người dùng thất bại.",
       );
+    } finally {
+      setDeletingId("");
     }
   };
 
   return (
     <div className={styles.page}>
-      <div className={styles.headerCard}>
-        <div className={styles.headerLeft}>
-          <div className={styles.headerIcon}>
-            <Users size={24} />
-          </div>
-
+      <div className={styles.headerBar}>
+        <div className={styles.titleGroup}>
+          <span className={styles.titleIcon}>
+            <Users size={22} />
+          </span>
           <div>
             <h1>Quản lý người dùng</h1>
-            <p>
-              Quản lý tài khoản người dùng, thông tin cá nhân và vai trò trong
-              hệ thống.
-            </p>
+            <p>Quản lý tài khoản, thông tin cá nhân và vai trò trong hệ thống.</p>
           </div>
         </div>
 
         <button
           type="button"
-          className={styles.primaryBtn}
+          className={styles.addBtn}
           onClick={openCreateModal}
         >
-          <Plus size={16} />
+          <Plus size={18} />
           <span>Thêm người dùng</span>
         </button>
       </div>
@@ -321,26 +337,23 @@ export default function UserManagement() {
           <Search size={18} />
           <input
             type="text"
-            placeholder="Tìm theo username, email, họ tên hoặc mã..."
+            placeholder="Tìm tên đăng nhập, email, họ tên hoặc vai trò..."
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(event) => setKeyword(event.target.value)}
           />
         </div>
 
         <div className={styles.filterBox}>
-          <div className={styles.filterLabel}>
-            <Shield size={16} />
-            <span>Vai trò</span>
-          </div>
-
+          <Shield size={16} />
           <select
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
+            onChange={(event) => setRoleFilter(event.target.value)}
+            aria-label="Lọc vai trò"
           >
-            <option value="ALL">Tất cả</option>
+            <option value="ALL">Tất cả vai trò</option>
             {roles.map((role) => (
               <option key={role.name} value={role.name}>
-                {role.name}
+                {getRoleLabel(role.name)}
               </option>
             ))}
           </select>
@@ -348,33 +361,33 @@ export default function UserManagement() {
 
         <button
           type="button"
-          className={styles.refreshBtn}
-          onClick={fetchUsers}
+          className={styles.resetBtn}
+          onClick={resetFilters}
+          title="Đặt lại bộ lọc"
+          aria-label="Đặt lại bộ lọc"
         >
-          <RefreshCw size={16} />
-          <span>Làm mới</span>
+          <RotateCcw size={16} />
         </button>
       </div>
 
-      <div className={styles.summaryRow}>
-        <div className={styles.summaryCard}>
-          <span>Tổng người dùng</span>
-          <strong>{totalUsers}</strong>
-        </div>
+      {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-        <div className={styles.summaryCard}>
+      <div className={styles.summaryStrip}>
+        <div>
+          <span>Tổng người dùng</span>
+          <strong>{users.length}</strong>
+        </div>
+        <div>
           <span>Quản trị viên</span>
           <strong>{adminCount}</strong>
         </div>
-
-        <div className={styles.summaryCard}>
+        <div>
+          <span>Giảng viên</span>
+          <strong>{instructorCount}</strong>
+        </div>
+        <div>
           <span>Học viên</span>
           <strong>{studentCount}</strong>
-        </div>
-
-        <div className={styles.summaryCard}>
-          <span>Kết quả hiển thị</span>
-          <strong>{filteredUsers.length}</strong>
         </div>
       </div>
 
@@ -383,60 +396,64 @@ export default function UserManagement() {
           <div className={styles.stateBox}>
             Đang tải danh sách người dùng...
           </div>
-        ) : errorText ? (
-          <div className={styles.errorBox}>{errorText}</div>
         ) : filteredUsers.length === 0 ? (
-          <div className={styles.stateBox}>Không có người dùng phù hợp.</div>
+          <div className={styles.stateBox}>
+            Không có người dùng phù hợp với bộ lọc hiện tại.
+          </div>
         ) : (
           <div className={styles.tableWrap}>
-            <table className={styles.table}>
+            <table className={styles.userTable}>
               <thead>
                 <tr>
-                  <th style={{ width: "70px" }}>STT</th>
-                  <th style={{ width: "220px" }}>Người dùng</th>
-                  <th style={{ width: "240px" }}>Email</th>
+                  <th>Người dùng</th>
+                  <th>Email</th>
                   <th>Họ tên</th>
-                  <th style={{ width: "160px" }}>Ngày sinh</th>
-                  <th style={{ width: "240px" }}>Vai trò</th>
-                  <th style={{ width: "220px" }}>Thao tác</th>
+                  <th>Ngày sinh</th>
+                  <th>Vai trò</th>
+                  <th>Thao tác</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredUsers.map((user, index) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.id}>
-                    <td>{index + 1}</td>
-
                     <td>
                       <div className={styles.userCell}>
-                        <div className={styles.userNameRow}>
-                          <UserIcon size={14} />
-                          <span className={styles.userName}>
-                            {user.username || "Không có username"}
-                          </span>
+                        <span className={styles.avatar}>
+                          {user.avatar ? (
+                            <img
+                              src={buildImageUrl(user.avatar)}
+                              alt={user.username}
+                            />
+                          ) : (
+                            <UserRound size={17} />
+                          )}
+                        </span>
+                        <div>
+                          <strong>{user.username || "Chưa có tên đăng nhập"}</strong>
+                          <span>{user.id}</span>
                         </div>
-                        <span className={styles.userId}>{user.id}</span>
                       </div>
                     </td>
 
                     <td>
-                      <div className={styles.infoCell}>
+                      <span className={styles.infoCell}>
                         <Mail size={14} />
-                        <span>{user.email || "Chưa cập nhật"}</span>
-                      </div>
+                        {user.email || "Chưa cập nhật"}
+                      </span>
                     </td>
 
                     <td>
-                      <span className={styles.fullNameText}>
+                      <span className={styles.textCell}>
                         {user.fullName || "Chưa cập nhật"}
                       </span>
                     </td>
 
                     <td>
-                      <div className={styles.infoCell}>
+                      <span className={styles.infoCell}>
                         <CalendarDays size={14} />
-                        <span>{formatDate(user.dob)}</span>
-                      </div>
+                        {formatDate(user.dob)}
+                      </span>
                     </td>
 
                     <td>
@@ -447,7 +464,7 @@ export default function UserManagement() {
                               key={`${user.id}-${role}`}
                               className={styles.roleTag}
                             >
-                              {role}
+                              {getRoleLabel(role)}
                             </span>
                           ))
                         ) : (
@@ -464,18 +481,21 @@ export default function UserManagement() {
                           type="button"
                           className={styles.iconBtn}
                           onClick={() => openEditModal(user)}
+                          title="Sửa người dùng"
+                          aria-label="Sửa người dùng"
                         >
                           <Pencil size={16} />
-                          <span>Sửa</span>
                         </button>
 
                         <button
                           type="button"
-                          className={styles.dangerBtn}
+                          className={`${styles.iconBtn} ${styles.deleteAction}`}
                           onClick={() => handleDelete(user)}
+                          disabled={deletingId === user.id}
+                          title="Xóa người dùng"
+                          aria-label="Xóa người dùng"
                         >
                           <Trash2 size={16} />
-                          <span>Xóa</span>
                         </button>
                       </div>
                     </td>
@@ -488,89 +508,83 @@ export default function UserManagement() {
       </div>
 
       {isModalOpen ? (
-        <div className={styles.modalOverlay} onClick={closeModal}>
-          <div
-            className={styles.modalCard}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className={styles.modalOverlay} role="presentation">
+          <div className={styles.modal} role="dialog" aria-modal="true">
             <div className={styles.modalHeader}>
               <div>
-                <h2>
-                  {isEditMode ? "Chỉnh sửa người dùng" : "Thêm người dùng mới"}
-                </h2>
+                <h2>{isEditMode ? "Sửa người dùng" : "Thêm người dùng"}</h2>
                 <p>
                   {isEditMode
                     ? "Cập nhật thông tin tài khoản và vai trò người dùng."
-                    : "Tạo mới tài khoản người dùng trong hệ thống."}
+                    : "Tạo tài khoản người dùng mới trong hệ thống."}
                 </p>
               </div>
 
               <button
                 type="button"
-                className={styles.closeBtn}
+                className={styles.iconBtn}
                 onClick={closeModal}
                 disabled={saving}
+                title="Đóng"
+                aria-label="Đóng"
               >
-                <X size={18} />
+                <X size={17} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className={styles.modalForm}>
+            <form onSubmit={handleSubmit} className={styles.form}>
+              {modalErrorText ? (
+                <div className={styles.modalError}>{modalErrorText}</div>
+              ) : null}
+
               <div className={styles.formGrid}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="username">Username</label>
+                <label className={styles.formGroup}>
+                  <span>Tên đăng nhập</span>
                   <input
-                    id="username"
                     name="username"
                     value={form.username}
                     onChange={handleChange}
                     disabled={isEditMode || saving}
-                    placeholder="Nhập username"
+                    placeholder="Nhập tên đăng nhập"
                   />
-                </div>
+                </label>
 
-                <div className={styles.formGroup}>
-                  <label htmlFor="email">Email</label>
+                <label className={styles.formGroup}>
+                  <span>Email</span>
                   <input
-                    id="email"
                     name="email"
                     value={form.email}
                     onChange={handleChange}
                     disabled={saving}
                     placeholder="Nhập email"
                   />
-                </div>
+                </label>
 
-                <div className={styles.formGroup}>
-                  <label htmlFor="fullName">Họ tên</label>
+                <label className={styles.formGroup}>
+                  <span>Họ tên</span>
                   <input
-                    id="fullName"
                     name="fullName"
                     value={form.fullName}
                     onChange={handleChange}
                     disabled={saving}
                     placeholder="Nhập họ tên"
                   />
-                </div>
+                </label>
 
-                <div className={styles.formGroup}>
-                  <label htmlFor="dob">Ngày sinh</label>
+                <label className={styles.formGroup}>
+                  <span>Ngày sinh</span>
                   <input
-                    id="dob"
                     name="dob"
                     type="date"
                     value={form.dob}
                     onChange={handleChange}
                     disabled={saving}
                   />
-                </div>
+                </label>
 
-                <div className={styles.formGroup}>
-                  <label htmlFor="password">
-                    {isEditMode ? "Mật khẩu mới" : "Mật khẩu"}
-                  </label>
+                <label className={styles.formGroup}>
+                  <span>{isEditMode ? "Mật khẩu mới" : "Mật khẩu"}</span>
                   <input
-                    id="password"
                     name="password"
                     type="password"
                     value={form.password}
@@ -580,23 +594,22 @@ export default function UserManagement() {
                       isEditMode ? "Để trống nếu không đổi" : "Nhập mật khẩu"
                     }
                   />
-                </div>
+                </label>
 
-                <div className={styles.formGroup}>
-                  <label htmlFor="avatar">Avatar URL</label>
+                <label className={styles.formGroup}>
+                  <span>Ảnh đại diện</span>
                   <input
-                    id="avatar"
                     name="avatar"
                     value={form.avatar}
                     onChange={handleChange}
                     disabled={saving}
                     placeholder="Nhập đường dẫn ảnh đại diện"
                   />
-                </div>
+                </label>
               </div>
 
-              <div className={styles.formGroup}>
-                <label>Vai trò</label>
+              <label className={styles.formGroup}>
+                <span>Vai trò</span>
                 <div className={styles.rolePicker}>
                   {loadingRoles ? (
                     <div className={styles.roleLoading}>
@@ -605,46 +618,41 @@ export default function UserManagement() {
                   ) : roles.length === 0 ? (
                     <div className={styles.roleLoading}>Không có vai trò.</div>
                   ) : (
-                    roles.map((role) => {
-                      const checked = form.roles.includes(role.name);
-
-                      return (
-                        <label key={role.name} className={styles.roleOption}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => handleRoleChange(role.name)}
-                            disabled={saving}
-                          />
-                          <span>{role.name}</span>
-                        </label>
-                      );
-                    })
+                    roles.map((role) => (
+                      <label key={role.name} className={styles.roleOption}>
+                        <input
+                          type="checkbox"
+                          checked={form.roles.includes(role.name)}
+                          onChange={() => handleRoleChange(role.name)}
+                          disabled={saving}
+                        />
+                        <span>{getRoleLabel(role.name)}</span>
+                      </label>
+                    ))
                   )}
                 </div>
-              </div>
-
-              {modalErrorText ? (
-                <div className={styles.modalErrorBox}>{modalErrorText}</div>
-              ) : null}
+              </label>
 
               <div className={styles.modalActions}>
                 <button
                   type="button"
-                  className={styles.cancelBtn}
+                  className={styles.iconBtn}
                   onClick={closeModal}
                   disabled={saving}
+                  title="Hủy"
+                  aria-label="Hủy"
                 >
-                  Hủy
+                  <X size={17} />
                 </button>
 
                 <button
                   type="submit"
-                  className={styles.submitBtn}
+                  className={`${styles.iconBtn} ${styles.saveAction}`}
                   disabled={saving}
+                  title="Lưu thay đổi"
+                  aria-label="Lưu thay đổi"
                 >
-                  <Save size={16} />
-                  <span>{saving ? "Đang lưu..." : "Lưu thay đổi"}</span>
+                  <Save size={17} />
                 </button>
               </div>
             </form>

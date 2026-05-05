@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.nt.lms.dto.request.EnrollmentRequest;
 import com.nt.lms.dto.response.ApiResponse;
+import com.nt.lms.dto.response.ProgressDashboardResponse;
 import com.nt.lms.dto.response.EnrollmentResponse;
 import com.nt.lms.service.EnrollmentService;
 
@@ -39,6 +40,13 @@ public class EnrollmentController {
     public ApiResponse<List<EnrollmentResponse>> myCourses() {
         return ApiResponse.<List<EnrollmentResponse>>builder()
                 .result(enrollmentService.getMyCourses())
+                .build();
+    }
+
+    @GetMapping("/me/dashboard")
+    public ApiResponse<ProgressDashboardResponse> myDashboard() {
+        return ApiResponse.<ProgressDashboardResponse>builder()
+                .result(enrollmentService.getMyDashboard())
                 .build();
     }
 

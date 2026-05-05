@@ -2,6 +2,7 @@ package com.nt.lms.controller;
 
 import com.nt.lms.dto.request.CreateQuizRequest;
 import com.nt.lms.dto.request.SubmitQuizRequest;
+import com.nt.lms.dto.response.AdminQuizAttemptResponse;
 import com.nt.lms.dto.response.ApiResponse;
 import com.nt.lms.dto.response.QuizResponse;
 import com.nt.lms.dto.response.QuizResultResponse;
@@ -9,6 +10,7 @@ import com.nt.lms.service.QuizService;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.AccessLevel;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -54,12 +56,39 @@ public class QuizController {
                 .build();
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PostMapping("/{quizId}/publish")
+    ApiResponse<String> publishQuiz(@PathVariable String quizId) {
+        quizService.updateQuizPublishStatus(quizId, true);
+        return ApiResponse.<String>builder()
+                .result("Quiz published successfully")
+                .build();
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @PostMapping("/{quizId}/unpublish")
+    ApiResponse<String> unpublishQuiz(@PathVariable String quizId) {
+        quizService.updateQuizPublishStatus(quizId, false);
+        return ApiResponse.<String>builder()
+                .result("Quiz unpublished successfully")
+                .build();
+    }
+
     @PostMapping("/submit")
     ApiResponse<QuizResultResponse> submitQuiz(@RequestBody SubmitQuizRequest request) {
         return ApiResponse.<QuizResultResponse>builder()
                 .result(quizService.submitQuiz(request))
                 .build();
     }
+
+    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    @GetMapping("/{quizId}/attempts")
+    ApiResponse<List<AdminQuizAttemptResponse>> getQuizAttempts(@PathVariable String quizId) {
+        return ApiResponse.<List<AdminQuizAttemptResponse>>builder()
+                .result(quizService.getQuizAttempts(quizId))
+                .build();
+    }
+
     @GetMapping
     ApiResponse<List<QuizResponse>> getAllQuizzes() {
         return ApiResponse.<List<QuizResponse>>builder()

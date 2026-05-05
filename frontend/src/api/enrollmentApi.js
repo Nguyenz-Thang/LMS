@@ -10,6 +10,11 @@ export async function getMyEnrollments() {
   return res?.data;
 }
 
+export async function getMyProgressDashboard() {
+  const res = await api.get("/enrollments/me/dashboard");
+  return res?.data;
+}
+
 export async function enrollCourse(payload) {
   const res = await api.post("/enrollments", payload);
   return res?.data;

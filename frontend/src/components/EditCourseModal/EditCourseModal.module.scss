@@ -76,6 +76,10 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .active {
@@ -123,12 +127,17 @@
 .cancelBtn,
 .submitBtn {
   height: 42px;
+  min-width: 42px;
   border-radius: 10px;
   border: none;
-  padding: 0 18px;
+  padding: 0 14px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .cancelBtn {

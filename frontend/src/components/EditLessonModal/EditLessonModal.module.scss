@@ -46,7 +46,8 @@
   }
 
   input,
-  textarea {
+  textarea,
+  select {
     width: 100%;
     border: 1px solid #dbe2ea;
     border-radius: 10px;
@@ -59,7 +60,8 @@
   }
 
   input:focus,
-  textarea:focus {
+  textarea:focus,
+  select:focus {
     border-color: #ef4444;
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
   }
@@ -67,6 +69,65 @@
   textarea {
     resize: vertical;
   }
+}
+
+.editorWrap {
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+
+  :global(.ql-toolbar.ql-snow) {
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  :global(.ql-container.ql-snow) {
+    border: none;
+    min-height: 260px;
+    font-size: 14px;
+    color: #334155;
+  }
+
+  :global(.ql-editor) {
+    min-height: 260px;
+    line-height: 1.8;
+  }
+
+  :global(.ql-editor.ql-blank::before) {
+    color: #94a3b8;
+    font-style: normal;
+  }
+
+  :global(.ql-snow .ql-picker) {
+    color: #334155;
+  }
+}
+
+.editorHint {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.noteBox {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+
+  p {
+    margin: 0 0 12px;
+    color: #475569;
+    line-height: 1.7;
+    font-size: 14px;
+  }
+}
+
+.noteError {
+  color: #b91c1c !important;
+  margin-top: 8px !important;
 }
 
 .checkRow {
@@ -96,6 +157,119 @@
   border-radius: 10px;
   padding: 12px 14px;
   font-size: 14px;
+}
+
+.resourceSection {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px;
+  background: #f8fafc;
+}
+
+.resourceHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+
+  h3 {
+    margin: 0 0 6px;
+    font-size: 18px;
+    color: #0f172a;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+}
+
+.resourceCount {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.resourceForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.resourceActions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.resourceList {
+  display: grid;
+  gap: 10px;
+}
+
+.resourceItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.resourceInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+
+  strong {
+    color: #0f172a;
+    font-size: 14px;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 13px;
+  }
+}
+
+.resourceLink {
+  color: #2563eb;
+  font-size: 13px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.resourceItemActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.resourceEmpty {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 14px;
+  background: #fff;
+  color: #64748b;
+  font-size: 14px;
+  text-align: center;
 }
 
 .actions {
@@ -150,5 +324,22 @@
   .cancelBtn,
   .submitBtn {
     width: 100%;
+  }
+
+  .resourceHeader,
+  .resourceItem,
+  .resourceActions,
+  .resourceItemActions {
+    flex-direction: column;
+  }
+
+  .editorWrap {
+    :global(.ql-container.ql-snow) {
+      min-height: 220px;
+    }
+
+    :global(.ql-editor) {
+      min-height: 220px;
+    }
   }
 }

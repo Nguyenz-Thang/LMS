@@ -206,7 +206,7 @@ export default function Profile() {
         dob: profileForm.dob || null,
       };
 
-      await api.put(`/users/${user.id}`, payload);
+      await api.put("/users/myInfo", payload);
 
       const profileRes = await api.get("/users/myInfo");
       const freshUser = profileRes?.data?.result || null;
@@ -303,7 +303,7 @@ export default function Profile() {
     }
   };
 
-  const DetailRow = ({ icon, label, value, field, editable = true }) => {
+  const renderDetailRow = ({ icon, label, value, field, editable = true }) => {
     const isEditing = editingField === field;
 
     return (
@@ -390,54 +390,54 @@ export default function Profile() {
       <div className={styles.detailCard}>
         <h2>Thông tin cá nhân</h2>
 
-        <DetailRow
-          icon={<Hash size={18} />}
-          label="ID"
-          value={user?.id || "Chưa có"}
-          editable={false}
-        />
+        {renderDetailRow({
+          icon: <Hash size={18} />,
+          label: "ID",
+          value: user?.id || "Chưa có",
+          editable: false,
+        })}
 
-        <DetailRow
-          icon={<User size={18} />}
-          label="Tên đăng nhập"
-          value={user?.username || "Chưa cập nhật"}
-          editable={false}
-        />
+        {renderDetailRow({
+          icon: <User size={18} />,
+          label: "Tên đăng nhập",
+          value: user?.username || "Chưa cập nhật",
+          editable: false,
+        })}
 
-        <DetailRow
-          icon={<User size={18} />}
-          label="Họ tên"
-          value={user?.fullName || "Chưa cập nhật"}
-          field="fullName"
-        />
+        {renderDetailRow({
+          icon: <User size={18} />,
+          label: "Họ tên",
+          value: user?.fullName || "Chưa cập nhật",
+          field: "fullName",
+        })}
 
-        <DetailRow
-          icon={<Mail size={18} />}
-          label="Email"
-          value={user?.email || "Chưa cập nhật"}
-          field="email"
-        />
+        {renderDetailRow({
+          icon: <Mail size={18} />,
+          label: "Email",
+          value: user?.email || "Chưa cập nhật",
+          field: "email",
+        })}
 
-        <DetailRow
-          icon={<ImageIcon size={18} />}
-          label="Avatar"
-          value={user?.avatar ? "Đã có avatar" : "Chưa cập nhật"}
-          field="avatar"
-        />
+        {renderDetailRow({
+          icon: <ImageIcon size={18} />,
+          label: "Avatar",
+          value: user?.avatar ? "Đã có avatar" : "Chưa cập nhật",
+          field: "avatar",
+        })}
 
-        <DetailRow
-          icon={<CalendarDays size={18} />}
-          label="Ngày sinh"
-          value={formatDate(user?.dob)}
-          field="dob"
-        />
+        {renderDetailRow({
+          icon: <CalendarDays size={18} />,
+          label: "Ngày sinh",
+          value: formatDate(user?.dob),
+          field: "dob",
+        })}
 
-        <DetailRow
-          icon={<ShieldCheck size={18} />}
-          label="Vai trò"
-          value={getRoleText(user?.roles)}
-          editable={false}
-        />
+        {renderDetailRow({
+          icon: <ShieldCheck size={18} />,
+          label: "Vai trò",
+          value: getRoleText(user?.roles),
+          editable: false,
+        })}
       </div>
     </div>
   );

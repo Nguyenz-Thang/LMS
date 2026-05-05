@@ -23,3 +23,23 @@ export async function getAllQuizzes() {
   const res = await api.get("/quizzes");
   return res?.data;
 }
+
+export async function getQuizAttempts(quizId) {
+  const res = await api.get(`/quizzes/${quizId}/attempts`);
+  return res?.data;
+}
+
+export async function publishQuiz(quizId) {
+  const res = await api.post(`/quizzes/${quizId}/publish`);
+  return res?.data;
+}
+
+export async function unpublishQuiz(quizId) {
+  const res = await api.post(`/quizzes/${quizId}/unpublish`);
+  return res?.data;
+}
+
+export async function generateQuizFromLesson(lessonId, payload = {}) {
+  const res = await api.post(`/quizzes/ai/lessons/${lessonId}/generate`, payload);
+  return res?.data;
+}

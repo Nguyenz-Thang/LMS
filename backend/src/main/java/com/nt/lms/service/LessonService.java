@@ -38,6 +38,7 @@ public class LessonService {
     QuizRepository quizRepository;
     AssignmentRepository assignmentRepository;
     UserRepository userRepository;
+    EmailNotificationService emailNotificationService;
 
     public LessonResponse createLesson(LessonCreationRequest request) {
         validateCreateRequest(request);
@@ -68,6 +69,8 @@ public class LessonService {
             createAssignmentForLesson(lesson, request);
         }
 
+        triggerCreateNotifications(lesson, request.getLessonType());
+
         return toLessonResponse(lesson);
     }
 
@@ -94,6 +97,8 @@ public class LessonService {
 
         Lesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
+        boolean wasPublished = Boolean.TRUE.equals(lesson.getIsPublished());
+        LessonType previousType = resolveLessonType(lesson);
 
         Section section = sectionRepository.findById(request.getSectionId())
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_EXISTED));
@@ -125,6 +130,8 @@ public class LessonService {
             assignmentRepository.findByLessonId(lesson.getId())
                     .ifPresent(assignmentRepository::delete);
         }
+
+        triggerUpdateNotifications(lesson, request.getLessonType(), previousType, wasPublished);
 
         return toLessonResponse(lesson);
     }
@@ -294,6 +301,38 @@ public class LessonService {
         }
 
         assignmentRepository.save(assignment);
+    }
+
+    private void triggerCreateNotifications(Lesson lesson, LessonType lessonType) {
+        if (!Boolean.TRUE.equals(lesson.getIsPublished())) {
+            return;
+        }
+
+        if (lessonType == LessonType.ASSIGNMENT) {
+            assignmentRepository.findByLessonId(lesson.getId())
+                    .ifPresent(emailNotificationService::sendNewAssignmentPublished);
+            return;
+        }
+
+        emailNotificationService.sendNewLessonPublished(lesson);
+    }
+
+    private void triggerUpdateNotifications(
+            Lesson lesson,
+            LessonType currentType,
+            LessonType previousType,
+            boolean wasPublished) {
+        if (!Boolean.TRUE.equals(lesson.getIsPublished()) || wasPublished) {
+            return;
+        }
+
+        if (currentType == LessonType.ASSIGNMENT || previousType == LessonType.ASSIGNMENT) {
+            assignmentRepository.findByLessonId(lesson.getId())
+                    .ifPresent(emailNotificationService::sendNewAssignmentPublished);
+            return;
+        }
+
+        emailNotificationService.sendNewLessonPublished(lesson);
     }
 
     private void validateCreateRequest(LessonCreationRequest request) {

@@ -14,6 +14,10 @@ public class QuizResponse {
     String title;
     String description;
     String courseId;
+    String lessonId;
+    Integer maxAttempts;
+    Boolean isPublished;
+    Long attemptCount;
     List<Question> questions;
 
     @Data
@@ -23,6 +27,7 @@ public class QuizResponse {
     public static class Question {
         String id;
         String content;
+        String explanation;
         String questionType;
         Integer points;
         Integer orderIndex;

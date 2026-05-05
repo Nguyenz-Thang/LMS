@@ -1,18 +1,22 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import Modal from "../Modal";
 import styles from "./AddCourseModal.module.scss";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
+import { AuthContext } from "../../context/AuthContext";
+import { Plus, Upload, X } from "lucide-react";
 
 function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
   const { createCourse, uploadCourseImage } = useCourseApi();
+  const { hasRole } = useContext(AuthContext);
+  const isAdmin = hasRole("ADMIN");
 
   const [form, setForm] = useState({
     title: "",
     description: "",
     thumbnailUrl: "",
     categoryId: "",
-    status: "PUBLISHED",
+    status: "DRAFT",
     visibility: "PUBLIC",
     level: "BEGINNER",
     estimatedHours: 0,
@@ -40,15 +44,10 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
 
     if (name === "thumbnailUrl" && thumbnailMode === "url") {
-      const trimmed = value.trim();
-      setPreviewUrl(buildImageUrl(trimmed));
+      setPreviewUrl(buildImageUrl(value.trim()));
     }
   };
 
@@ -58,7 +57,7 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
       description: "",
       thumbnailUrl: "",
       categoryId: "",
-      status: "PUBLISHED",
+      status: "DRAFT",
       visibility: "PUBLIC",
       level: "BEGINNER",
       estimatedHours: 0,
@@ -74,40 +73,22 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
     onClose();
   };
 
-  const handleSwitchMode = (mode) => {
-    setThumbnailMode(mode);
-    setErrorText("");
-
-    if (mode === "url") {
-      setPreviewUrl(buildImageUrl(form.thumbnailUrl));
-    } else {
-      setPreviewUrl("");
-    }
-  };
-
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
       setErrorText("Vui lòng chọn file ảnh hợp lệ.");
       return;
     }
 
-    const localPreview = URL.createObjectURL(file);
-    setPreviewUrl(localPreview);
+    setPreviewUrl(URL.createObjectURL(file));
 
     try {
       setUploadingImage(true);
       setErrorText("");
-
       const res = await uploadCourseImage(file);
       const imageUrl = res?.result || "";
-
-      setForm((prev) => ({
-        ...prev,
-        thumbnailUrl: imageUrl,
-      }));
+      setForm((prev) => ({ ...prev, thumbnailUrl: imageUrl }));
     } catch (error) {
       setErrorText(
         error?.body?.message || error?.message || "Upload ảnh thất bại.",
@@ -125,17 +106,14 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
       setErrorText("Vui lòng nhập tên khóa học.");
       return;
     }
-
     if (!form.description.trim()) {
       setErrorText("Vui lòng nhập mô tả khóa học.");
       return;
     }
-
     if (!form.categoryId) {
       setErrorText("Vui lòng chọn danh mục.");
       return;
     }
-
     if (thumbnailMode === "file" && !form.thumbnailUrl) {
       setErrorText("Ảnh đang chưa upload xong hoặc upload thất bại.");
       return;
@@ -157,10 +135,9 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
       };
 
       await createCourse(payload);
-
       resetForm();
       onClose();
-      if (onCreated) onCreated();
+      onCreated?.();
     } catch (error) {
       setErrorText(
         error?.body?.message || error?.message || "Thêm khóa học thất bại.",
@@ -179,7 +156,11 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
       <div className={styles.wrapper}>
         <div className={styles.header}>
           <h2>Thêm khóa học</h2>
-          <p>Tạo khóa học mới cho hệ thống LMS.</p>
+          <p>
+            {isAdmin
+              ? "Admin có thể tạo khóa học và quyết định trạng thái hiển thị."
+              : "Khóa học của giảng viên sẽ mặc định ở trạng thái chờ duyệt và ẩn với học viên cho đến khi admin duyệt."}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
@@ -189,7 +170,6 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
               id="title"
               name="title"
               type="text"
-              placeholder="Ví dụ: Java Core"
               value={form.title}
               onChange={handleChange}
             />
@@ -201,7 +181,6 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
               id="description"
               name="description"
               rows="4"
-              placeholder="Nhập mô tả khóa học..."
               value={form.description}
               onChange={handleChange}
             />
@@ -209,7 +188,6 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
 
           <div className={styles.formGroup}>
             <label>Thumbnail</label>
-
             <div className={styles.thumbMode}>
               <button
                 type="button"
@@ -218,11 +196,10 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
                     ? `${styles.modeBtn} ${styles.active}`
                     : styles.modeBtn
                 }
-                onClick={() => handleSwitchMode("url")}
+                onClick={() => setThumbnailMode("url")}
               >
                 Dùng URL
               </button>
-
               <button
                 type="button"
                 className={
@@ -230,9 +207,10 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
                     ? `${styles.modeBtn} ${styles.active}`
                     : styles.modeBtn
                 }
-                onClick={() => handleSwitchMode("file")}
+                onClick={() => setThumbnailMode("file")}
               >
-                Chọn ảnh
+                <Upload size={15} />
+                <span>Chọn ảnh</span>
               </button>
             </div>
 
@@ -241,7 +219,6 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
                 id="thumbnailUrl"
                 name="thumbnailUrl"
                 type="text"
-                placeholder="https://example.com/image.jpg hoặc /uploads/courses/abc.jpg"
                 value={form.thumbnailUrl}
                 onChange={handleChange}
               />
@@ -256,13 +233,7 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
 
             {previewUrl ? (
               <div className={styles.previewBox}>
-                <img
-                  src={previewUrl}
-                  alt="Thumbnail preview"
-                  onError={() => {
-                    setErrorText("Không tải được ảnh preview.");
-                  }}
-                />
+                <img src={previewUrl} alt="Xem trước thumbnail" />
               </div>
             ) : null}
           </div>
@@ -284,45 +255,53 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
             </select>
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="status">Trạng thái</label>
-            <select
-              id="status"
-              name="status"
-              value={form.status}
-              onChange={handleChange}
-            >
-              <option value="DRAFT">DRAFT</option>
-              <option value="PUBLISHED">PUBLISHED</option>
-              <option value="ARCHIVED">ARCHIVED</option>
-            </select>
-          </div>
+          {isAdmin ? (
+            <>
+              <div className={styles.formGroup}>
+                <label htmlFor="status">Trạng thái</label>
+                <select
+                  id="status"
+                  name="status"
+                  value={form.status}
+                  onChange={handleChange}
+                >
+                  <option value="DRAFT">Nháp</option>
+                  <option value="PUBLISHED">Đã duyệt</option>
+                  <option value="ARCHIVED">Lưu trữ</option>
+                </select>
+              </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="visibility">Hiển thị</label>
-            <select
-              id="visibility"
-              name="visibility"
-              value={form.visibility}
-              onChange={handleChange}
-            >
-              <option value="PUBLIC">PUBLIC</option>
-              <option value="PRIVATE">PRIVATE</option>
-              <option value="UNLISTED">UNLISTED</option>
-            </select>
-          </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="visibility">Hiển thị</label>
+                <select
+                  id="visibility"
+                  name="visibility"
+                  value={form.visibility}
+                  onChange={handleChange}
+                >
+                  <option value="PUBLIC">Công khai</option>
+                  <option value="PRIVATE">Riêng tư</option>
+                  <option value="UNLISTED">Không liệt kê</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className={styles.formGroup}>
+              <label>Trạng thái phê duyệt</label>
+              <input
+                type="text"
+                readOnly
+                value="Mặc định: Chờ duyệt, ẩn với học viên cho đến khi admin duyệt."
+              />
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="level">Cấp độ</label>
-            <select
-              id="level"
-              name="level"
-              value={form.level}
-              onChange={handleChange}
-            >
-              <option value="BEGINNER">BEGINNER</option>
-              <option value="INTERMEDIATE">INTERMEDIATE</option>
-              <option value="ADVANCED">ADVANCED</option>
+            <select id="level" name="level" value={form.level} onChange={handleChange}>
+              <option value="BEGINNER">Cơ bản</option>
+              <option value="INTERMEDIATE">Trung cấp</option>
+              <option value="ADVANCED">Nâng cao</option>
             </select>
           </div>
 
@@ -338,7 +317,7 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
             />
           </div>
 
-          {errorText && <div className={styles.errorBox}>{errorText}</div>}
+          {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
           <div className={styles.actions}>
             <button
@@ -346,20 +325,23 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
               className={styles.cancelBtn}
               onClick={handleClose}
               disabled={loading || uploadingImage}
+              title="Hủy"
+              aria-label="Hủy"
             >
-              Hủy
+              <X size={17} />
             </button>
-
             <button
               type="submit"
               className={styles.submitBtn}
               disabled={loading || uploadingImage}
+              title="Tạo khóa học"
+              aria-label="Tạo khóa học"
             >
               {uploadingImage
                 ? "Đang upload ảnh..."
                 : loading
                   ? "Đang tạo..."
-                  : "Tạo khóa học"}
+                  : <Plus size={17} />}
             </button>
           </div>
         </form>

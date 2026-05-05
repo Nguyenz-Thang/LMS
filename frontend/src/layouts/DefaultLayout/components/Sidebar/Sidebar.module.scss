@@ -1,51 +1,79 @@
 .sidebar {
-  width: 280px;
-  min-width: 280px;
-  min-height: calc(100vh - 64px);
-  background: #ffffff;
-  border-right: 1px solid #e5e7eb;
+  width: 286px;
+  min-width: 286px;
+  height: calc(100vh - 64px);
+  align-self: flex-start;
+  position: sticky;
+  top: 64px;
   display: flex;
   flex-direction: column;
-  transition:
-    width 0.25s ease,
-    min-width 0.25s ease;
+  background: linear-gradient(180deg, #ffffff, #fbfcfe);
+  border-right: 1px solid #e7edf5;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.8);
   overflow: hidden;
+  transition:
+    width 0.24s ease,
+    min-width 0.24s ease;
 }
 
 .top {
+  padding: 12px 14px 8px;
   display: flex;
   justify-content: flex-end;
-  padding: 12px 12px 4px;
 }
 
 .toggleBtn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 10px;
-  background: #f3f4f6;
-  color: #334155;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e5eaf1;
+  border-radius: 14px;
+  background: #f7f9fc;
+  color: #5b6472;
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: all 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .toggleBtn:hover {
-  background: #e5e7eb;
+  background: #eef3fb;
+  color: #1f2937;
+  transform: translateY(-1px);
 }
 
 .menu {
-  padding: 8px 10px 16px;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px 18px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cfd8e6 transparent;
+}
+
+.menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.menu::-webkit-scrollbar-thumb {
+  background: #cfd8e6;
+  border-radius: 999px;
 }
 
 .mainQuickLinks {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .group {
@@ -55,33 +83,34 @@
 }
 
 .groupToggle {
-  min-height: 42px;
-  border: none;
-  background: #f8fafc;
-  border-radius: 12px;
-  padding: 0 12px;
+  min-height: 46px;
+  border: 1px solid #edf1f6;
+  background: #fafbfd;
+  border-radius: 16px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
   color: #0f172a;
-  transition: background 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .groupToggle:hover {
-  background: #f1f5f9;
+  background: #f3f6fb;
+  border-color: #e2e8f0;
 }
 
 .groupToggleLeft {
   display: flex;
   align-items: center;
-  gap: 10px;
   min-width: 0;
 }
 
 .groupTitle {
-  margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #64748b;
   white-space: nowrap;
@@ -91,43 +120,50 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  color: #7c8798;
 }
 
 .groupItems {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-left: 6px;
+  gap: 6px;
+  padding: 0 4px;
 }
 
 .item {
-  min-height: 44px;
-  border-radius: 12px;
+  min-height: 48px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 12px;
+  padding: 0 14px;
   text-decoration: none;
   color: #334155;
   transition:
     background 0.2s ease,
-    color 0.2s ease;
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .item:hover {
-  background: #f8fafc;
+  background: #f5f7fb;
   color: #0f172a;
 }
 
 .primaryItem {
-  background: linear-gradient(135deg, #eff6ff, #eef2ff);
+  background: #f5f7fb;
 }
 
 .active {
-  background: #eef2ff;
+  background: linear-gradient(135deg, #eef4ff, #eaf1ff);
   color: #2563eb;
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px #dbe7ff;
+}
+
+.active .iconWrap {
+  color: #2563eb;
 }
 
 .iconWrap {
@@ -136,16 +172,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #475569;
 }
 
 .label {
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1;
 }
 
 .collapsed {
-  width: 88px;
-  min-width: 88px;
+  width: 92px;
+  min-width: 92px;
 }
 
 .collapsed .groupTitle,
@@ -165,17 +203,13 @@
 }
 
 .collapsed .groupItems {
-  padding-left: 0;
-}
-
-.collapsed .menu {
-  padding: 8px 10px 16px;
+  padding: 0;
 }
 
 @media (max-width: 992px) {
   .sidebar {
-    width: 88px;
-    min-width: 88px;
+    width: 92px;
+    min-width: 92px;
   }
 
   .groupTitle,
@@ -195,10 +229,6 @@
   }
 
   .groupItems {
-    padding-left: 0;
-  }
-
-  .menu {
-    padding: 8px 10px 16px;
+    padding: 0;
   }
 }

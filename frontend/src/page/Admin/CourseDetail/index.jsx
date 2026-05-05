@@ -1,20 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Archive,
   ArrowLeft,
+  BookOpen,
+  Check,
   ChevronDown,
   ChevronUp,
+  CircleAlert,
+  CircleDashed,
   CirclePlay,
-  FileText,
-  HelpCircle,
   Clock3,
+  FileCheck2,
+  FileText,
+  Globe2,
+  HelpCircle,
+  Lock,
   Pencil,
-  Trash2,
   Plus,
-  User,
-  Tag,
-  BookOpen,
-  Eye,
+  Trash2,
+  Wand2,
 } from "lucide-react";
 import styles from "./CourseDetail.module.scss";
 import AddSectionModal from "../../../components/AddSectionModal";
@@ -23,7 +28,10 @@ import DeleteSectionModal from "../../../components/DeleteSectionModal";
 import AddLessonModal from "../../../components/AddLessonModal";
 import EditLessonModal from "../../../components/EditLessonModal";
 import DeleteLessonModal from "../../../components/DeleteLessonModal";
+import EditCourseModal from "../../../components/EditCourseModal";
+import DeleteCourseModal from "../../../components/DeleteCourseModal";
 import { LMS_BASE_URL, useCourseApi } from "../../../api/courseApi";
+import { getCategories } from "../../../api/categoryApi";
 
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
@@ -54,20 +62,79 @@ function formatTotalDuration(totalMinutes) {
   return `${mins} phút`;
 }
 
+function getStatusMeta(status) {
+  switch (status) {
+    case "PUBLISHED":
+      return { label: "Đã duyệt", className: "statusPublished", icon: Check };
+    case "PENDING_APPROVAL":
+      return {
+        label: "Chờ duyệt",
+        className: "statusPending",
+        icon: CircleAlert,
+      };
+    case "REJECTED":
+      return { label: "Bị từ chối", className: "statusRejected", icon: Trash2 };
+    case "ARCHIVED":
+      return { label: "Lưu trữ", className: "statusArchived", icon: Archive };
+    case "DRAFT":
+    default:
+      return { label: "Nháp", className: "statusDraft", icon: CircleDashed };
+  }
+}
+
+function getVisibilityMeta(visibility) {
+  switch (visibility) {
+    case "PRIVATE":
+      return { label: "Riêng tư", className: "visibilityPrivate", icon: Lock };
+    case "UNLISTED":
+      return {
+        label: "Không liệt kê",
+        className: "visibilityUnlisted",
+        icon: CircleDashed,
+      };
+    case "PUBLIC":
+    default:
+      return { label: "Công khai", className: "visibilityPublic", icon: Globe2 };
+  }
+}
+
+function getLevelMeta(level) {
+  switch (level) {
+    case "INTERMEDIATE":
+      return { label: "Trung cấp", className: "levelIntermediate", icon: BookOpen };
+    case "ADVANCED":
+      return { label: "Nâng cao", className: "levelAdvanced", icon: CircleAlert };
+    case "BEGINNER":
+    default:
+      return { label: "Cơ bản", className: "levelBeginner", icon: BookOpen };
+  }
+}
+
+function getLessonTypeLabel(type) {
+  switch (type) {
+    case "VIDEO":
+      return "Video";
+    case "READING":
+      return "Bài đọc";
+    case "QUIZ":
+      return "Bài kiểm tra";
+    case "ASSIGNMENT":
+      return "Bài tập";
+    default:
+      return "Bài học";
+  }
+}
+
 function getLessonIcon(lesson) {
   switch (lesson?.lessonType) {
     case "VIDEO":
       return <CirclePlay size={16} />;
-
     case "READING":
       return <FileText size={16} />;
-
     case "QUIZ":
       return <HelpCircle size={16} />;
-
     case "ASSIGNMENT":
       return <Pencil size={16} />;
-
     default:
       return <BookOpen size={16} />;
   }
@@ -80,6 +147,7 @@ export default function CourseDetail() {
 
   const [openSections, setOpenSections] = useState({});
   const [curriculum, setCurriculum] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
 
@@ -100,38 +168,46 @@ export default function CourseDetail() {
   const [isOpenDeleteLessonModal, setIsOpenDeleteLessonModal] = useState(false);
   const [deletingLesson, setDeletingLesson] = useState(null);
 
+  const [isOpenEditCourseModal, setIsOpenEditCourseModal] = useState(false);
+  const [isOpenDeleteCourseModal, setIsOpenDeleteCourseModal] = useState(false);
+
   useEffect(() => {
     fetchCourseDetail();
+    fetchCategories();
   }, [id]);
 
   const nextSectionOrderIndex = useMemo(() => {
     return (curriculum?.sections?.length || 0) + 1;
   }, [curriculum]);
 
-  const handleOpenEditSectionModal = (section) => {
-    setEditingSection(section);
-    setIsOpenEditSectionModal(true);
-  };
+  const totalLessons = useMemo(() => {
+    return (curriculum?.sections || []).reduce(
+      (sum, section) => sum + (section.totalLessons || 0),
+      0,
+    );
+  }, [curriculum]);
 
-  const handleOpenDeleteSectionModal = (section) => {
-    setDeletingSection(section);
-    setIsOpenDeleteSectionModal(true);
-  };
+  const totalDuration = useMemo(() => {
+    return (curriculum?.sections || []).reduce(
+      (sum, section) => sum + (section.totalDurationMinutes || 0),
+      0,
+    );
+  }, [curriculum]);
 
-  const handleOpenAddLessonModal = (section) => {
-    setSelectedSection(section);
-    setIsOpenAddLessonModal(true);
-  };
+  const statusMeta = getStatusMeta(curriculum?.status);
+  const visibilityMeta = getVisibilityMeta(curriculum?.visibility);
+  const levelMeta = getLevelMeta(curriculum?.level);
+  const StatusIcon = statusMeta.icon;
+  const VisibilityIcon = visibilityMeta.icon;
+  const LevelIcon = levelMeta.icon;
 
-  const handleOpenEditLessonModal = (lesson, section) => {
-    setEditingLesson(lesson);
-    setEditingLessonSection(section);
-    setIsOpenEditLessonModal(true);
-  };
-
-  const handleOpenDeleteLessonModal = (lesson) => {
-    setDeletingLesson(lesson);
-    setIsOpenDeleteLessonModal(true);
+  const fetchCategories = async () => {
+    try {
+      const data = await getCategories();
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Load categories failed:", error);
+    }
   };
 
   const fetchCourseDetail = async () => {
@@ -176,19 +252,17 @@ export default function CourseDetail() {
     }));
   };
 
-  const totalLessons = useMemo(() => {
-    return (curriculum?.sections || []).reduce(
-      (sum, section) => sum + (section.totalLessons || 0),
-      0,
-    );
-  }, [curriculum]);
+  const handleOpenAddLessonFromHeader = () => {
+    const firstSection = curriculum?.sections?.[0];
 
-  const totalDuration = useMemo(() => {
-    return (curriculum?.sections || []).reduce(
-      (sum, section) => sum + (section.totalDurationMinutes || 0),
-      0,
-    );
-  }, [curriculum]);
+    if (!firstSection) {
+      setErrorText("Cần tạo ít nhất một chương trước khi thêm bài học.");
+      return;
+    }
+
+    setSelectedSection(firstSection);
+    setIsOpenAddLessonModal(true);
+  };
 
   if (loading) {
     return <div className={styles.stateBox}>Đang tải chi tiết khóa học...</div>;
@@ -209,327 +283,429 @@ export default function CourseDetail() {
           type="button"
           className={styles.backBtn}
           onClick={() => navigate("/admin/courses")}
+          title="Quay lại"
+          aria-label="Quay lại"
         >
           <ArrowLeft size={18} />
-          <span>Quay lại</span>
         </button>
       </div>
 
-      <div className={styles.headerCard}>
-        <div className={styles.thumbWrap}>
-          <img
-            src={getImageSrc(curriculum.thumbnailUrl)}
-            alt={curriculum.title}
-            className={styles.thumbnail}
-          />
-        </div>
-
-        <div className={styles.headerContent}>
-          <div className={styles.categoryBadge}>
-            {curriculum.categoryName || "Chưa phân loại"}
+      <div className={styles.courseTableCard}>
+        <div className={styles.tableHead}>
+          <div>
+            <h1>Chi tiết khóa học</h1>
+            <p>Quản lý thông tin khóa học, chương học và bài học.</p>
           </div>
 
-          <h1>{curriculum.title}</h1>
-          <p className={styles.description}>
-            {curriculum.description || "Chưa có mô tả cho khóa học này."}
-          </p>
-          <div className={styles.badgeRow}>
-            <span className={styles.statusBadge}>
-              {curriculum.status || "DRAFT"}
-            </span>
-
-            <span className={styles.visibilityBadge}>
-              {curriculum.visibility || "PUBLIC"}
-            </span>
-
-            <span className={styles.levelBadge}>
-              {curriculum.level || "BEGINNER"}
-            </span>
-          </div>
-          <div className={styles.metaRow}>
-            <div className={styles.metaItem}>
-              <User size={16} />
-              <span>{curriculum.instructorName || "Chưa có giảng viên"}</span>
-            </div>
-
-            <div className={styles.metaItem}>
-              <Tag size={16} />
-              <span>{curriculum.categoryName || "Chưa có danh mục"}</span>
-            </div>
-
-            <div className={styles.metaItem}>
-              <BookOpen size={16} />
-              <span>{totalLessons} bài học</span>
-            </div>
-
-            <div className={styles.metaItem}>
-              <Clock3 size={16} />
-              <span>{formatTotalDuration(totalDuration)}</span>
-            </div>
-          </div>
-
-          <div className={styles.actionRow}>
-            <button type="button" className={styles.primaryBtn}>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={() => setIsOpenEditCourseModal(true)}
+              title="Sửa khóa học"
+              aria-label="Sửa khóa học"
+            >
               <Pencil size={16} />
-              <span>Sửa khóa học</span>
             </button>
 
-            <button type="button" className={styles.dangerBtn}>
+            <button
+              type="button"
+              className={styles.dangerBtn}
+              onClick={() => setIsOpenDeleteCourseModal(true)}
+              title="Xóa khóa học"
+              aria-label="Xóa khóa học"
+            >
               <Trash2 size={16} />
-              <span>Xóa</span>
             </button>
 
             <button
               type="button"
               className={styles.darkBtn}
               onClick={() => setIsOpenAddSectionModal(true)}
+              title="Thêm chương"
+              aria-label="Thêm chương"
             >
               <Plus size={16} />
-              <span>Thêm section</span>
+              <span>Thêm chương</span>
             </button>
           </div>
         </div>
+
+        <div className={styles.courseOverviewWrap}>
+          <table className={styles.courseOverviewTable}>
+            <thead>
+              <tr>
+                <th>Khóa học</th>
+                <th>Giảng viên</th>
+                <th>Danh mục</th>
+                <th>Chương</th>
+                <th>Bài học</th>
+                <th>Thời lượng</th>
+                <th>Trạng thái</th>
+                <th>Hiển thị</th>
+                <th>Cấp độ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div className={styles.courseInfoCell}>
+                    <img
+                      src={getImageSrc(curriculum.thumbnailUrl)}
+                      alt={curriculum.title}
+                      className={styles.courseThumb}
+                    />
+                    <div>
+                      <strong>{curriculum.title}</strong>
+                      <span>
+                        {curriculum.description ||
+                          "Chưa có mô tả cho khóa học này."}
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span className={styles.textCell}>
+                    {curriculum.instructorName || "Chưa có giảng viên"}
+                  </span>
+                </td>
+                <td>
+                  <span className={styles.textCell}>
+                    {curriculum.categoryName || "Chưa phân loại"}
+                  </span>
+                </td>
+                <td>
+                  <span className={styles.numberCell}>
+                    {curriculum.sections?.length || 0}
+                  </span>
+                </td>
+                <td>
+                  <span className={styles.numberCell}>{totalLessons}</span>
+                </td>
+                <td>
+                  <span className={styles.textCell}>
+                    {formatTotalDuration(totalDuration)}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={`${styles.iconBadge} ${styles[statusMeta.className]}`}
+                    title={statusMeta.label}
+                    aria-label={statusMeta.label}
+                  >
+                    <StatusIcon size={16} />
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={`${styles.iconBadge} ${styles[visibilityMeta.className]}`}
+                    title={visibilityMeta.label}
+                    aria-label={visibilityMeta.label}
+                  >
+                    <VisibilityIcon size={16} />
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={`${styles.iconBadge} ${styles[levelMeta.className]}`}
+                    title={levelMeta.label}
+                    aria-label={levelMeta.label}
+                  >
+                    <LevelIcon size={16} />
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className={styles.contentGrid}>
-        <div className={styles.curriculumCard}>
-          <div className={styles.sectionTitleRow}>
-            <div>
-              <h2>Nội dung khóa học</h2>
-              <p>
-                {curriculum.sections?.length || 0} chương • {totalLessons} bài
-                học
-              </p>
-            </div>
-
-            <button type="button" className={styles.addLessonBtn}>
-              <Plus size={16} />
-              <span>Thêm lesson</span>
-            </button>
+      <div className={styles.curriculumCard}>
+        <div className={styles.sectionTitleRow}>
+          <div>
+            <h2>Nội dung khóa học</h2>
+            <p>
+              {curriculum.sections?.length || 0} chương - {totalLessons} bài
+              học
+            </p>
           </div>
 
-          <div className={styles.sectionList}>
-            {(curriculum.sections || []).map((section, sectionIndex) => {
-              const isOpen = !!openSections[section.id];
+          <button
+            type="button"
+            className={styles.addLessonBtn}
+            onClick={handleOpenAddLessonFromHeader}
+            disabled={!curriculum?.sections?.length}
+            title="Thêm bài học"
+            aria-label="Thêm bài học"
+          >
+            <Plus size={16} />
+            <span>Thêm bài học</span>
+          </button>
+        </div>
 
-              return (
-                <div key={section.id} className={styles.sectionBlock}>
-                  <div className={styles.sectionHeader}>
-                    <button
-                      type="button"
-                      className={styles.sectionToggle}
-                      onClick={() => toggleSection(section.id)}
-                    >
-                      <div className={styles.sectionHeaderLeft}>
-                        <div className={styles.sectionOrder}>
-                          {sectionIndex + 1}
-                        </div>
+        <div className={styles.sectionList}>
+          {(curriculum.sections || []).map((section, sectionIndex) => {
+            const isOpen = !!openSections[section.id];
 
-                        <div>
-                          <h3>{section.title}</h3>
-                          <p>
-                            {section.totalLessons || 0} bài học •{" "}
-                            {formatTotalDuration(
-                              section.totalDurationMinutes || 0,
-                            )}
-                          </p>
-                        </div>
+            return (
+              <div key={section.id} className={styles.sectionBlock}>
+                <div className={styles.sectionHeader}>
+                  <button
+                    type="button"
+                    className={styles.sectionToggle}
+                    onClick={() => toggleSection(section.id)}
+                  >
+                    <div className={styles.sectionHeaderLeft}>
+                      <div className={styles.sectionOrder}>
+                        {sectionIndex + 1}
                       </div>
 
-                      <span className={styles.chevronIcon}>
-                        {isOpen ? (
-                          <ChevronUp size={18} />
-                        ) : (
-                          <ChevronDown size={18} />
-                        )}
-                      </span>
+                      <div>
+                        <h3>{section.title}</h3>
+                        <p>
+                          {section.totalLessons || 0} bài học -{" "}
+                          {formatTotalDuration(
+                            section.totalDurationMinutes || 0,
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className={styles.chevronIcon}>
+                      {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </span>
+                  </button>
+
+                  <div className={styles.sectionHeaderRight}>
+                    <button
+                      type="button"
+                      className={styles.iconActionBtn}
+                      onClick={() => {
+                        setEditingSection(section);
+                        setIsOpenEditSectionModal(true);
+                      }}
+                      title="Sửa chương"
+                      aria-label="Sửa chương"
+                    >
+                      <Pencil size={15} />
                     </button>
 
-                    <div className={styles.sectionHeaderRight}>
-                      <button
-                        type="button"
-                        className={styles.iconActionBtn}
-                        onClick={() => handleOpenEditSectionModal(section)}
-                      >
-                        <Pencil size={15} />
-                      </button>
+                    <button
+                      type="button"
+                      className={styles.iconActionBtn}
+                      onClick={() => {
+                        setDeletingSection(section);
+                        setIsOpenDeleteSectionModal(true);
+                      }}
+                      title="Xóa chương"
+                      aria-label="Xóa chương"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
 
+                {isOpen && (
+                  <div className={styles.lessonTableWrap}>
+                    <table className={styles.lessonTable}>
+                      <thead>
+                        <tr>
+                          <th>Thứ tự</th>
+                          <th>Bài học</th>
+                          <th>Loại</th>
+                          <th>Thời lượng</th>
+                          <th>Trạng thái</th>
+                          <th>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(section.lessons || []).map((lesson, lessonIndex) => (
+                          <tr
+                            key={lesson.id}
+                            className={
+                              !lesson.isPublished ? styles.lessonDraftRow : ""
+                            }
+                          >
+                            <td>
+                              <span className={styles.lessonOrder}>
+                                {lesson.orderIndex ?? lessonIndex + 1}
+                              </span>
+                            </td>
+
+                            <td>
+                              <div className={styles.lessonNameCell}>
+                                <span className={styles.lessonIcon}>
+                                  {getLessonIcon(lesson)}
+                                </span>
+                                <div>
+                                  <strong>{lesson.title}</strong>
+                                  {lesson.description ? (
+                                    <span>{lesson.description}</span>
+                                  ) : null}
+                                  {lesson.lessonType === "VIDEO" &&
+                                    lesson.videoUrl && (
+                                      <a
+                                        href={lesson.videoUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className={styles.videoLink}
+                                      >
+                                        Xem video
+                                      </a>
+                                    )}
+                                </div>
+                              </div>
+                            </td>
+
+                            <td>
+                              <span className={styles.lessonTypeBadge}>
+                                {getLessonTypeLabel(lesson.lessonType)}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className={styles.lessonDuration}>
+                                <Clock3 size={14} />
+                                {formatDuration(lesson.durationMinutes)}
+                              </span>
+                            </td>
+
+                            <td>
+                              <div className={styles.lessonStatusGroup}>
+                                {lesson.isPreview ? (
+                                  <span className={styles.previewBadge}>
+                                    Xem trước
+                                  </span>
+                                ) : null}
+                                {!lesson.isPublished ? (
+                                  <span className={styles.draftBadge}>Nháp</span>
+                                ) : (
+                                  <span className={styles.publishedBadge}>
+                                    Đã xuất bản
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td>
+                              <div className={styles.lessonActions}>
+                                {lesson.lessonType === "QUIZ" && lesson.quizId && (
+                                  <button
+                                    type="button"
+                                    className={styles.smallBtn}
+                                    onClick={() =>
+                                      navigate(
+                                        `/admin/quizzes/${lesson.quizId}/edit`,
+                                      )
+                                    }
+                                    title="Sửa bài kiểm tra"
+                                    aria-label="Sửa bài kiểm tra"
+                                  >
+                                    <HelpCircle size={15} />
+                                  </button>
+                                )}
+
+                                {lesson.lessonType === "ASSIGNMENT" &&
+                                  lesson.assignmentId && (
+                                    <button
+                                      type="button"
+                                      className={styles.smallBtn}
+                                      onClick={() =>
+                                        navigate(
+                                          `/admin/assignments/${lesson.assignmentId}/submissions`,
+                                        )
+                                      }
+                                      title="Bài nộp"
+                                      aria-label="Bài nộp"
+                                    >
+                                      <FileCheck2 size={15} />
+                                    </button>
+                                  )}
+
+                                {lesson.lessonType !== "QUIZ" ? (
+                                  <button
+                                    type="button"
+                                    className={styles.smallBtn}
+                                    onClick={() =>
+                                      navigate(
+                                        `/admin/quizzes/new?courseId=${id}&lessonId=${lesson.id}`,
+                                      )
+                                    }
+                                    title="Tạo bài kiểm tra bằng AI"
+                                    aria-label="Tạo bài kiểm tra bằng AI"
+                                  >
+                                    <Wand2 size={15} />
+                                  </button>
+                                ) : null}
+
+                                <button
+                                  type="button"
+                                  className={styles.smallBtn}
+                                  onClick={() => {
+                                    setEditingLesson(lesson);
+                                    setEditingLessonSection(section);
+                                    setIsOpenEditLessonModal(true);
+                                  }}
+                                  title="Sửa bài học"
+                                  aria-label="Sửa bài học"
+                                >
+                                  <Pencil size={15} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`${styles.smallBtn} ${styles.smallDangerBtn}`}
+                                  onClick={() => {
+                                    setDeletingLesson(lesson);
+                                    setIsOpenDeleteLessonModal(true);
+                                  }}
+                                  title="Xóa bài học"
+                                  aria-label="Xóa bài học"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <div className={styles.addLessonInline}>
                       <button
-                        type="button"
-                        className={styles.iconActionBtn}
-                        onClick={() => handleOpenDeleteSectionModal(section)}
+                        className={styles.inlineAddBtn}
+                        onClick={() => {
+                          setSelectedSection(section);
+                          setIsOpenAddLessonModal(true);
+                        }}
+                        title="Thêm bài học vào chương này"
                       >
-                        <Trash2 size={15} />
+                        <Plus size={15} />
+                        <span>Thêm bài học vào chương này</span>
                       </button>
                     </div>
                   </div>
-
-                  {isOpen && (
-                    <div className={styles.lessonList}>
-                      {(section.lessons || []).map((lesson, lessonIndex) => (
-                        <div
-                          key={lesson.id}
-                          className={styles.lessonRow}
-                          style={{
-                            opacity: lesson.isPublished ? 1 : 0.6,
-                          }}
-                        >
-                          <div className={styles.lessonLeft}>
-                            <div className={styles.lessonOrder}>
-                              {lesson.orderIndex ?? lessonIndex + 1}
-                            </div>
-
-                            <div className={styles.lessonMain}>
-                              <div className={styles.lessonTop}>
-                                <div className={styles.lessonTitleRow}>
-                                  <span className={styles.lessonIcon}>
-                                    {getLessonIcon(lesson)}
-                                  </span>
-
-                                  <h4>{lesson.title}</h4>
-                                </div>
-
-                                <div className={styles.lessonBadges}>
-                                  {lesson.isPreview && (
-                                    <span className={styles.previewBadge}>
-                                      <Eye size={13} />
-                                      Preview
-                                    </span>
-                                  )}
-
-                                  {lesson.lessonType === "QUIZ" && (
-                                    <span className={styles.quizBadge}>
-                                      <HelpCircle size={13} />
-                                      Quiz
-                                    </span>
-                                  )}
-
-                                  {lesson.lessonType === "ASSIGNMENT" && (
-                                    <span className={styles.assignmentBadge}>
-                                      <Pencil size={13} />
-                                      Bài tập
-                                    </span>
-                                  )}
-
-                                  {!lesson.isPublished && (
-                                    <span className={styles.draftBadge}>
-                                      Draft
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {lesson.description && (
-                                <p className={styles.lessonDesc}>
-                                  {lesson.description}
-                                </p>
-                              )}
-
-                              <div className={styles.lessonBottom}>
-                                <span className={styles.lessonType}>
-                                  {lesson.lessonType}
-                                </span>
-
-                                {lesson.durationMinutes ? (
-                                  <span className={styles.lessonDuration}>
-                                    <Clock3 size={14} />
-                                    <span>
-                                      {formatDuration(lesson.durationMinutes)}
-                                    </span>
-                                  </span>
-                                ) : null}
-
-                                {lesson.lessonType === "VIDEO" &&
-                                  lesson.videoUrl && (
-                                    <a
-                                      href={lesson.videoUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className={styles.videoLink}
-                                    >
-                                      Xem video
-                                    </a>
-                                  )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className={styles.lessonActions}>
-                            {lesson.lessonType === "QUIZ" && lesson.quizId && (
-                              <button
-                                type="button"
-                                className={styles.smallBtn}
-                                onClick={() =>
-                                  navigate(
-                                    `/admin/quizzes/${lesson.quizId}/edit`,
-                                  )
-                                }
-                              >
-                                Quiz
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className={styles.smallBtn}
-                              onClick={() =>
-                                handleOpenEditLessonModal(lesson, section)
-                              }
-                            >
-                              Sửa
-                            </button>
-                            <button
-                              type="button"
-                              className={`${styles.smallBtn} ${styles.smallDangerBtn}`}
-                              onClick={() =>
-                                handleOpenDeleteLessonModal(lesson)
-                              }
-                            >
-                              Xóa
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-
-                      <div className={styles.addLessonInline}>
-                        <button
-                          className={styles.inlineAddBtn}
-                          onClick={() => handleOpenAddLessonModal(section)}
-                        >
-                          <Plus size={15} />
-                          <span>Thêm bài học vào chương này</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className={styles.sideCard}>
-          <h3>Tổng quan</h3>
-
-          <div className={styles.sideStats}>
-            <div className={styles.statItem}>
-              <span>Chương học</span>
-              <strong>{curriculum.sections?.length || 0}</strong>
-            </div>
-
-            <div className={styles.statItem}>
-              <span>Bài học</span>
-              <strong>{totalLessons}</strong>
-            </div>
-
-            <div className={styles.statItem}>
-              <span>Tổng thời lượng</span>
-              <strong>{formatTotalDuration(totalDuration)}</strong>
-            </div>
-          </div>
-
-          <div className={styles.sideNote}>LMS</div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      <EditCourseModal
+        isOpen={isOpenEditCourseModal}
+        onClose={() => setIsOpenEditCourseModal(false)}
+        onUpdated={fetchCourseDetail}
+        course={curriculum}
+        categories={categories}
+      />
+
+      <DeleteCourseModal
+        isOpen={isOpenDeleteCourseModal}
+        onClose={() => setIsOpenDeleteCourseModal(false)}
+        course={curriculum}
+        onDeleted={() => navigate("/admin/courses")}
+      />
 
       <AddSectionModal
         isOpen={isOpenAddSectionModal}

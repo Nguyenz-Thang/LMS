@@ -7,13 +7,15 @@ import {
   BookOpen,
   CircleCheck,
   Ban,
-  ArrowRight,
   Clock3,
+  Trophy,
+  LayoutGrid,
 } from "lucide-react";
 import {
   getMyEnrollments,
   markEnrollmentAccess,
 } from "../../api/enrollmentApi";
+import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
 import styles from "./MyCourses.module.scss";
 
 const STATUS_OPTIONS = {
@@ -23,11 +25,16 @@ const STATUS_OPTIONS = {
   CANCELLED: "CANCELLED",
 };
 
-function normalizeEnrollment(rawEnrollment) {
+function normalizeEnrollment(rawEnrollment, courseDetail = null) {
   return {
     id: rawEnrollment?.id || "",
     courseId: rawEnrollment?.courseId || "",
-    courseTitle: rawEnrollment?.courseTitle || "Khóa học không xác định",
+    courseTitle:
+      rawEnrollment?.courseTitle ||
+      courseDetail?.title ||
+      "Khóa học không xác định",
+    thumbnailUrl: courseDetail?.thumbnailUrl || "",
+    categoryName: courseDetail?.categoryName || "Khóa học",
     status: rawEnrollment?.status || "ACTIVE",
     progressPercent: Number(rawEnrollment?.progressPercent) || 0,
     enrolledAt: rawEnrollment?.enrolledAt || null,
@@ -56,8 +63,28 @@ function formatDateTime(value) {
   return date.toLocaleString("vi-VN");
 }
 
+function getProgressLabel(progress, status) {
+  if (status === "COMPLETED") return "Bạn đã hoàn thành khóa học này.";
+  if (status === "CANCELLED") {
+    return "Khóa học đã dừng, bạn vẫn có thể xem lại khi cần.";
+  }
+  if (progress >= 75) return "Bạn đang ở chặng cuối, tiếp tục để hoàn thành.";
+  if (progress >= 30) {
+    return "Tiến độ đang ổn định, tiếp tục học để không bị ngắt quãng.";
+  }
+  return "Bạn vừa bắt đầu, nên duy trì nhịp học đều mỗi ngày.";
+}
+
+function getImageSrc(thumbnailUrl) {
+  if (!thumbnailUrl) return "";
+  if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
+  if (thumbnailUrl.startsWith("/")) return `${LMS_BASE_URL}${thumbnailUrl}`;
+  return `${LMS_BASE_URL}/${thumbnailUrl}`;
+}
+
 export default function MyCoursesPage() {
   const navigate = useNavigate();
+  const { getCourseById } = useCourseApi();
 
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -74,7 +101,18 @@ export default function MyCoursesPage() {
       const res = await getMyEnrollments();
       const data = Array.isArray(res?.result) ? res.result : [];
 
-      setEnrollments(data.map(normalizeEnrollment));
+      const normalized = await Promise.all(
+        data.map(async (item) => {
+          try {
+            const detailRes = await getCourseById(item.courseId);
+            return normalizeEnrollment(item, detailRes?.result || null);
+          } catch {
+            return normalizeEnrollment(item);
+          }
+        }),
+      );
+
+      setEnrollments(normalized);
     } catch (error) {
       setErrorText(
         error?.response?.data?.message ||
@@ -96,8 +134,7 @@ export default function MyCoursesPage() {
     return enrollments.filter((course) => {
       const matchesKeyword =
         !normalizedKeyword ||
-        course.courseTitle.toLowerCase().includes(normalizedKeyword) ||
-        course.courseId.toLowerCase().includes(normalizedKeyword);
+        course.courseTitle.toLowerCase().includes(normalizedKeyword);
 
       const matchesStatus =
         statusFilter === STATUS_OPTIONS.ALL || course.status === statusFilter;
@@ -116,10 +153,20 @@ export default function MyCoursesPage() {
       setEnrollments((prev) =>
         prev.map((item) =>
           item.id === course.id
-            ? normalizeEnrollment({
+            ? {
                 ...item,
-                ...updated,
-              })
+                ...normalizeEnrollment(
+                  {
+                    ...item,
+                    ...updated,
+                  },
+                  {
+                    thumbnailUrl: item.thumbnailUrl,
+                    categoryName: item.categoryName,
+                    title: item.courseTitle,
+                  },
+                ),
+              }
             : item,
         ),
       );
@@ -150,9 +197,21 @@ export default function MyCoursesPage() {
           <div>
             <h1>Khóa học của tôi</h1>
             <p>
-              Theo dõi các khóa học đã đăng ký, tiến độ học tập và tiếp tục học
-              nhanh chóng.
+              Theo dõi các khóa học đã đăng ký, xem tiến độ hiện tại và quay lại
+              đúng phần học của bạn.
             </p>
+          </div>
+        </div>
+
+        <div className={styles.headerStats}>
+          <div className={styles.headerStatItem}>
+            <LayoutGrid size={16} />
+            <span>{totalCount} khóa học</span>
+          </div>
+
+          <div className={styles.headerStatItem}>
+            <Trophy size={16} />
+            <span>{completedCount} đã hoàn thành</span>
           </div>
         </div>
       </div>
@@ -162,7 +221,7 @@ export default function MyCoursesPage() {
           <Search size={18} />
           <input
             type="text"
-            placeholder="Tìm theo tên khóa học hoặc mã khóa học..."
+            placeholder="Tìm theo tên khóa học..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
@@ -230,87 +289,113 @@ export default function MyCoursesPage() {
         </div>
       ) : (
         <div className={styles.grid}>
-          {filteredCourses.map((course) => (
-            <div key={course.id} className={styles.courseCard}>
-              <div className={styles.cardTop}>
-                <div className={styles.cardBadgeWrap}>
-                  {course.status === "COMPLETED" ? (
-                    <span className={styles.statusCompleted}>
-                      <CircleCheck size={14} />
-                      <span>{getStatusLabel(course.status)}</span>
-                    </span>
-                  ) : course.status === "CANCELLED" ? (
-                    <span className={styles.statusCancelled}>
-                      <Ban size={14} />
-                      <span>{getStatusLabel(course.status)}</span>
-                    </span>
-                  ) : (
-                    <span className={styles.statusActive}>
-                      <BookOpen size={14} />
-                      <span>{getStatusLabel(course.status)}</span>
-                    </span>
-                  )}
-                </div>
+          {filteredCourses.map((course) => {
+            const thumbnailSrc = getImageSrc(course.thumbnailUrl);
 
-                <span className={styles.courseId}>{course.courseId}</span>
-              </div>
-
-              <div className={styles.cardBody}>
-                <h3>{course.courseTitle}</h3>
-
-                <div className={styles.progressBlock}>
-                  <div className={styles.progressLabelRow}>
-                    <span>Tiến độ học tập</span>
-                    <strong>
-                      {Math.max(0, Math.min(100, course.progressPercent))}%
-                    </strong>
-                  </div>
-
-                  <div className={styles.progressTrack}>
-                    <div
-                      className={styles.progressBar}
-                      style={{
-                        width: `${Math.max(
-                          0,
-                          Math.min(100, course.progressPercent),
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className={styles.metaList}>
-                  <div className={styles.metaItem}>
-                    <Clock3 size={15} />
-                    <span>Đăng ký: {formatDateTime(course.enrolledAt)}</span>
-                  </div>
-
-                  <div className={styles.metaItem}>
-                    <Clock3 size={15} />
-                    <span>
-                      Truy cập gần nhất: {formatDateTime(course.lastAccessedAt)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className={styles.cardActions}>
-                <button
-                  type="button"
-                  className={styles.primaryBtn}
-                  onClick={() => handleOpenCourse(course)}
-                  disabled={openingCourseId === course.courseId}
+            return (
+              <article
+                key={course.id}
+                className={`${styles.courseCard} ${
+                  openingCourseId === course.courseId
+                    ? styles.courseCardBusy
+                    : ""
+                }`}
+                onClick={() => handleOpenCourse(course)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleOpenCourse(course);
+                  }
+                }}
+              >
+                <div
+                  className={styles.cardCover}
+                  style={
+                    thumbnailSrc
+                      ? { "--cover-image": `url(${thumbnailSrc})` }
+                      : undefined
+                  }
                 >
-                  <ArrowRight size={16} />
-                  <span>
-                    {openingCourseId === course.courseId
-                      ? "Đang mở..."
-                      : "Tiếp tục học"}
-                  </span>
-                </button>
-              </div>
-            </div>
-          ))}
+                  <div className={styles.cardCoverOverlay} />
+
+                  <div className={styles.cardTop}>
+                    <div className={styles.cardBadgeWrap}>
+                      {course.status === "COMPLETED" ? (
+                        <span className={styles.statusCompleted}>
+                          <CircleCheck size={14} />
+                          <span>{getStatusLabel(course.status)}</span>
+                        </span>
+                      ) : course.status === "CANCELLED" ? (
+                        <span className={styles.statusCancelled}>
+                          <Ban size={14} />
+                          <span>{getStatusLabel(course.status)}</span>
+                        </span>
+                      ) : (
+                        <span className={styles.statusActive}>
+                          <BookOpen size={14} />
+                          <span>{getStatusLabel(course.status)}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <span className={styles.progressPill}>
+                      {Math.max(0, Math.min(100, course.progressPercent))}%
+                    </span>
+                  </div>
+
+                  <div className={styles.coverBody}>
+                    <span className={styles.categoryChip}>
+                      {course.categoryName}
+                    </span>
+                    <h3>{course.courseTitle}</h3>
+                    <p>
+                      {getProgressLabel(course.progressPercent, course.status)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className={styles.cardBody}>
+                  <div className={styles.progressBlock}>
+                    <div className={styles.progressLabelRow}>
+                      <span>Tiến độ học tập</span>
+                      <strong>
+                        {Math.max(0, Math.min(100, course.progressPercent))}%
+                      </strong>
+                    </div>
+
+                    <div className={styles.progressTrack}>
+                      <div
+                        className={styles.progressBar}
+                        style={{
+                          width: `${Math.max(
+                            0,
+                            Math.min(100, course.progressPercent),
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={styles.metaList}>
+                    <div className={styles.metaItem}>
+                      <Clock3 size={15} />
+                      <span>Đăng ký: {formatDateTime(course.enrolledAt)}</span>
+                    </div>
+
+                    <div className={styles.metaItem}>
+                      <Clock3 size={15} />
+                      <span>
+                        Truy cập gần nhất:{" "}
+                        {formatDateTime(course.lastAccessedAt)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

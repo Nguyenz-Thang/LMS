@@ -70,6 +70,13 @@ public class UserController {
                 .build();
     }
 
+    @PutMapping("/myInfo")
+    ApiResponse<UserResponse> updateMyInfo(@RequestBody UserUpdateRequest request) {
+        return ApiResponse.<UserResponse>builder()
+                .result(userService.updateMyInfo(request))
+                .build();
+    }
+
     @DeleteMapping("/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
     ApiResponse<String> deleteUser(@PathVariable String userId) {

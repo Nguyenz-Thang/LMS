@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 import {
   ArrowLeft,
+  BrainCircuit,
   Plus,
   Trash2,
   CircleCheck,
@@ -9,13 +12,54 @@ import {
   FileQuestion,
 } from "lucide-react";
 import styles from "./QuizEditor.module.scss";
-import { createQuiz, getQuiz, updateQuiz } from "../../api/quizApi";
+import {
+  createQuiz,
+  generateQuizFromLesson,
+  getQuiz,
+  updateQuiz,
+} from "../../api/quizApi";
 
 const QUESTION_TYPES = {
   SINGLE_CHOICE: "SINGLE_CHOICE",
   MULTIPLE_CHOICE: "MULTIPLE_CHOICE",
   TRUE_FALSE: "TRUE_FALSE",
 };
+
+const QUIZ_EDITOR_FORMATS = [
+  "header",
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "color",
+  "background",
+  "align",
+  "list",
+  "bullet",
+  "blockquote",
+  "code-block",
+  "link",
+];
+
+const QUIZ_EDITOR_MODULES = {
+  toolbar: [
+    [{ header: [1, 2, 3, false] }],
+    ["bold", "italic", "underline", "strike"],
+    [{ color: [] }, { background: [] }],
+    [{ align: [] }],
+    [{ list: "ordered" }, { list: "bullet" }],
+    ["blockquote", "code-block", "link"],
+    ["clean"],
+  ],
+};
+
+function stripHtml(html = "") {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function createEmptyOption(content = "") {
   return {
@@ -27,7 +71,7 @@ function createEmptyOption(content = "") {
 
 function createDefaultOptionsByType(questionType) {
   if (questionType === QUESTION_TYPES.TRUE_FALSE) {
-    return [createEmptyOption("Đúng"), createEmptyOption("Sai")];
+    return [createEmptyOption("Dung"), createEmptyOption("Sai")];
   }
 
   return [createEmptyOption(), createEmptyOption()];
@@ -37,6 +81,7 @@ function createEmptyQuestion() {
   return {
     id: undefined,
     content: "",
+    explanation: "",
     questionType: QUESTION_TYPES.SINGLE_CHOICE,
     points: 1,
     orderIndex: 0,
@@ -57,13 +102,13 @@ function normalizeQuestion(rawQuestion, index) {
     : [];
 
   if (questionType === QUESTION_TYPES.TRUE_FALSE) {
-    const trueOption = options[0] || createEmptyOption("Đúng");
+    const trueOption = options[0] || createEmptyOption("Dung");
     const falseOption = options[1] || createEmptyOption("Sai");
 
     options = [
       {
         id: trueOption.id,
-        content: trueOption.content || "Đúng",
+        content: trueOption.content || "Dung",
         isCorrect: !!trueOption.isCorrect,
       },
       {
@@ -81,6 +126,7 @@ function normalizeQuestion(rawQuestion, index) {
   return {
     id: rawQuestion?.id,
     content: rawQuestion?.content || "",
+    explanation: rawQuestion?.explanation || "",
     questionType,
     points: Number(rawQuestion?.points) || 1,
     orderIndex:
@@ -98,16 +144,26 @@ export default function QuizEditor() {
 
   const isCreateMode = useMemo(() => !quizId, [quizId]);
   const courseIdFromQuery = searchParams.get("courseId") || "";
+  const lessonIdFromQuery = searchParams.get("lessonId") || "";
 
   const [form, setForm] = useState({
     title: "",
     description: "",
     courseId: courseIdFromQuery,
+    lessonId: lessonIdFromQuery,
+    maxAttempts: 1,
     questions: [createEmptyQuestion()],
+  });
+
+  const [aiConfig, setAiConfig] = useState({
+    lessonId: lessonIdFromQuery,
+    questionCount: 5,
+    difficulty: "MEDIUM",
   });
 
   const [loading, setLoading] = useState(!isCreateMode);
   const [saving, setSaving] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
   const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
@@ -117,13 +173,20 @@ export default function QuizEditor() {
         title: "",
         description: "",
         courseId: courseIdFromQuery,
+        lessonId: lessonIdFromQuery,
+        maxAttempts: 1,
         questions: [createEmptyQuestion()],
+      });
+      setAiConfig({
+        lessonId: lessonIdFromQuery,
+        questionCount: 5,
+        difficulty: "MEDIUM",
       });
       return;
     }
 
     fetchQuiz();
-  }, [quizId, isCreateMode, courseIdFromQuery]);
+  }, [quizId, isCreateMode, courseIdFromQuery, lessonIdFromQuery]);
 
   const fetchQuiz = async () => {
     try {
@@ -137,6 +200,8 @@ export default function QuizEditor() {
         title: data?.title || "",
         description: data?.description || "",
         courseId: data?.courseId || "",
+        lessonId: data?.lessonId || "",
+        maxAttempts: Number(data?.maxAttempts) || 1,
         questions:
           Array.isArray(data?.questions) && data.questions.length > 0
             ? data.questions.map((q, index) => normalizeQuestion(q, index))
@@ -158,12 +223,21 @@ export default function QuizEditor() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleQuestionChange = (qIndex, value) => {
+  const handleAiConfigChange = (e) => {
+    const { name, value } = e.target;
+    setAiConfig((prev) => ({
+      ...prev,
+      [name]:
+        name === "questionCount" ? Math.max(3, Number(value) || 3) : value,
+    }));
+  };
+
+  const updateQuestionField = (qIndex, field, value) => {
     setForm((prev) => {
       const next = [...prev.questions];
       next[qIndex] = {
         ...next[qIndex],
-        content: value,
+        [field]: value,
       };
       return { ...prev, questions: next };
     });
@@ -181,8 +255,8 @@ export default function QuizEditor() {
           value === QUESTION_TYPES.TRUE_FALSE
             ? [
                 {
-                  ...(oldQuestion.options?.[0] || createEmptyOption("Đúng")),
-                  content: "Đúng",
+                  ...(oldQuestion.options?.[0] || createEmptyOption("Dung")),
+                  content: "Dung",
                 },
                 {
                   ...(oldQuestion.options?.[1] || createEmptyOption("Sai")),
@@ -195,17 +269,6 @@ export default function QuizEditor() {
               : createDefaultOptionsByType(value),
       };
 
-      return { ...prev, questions: next };
-    });
-  };
-
-  const handleQuestionPointsChange = (qIndex, value) => {
-    setForm((prev) => {
-      const next = [...prev.questions];
-      next[qIndex] = {
-        ...next[qIndex],
-        points: Math.max(1, Number(value) || 1),
-      };
       return { ...prev, questions: next };
     });
   };
@@ -325,7 +388,7 @@ export default function QuizEditor() {
         ? question.options
         : [];
 
-      let nextOptions =
+      const nextOptions =
         currentOptions.length <= 2
           ? createDefaultOptionsByType(question.questionType)
           : currentOptions.filter((_, index) => index !== oIndex);
@@ -351,7 +414,7 @@ export default function QuizEditor() {
     for (let i = 0; i < form.questions.length; i += 1) {
       const question = form.questions[i];
 
-      if (!question.content.trim()) {
+      if (!stripHtml(question.content)) {
         return `Vui lòng nhập nội dung câu hỏi ${i + 1}.`;
       }
 
@@ -375,34 +438,95 @@ export default function QuizEditor() {
         if (correctCount < 1) {
           return `Câu hỏi ${i + 1} phải có ít nhất 1 đáp án đúng.`;
         }
-      } else {
-        if (correctCount !== 1) {
-          return `Câu hỏi ${i + 1} phải có đúng 1 đáp án đúng.`;
-        }
+      } else if (correctCount !== 1) {
+        return `Câu hỏi ${i + 1} phải có đúng 1 đáp án đúng.`;
       }
     }
 
     return "";
   };
 
-  const buildPayload = () => {
-    return {
-      title: form.title.trim(),
-      description: form.description.trim(),
-      courseId: form.courseId || null,
-      questions: form.questions.map((question, index) => ({
-        content: question.content.trim(),
-        questionType: question.questionType,
-        points: Math.max(1, Number(question.points) || 1),
-        orderIndex: index,
-        answers: (Array.isArray(question.options) ? question.options : [])
-          .filter((option) => option.content.trim())
-          .map((option) => ({
-            content: option.content.trim(),
-            isCorrect: !!option.isCorrect,
-          })),
-      })),
-    };
+  const buildPayload = () => ({
+    title: form.title.trim(),
+    description: form.description.trim(),
+    courseId: form.courseId || null,
+    lessonId: form.lessonId || null,
+    maxAttempts: form.lessonId
+      ? 1
+      : Math.max(1, Number(form.maxAttempts) || 1),
+    questions: form.questions.map((question, index) => ({
+      content: question.content.trim(),
+      explanation: question.explanation?.trim() || "",
+      questionType: question.questionType,
+      points: Math.max(1, Number(question.points) || 1),
+      orderIndex: index,
+      answers: (Array.isArray(question.options) ? question.options : [])
+        .filter((option) => option.content.trim())
+        .map((option) => ({
+          content: option.content.trim(),
+          isCorrect: !!option.isCorrect,
+        })),
+    })),
+  });
+
+  const handleGenerateWithAi = async () => {
+    if (!aiConfig.lessonId.trim()) {
+      setErrorText("Vui lòng nhập lessonId để sinh quiz từ bài học.");
+      return;
+    }
+
+    try {
+      setGeneratingAi(true);
+      setErrorText("");
+
+      const res = await generateQuizFromLesson(aiConfig.lessonId.trim(), {
+        questionCount: aiConfig.questionCount,
+        difficulty: aiConfig.difficulty,
+        includeExplanation: true,
+      });
+
+      const draft = res?.result;
+      const draftQuestions = Array.isArray(draft?.questions)
+        ? draft.questions.map((question, index) => ({
+            id: undefined,
+            content: question?.content || "",
+            explanation: question?.explanation || "",
+            questionType:
+              question?.questionType || QUESTION_TYPES.SINGLE_CHOICE,
+            points: Number(question?.points) || 1,
+            orderIndex:
+              typeof question?.orderIndex === "number"
+                ? question.orderIndex
+                : index,
+            options: Array.isArray(question?.answers)
+              ? question.answers.map((answer) => ({
+                  id: undefined,
+                  content: answer?.content || "",
+                  isCorrect: !!answer?.isCorrect,
+                }))
+              : createDefaultOptionsByType(QUESTION_TYPES.SINGLE_CHOICE),
+          }))
+        : [createEmptyQuestion()];
+
+      setForm((prev) => ({
+        ...prev,
+        title: draft?.title || prev.title,
+        description: draft?.description || prev.description,
+        courseId: draft?.courseId || prev.courseId,
+        lessonId: draft?.lessonId || aiConfig.lessonId.trim(),
+        maxAttempts: prev.maxAttempts,
+        questions:
+          draftQuestions.length > 0 ? draftQuestions : [createEmptyQuestion()],
+      }));
+    } catch (error) {
+      setErrorText(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Không thể sinh quiz bằng AI.",
+      );
+    } finally {
+      setGeneratingAi(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -429,9 +553,7 @@ export default function QuizEditor() {
       navigate(-1);
     } catch (error) {
       setErrorText(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Lưu quiz thất bại.",
+        error?.response?.data?.message || error?.message || "Lưu quiz thất bại.",
       );
     } finally {
       setSaving(false);
@@ -472,6 +594,73 @@ export default function QuizEditor() {
 
       <form onSubmit={handleSubmit} className={styles.formWrap}>
         <div className={styles.mainCard}>
+          {isCreateMode ? (
+            <div className={styles.aiAssistCard}>
+              <div className={styles.aiAssistHead}>
+                <div>
+                  <h2>Sinh quiz tu noi dung bai hoc</h2>
+                  <p>
+                    Dung `lessonId` de lay noi dung bai hoc hien co va do draft
+                    quiz vao editor de ban kiem tra lai truoc khi luu.
+                  </p>
+                </div>
+                <BrainCircuit size={20} />
+              </div>
+
+              <div className={styles.aiAssistGrid}>
+                <div className={styles.formGroup}>
+                  <label htmlFor="ai-lessonId">Lesson ID</label>
+                  <input
+                    id="ai-lessonId"
+                    name="lessonId"
+                    value={aiConfig.lessonId}
+                    onChange={handleAiConfigChange}
+                    placeholder="Nhập lessonId..."
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="ai-questionCount">Số câu hỏi</label>
+                  <input
+                    id="ai-questionCount"
+                    name="questionCount"
+                    type="number"
+                    min="3"
+                    max="10"
+                    value={aiConfig.questionCount}
+                    onChange={handleAiConfigChange}
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="ai-difficulty">Độ khó</label>
+                  <select
+                    id="ai-difficulty"
+                    name="difficulty"
+                    value={aiConfig.difficulty}
+                    onChange={handleAiConfigChange}
+                  >
+                    <option value="EASY">Dễ</option>
+                    <option value="MEDIUM">Trung bình</option>
+                    <option value="HARD">Khó</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.aiAssistActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={handleGenerateWithAi}
+                  disabled={generatingAi}
+                >
+                  <BrainCircuit size={16} />
+                  <span>{generatingAi ? "Đang sinh..." : "Sinh bằng AI"}</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className={styles.formGroup}>
             <label htmlFor="title">Tiêu đề quiz</label>
             <input
@@ -494,6 +683,26 @@ export default function QuizEditor() {
               placeholder="Nhập mô tả quiz..."
             />
           </div>
+
+          {form.lessonId ? (
+            <div className={styles.inlineInfo}>
+              Quiz này được tạo từ lesson. Hệ thống sẽ tự gán liên kết bài học,
+              bạn không cần nhập `lessonId`.
+            </div>
+          ) : (
+            <div className={styles.formGroup}>
+              <label htmlFor="maxAttempts">Số lần được làm</label>
+              <input
+                id="maxAttempts"
+                name="maxAttempts"
+                type="number"
+                min="1"
+                value={form.maxAttempts}
+                onChange={handleQuizChange}
+                placeholder="Nhập số lần được làm"
+              />
+            </div>
+          )}
         </div>
 
         <div className={styles.questionSection}>
@@ -532,11 +741,18 @@ export default function QuizEditor() {
 
               <div className={styles.formGroup}>
                 <label>Nội dung câu hỏi</label>
-                <input
-                  value={question.content}
-                  onChange={(e) => handleQuestionChange(qIndex, e.target.value)}
-                  placeholder={`Nhập nội dung câu hỏi ${qIndex + 1}`}
-                />
+                <div className={styles.richEditorWrap}>
+                  <ReactQuill
+                    theme="snow"
+                    value={question.content}
+                    onChange={(value) =>
+                      updateQuestionField(qIndex, "content", value)
+                    }
+                    modules={QUIZ_EDITOR_MODULES}
+                    formats={QUIZ_EDITOR_FORMATS}
+                    placeholder={`Nhập nội dung câu hỏi ${qIndex + 1}`}
+                  />
+                </div>
               </div>
 
               <div className={styles.row2col}>
@@ -567,8 +783,28 @@ export default function QuizEditor() {
                     min="1"
                     value={question.points}
                     onChange={(e) =>
-                      handleQuestionPointsChange(qIndex, e.target.value)
+                      updateQuestionField(
+                        qIndex,
+                        "points",
+                        Math.max(1, Number(e.target.value) || 1),
+                      )
                     }
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Giải thích</label>
+                <div className={styles.richEditorWrap}>
+                  <ReactQuill
+                    theme="snow"
+                    value={question.explanation}
+                    onChange={(value) =>
+                      updateQuestionField(qIndex, "explanation", value)
+                    }
+                    modules={QUIZ_EDITOR_MODULES}
+                    formats={QUIZ_EDITOR_FORMATS}
+                    placeholder="Nhập giải thích hiển thị sau khi trả lời..."
                   />
                 </div>
               </div>
@@ -596,7 +832,7 @@ export default function QuizEditor() {
                         onChange={(e) =>
                           handleOptionChange(qIndex, oIndex, e.target.value)
                         }
-                        placeholder={`Lựa chọn ${oIndex + 1}`}
+                        placeholder={`Lua chon ${oIndex + 1}`}
                         disabled={
                           question.questionType === QUESTION_TYPES.TRUE_FALSE
                         }
@@ -611,7 +847,7 @@ export default function QuizEditor() {
                           <Trash2 size={16} />
                         </button>
                       ) : (
-                        <div style={{ width: 36 }} />
+                        <div className={styles.answerSpacer} />
                       )}
                     </div>
                   ),

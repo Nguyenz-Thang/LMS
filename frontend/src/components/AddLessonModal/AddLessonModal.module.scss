@@ -46,7 +46,8 @@
   }
 
   input,
-  textarea {
+  textarea,
+  select {
     width: 100%;
     border: 1px solid #dbe2ea;
     border-radius: 10px;
@@ -59,7 +60,8 @@
   }
 
   input:focus,
-  textarea:focus {
+  textarea:focus,
+  select:focus {
     border-color: #ef4444;
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08);
   }
@@ -67,6 +69,46 @@
   textarea {
     resize: vertical;
   }
+}
+
+.editorWrap {
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+
+  :global(.ql-toolbar.ql-snow) {
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  :global(.ql-container.ql-snow) {
+    border: none;
+    min-height: 260px;
+    font-size: 14px;
+    color: #334155;
+  }
+
+  :global(.ql-editor) {
+    min-height: 260px;
+    line-height: 1.8;
+  }
+
+  :global(.ql-editor.ql-blank::before) {
+    color: #94a3b8;
+    font-style: normal;
+  }
+
+  :global(.ql-snow .ql-picker) {
+    color: #334155;
+  }
+}
+
+.editorHint {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .checkRow {
@@ -150,5 +192,15 @@
   .cancelBtn,
   .submitBtn {
     width: 100%;
+  }
+
+  .editorWrap {
+    :global(.ql-container.ql-snow) {
+      min-height: 220px;
+    }
+
+    :global(.ql-editor) {
+      min-height: 220px;
+    }
   }
 }
