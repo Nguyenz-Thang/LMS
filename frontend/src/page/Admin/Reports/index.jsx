@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ChartColumn,
   BookOpen,
-  Users,
-  GraduationCap,
+  ChartColumn,
   Clock3,
+  GraduationCap,
   RefreshCw,
   TriangleAlert,
   Trophy,
+  Users,
 } from "lucide-react";
 import { useReportApi } from "../../../api/reportApi";
 import styles from "./Reports.module.scss";
@@ -59,7 +59,7 @@ export default function Reports() {
     return [
       {
         key: "courses",
-        label: "Khóa học trong phạm vi",
+        label: "Khóa học",
         value: summary.totalCourses || 0,
         icon: BookOpen,
       },
@@ -71,19 +71,19 @@ export default function Reports() {
       },
       {
         key: "active",
-        label: "Đăng ký đang học",
+        label: "Đang học",
         value: summary.activeEnrollments || 0,
         icon: GraduationCap,
       },
       {
         key: "progress",
-        label: "Tiến độ trung bình",
+        label: "Tiến độ TB",
         value: formatPercent(summary.averageProgressPercent),
         icon: ChartColumn,
       },
       {
         key: "hours",
-        label: "Tổng giờ học ghi nhận",
+        label: "Giờ học",
         value: formatHours(summary.totalLearningHours),
         icon: Clock3,
       },
@@ -103,26 +103,22 @@ export default function Reports() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.heroCard}>
-        <div className={styles.heroCopy}>
-          <div className={styles.heroIcon}>
-            <ChartColumn size={24} />
-          </div>
-          <div>
-            <h1>Dashboard báo cáo giảng viên / admin</h1>
-            <p>
-              Theo dõi tăng trưởng ghi danh, chất lượng học tập, khóa học nổi
-              bật và cảnh báo học viên có nguy cơ chậm tiến độ.
-            </p>
-          </div>
+      <div className={styles.headerBar}>
+        <div>
+          <div className={styles.breadcrumb}>Quản trị \ Báo cáo</div>
+          <h1>Báo cáo học tập</h1>
+          <p>
+            Theo dõi ghi danh, tiến độ học, khóa học nổi bật và cảnh báo cần xử
+            lí.
+          </p>
         </div>
 
-        <div className={styles.heroActions}>
-          <div className={styles.scopeBadge}>
+        <div className={styles.headerActions}>
+          <span className={styles.scopeBadge}>
             {dashboard?.scope === "ADMIN"
-              ? "Phạm vi toàn hệ thống"
+              ? "Toàn hệ thống"
               : "Phạm vi giảng viên"}
-          </div>
+          </span>
           <button
             type="button"
             className={styles.refreshBtn}
@@ -147,9 +143,7 @@ export default function Reports() {
               const Icon = card.icon;
               return (
                 <div key={card.key} className={styles.summaryCard}>
-                  <div className={styles.summaryIcon}>
-                    <Icon size={18} />
-                  </div>
+                  <Icon size={17} />
                   <span>{card.label}</span>
                   <strong>{card.value}</strong>
                 </div>
@@ -188,9 +182,7 @@ export default function Reports() {
             <div className={styles.panelCard}>
               <div className={styles.panelHead}>
                 <h2>Cảnh báo tiến độ</h2>
-                <span>
-                  {(dashboard.alerts || []).length} học viên cần theo dõi
-                </span>
+                <span>{(dashboard.alerts || []).length} học viên cần theo dõi</span>
               </div>
 
               <div className={styles.alertList}>
@@ -214,7 +206,7 @@ export default function Reports() {
                       <strong>{alert.title}</strong>
                       <p>{alert.description}</p>
                       <span className={styles.alertMeta}>
-                        {alert.courseTitle} • {alert.username} •{" "}
+                        {alert.courseTitle} - {alert.username} -{" "}
                         {formatDateTime(alert.lastAccessedAt)}
                       </span>
                     </div>

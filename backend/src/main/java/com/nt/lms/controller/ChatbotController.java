@@ -43,6 +43,13 @@ public class ChatbotController {
 				.build();
 	}
 
+	@GetMapping("/lessons/{lessonId}/conversation")
+	public ApiResponse<ChatbotConversationResponse> getLessonConversation(@PathVariable String lessonId) {
+		return ApiResponse.<ChatbotConversationResponse>builder()
+				.result(chatbotService.getOrCreateLessonConversation(lessonId))
+				.build();
+	}
+
 	@DeleteMapping("/conversations/{conversationId}")
 	public ApiResponse<Void> deleteConversation(@PathVariable String conversationId) {
 		chatbotService.deleteConversation(conversationId);

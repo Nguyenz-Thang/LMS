@@ -59,6 +59,18 @@ export function getBlockTitle(blockType) {
   return map[blockType] || blockType;
 }
 
+export function getLessonTypeLabel(lessonType) {
+  const map = {
+    VIDEO: "Video",
+    READING: "Bài đọc",
+    QUIZ: "Quiz",
+    ASSIGNMENT: "Bài tập",
+    FILE: "Tài liệu",
+  };
+
+  return map[lessonType] || lessonType || "Bài học";
+}
+
 export function isYoutubeUrl(url = "") {
   return (
     url.includes("youtube.com/watch") ||

@@ -8,7 +8,7 @@
   width: 64px;
   height: 64px;
   margin: 0 auto 18px;
-  border-radius: 999px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20,7 +20,8 @@
 .content h2 {
   margin: 0 0 10px;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0;
   color: #0f172a;
 }
 
@@ -39,7 +40,7 @@
 .errorBox {
   margin-top: 18px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #b91c1c;
@@ -57,7 +58,7 @@
 .cancelBtn,
 .deleteBtn {
   height: 42px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: none;
   padding: 0 18px;
   font-size: 14px;

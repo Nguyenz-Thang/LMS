@@ -1,8 +1,8 @@
+import { useState } from "react";
 import PropTypes from "prop-types";
-import { Trash2, AlertTriangle } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import Modal from "../Modal";
 import styles from "./DeleteCourseModal.module.scss";
-import { useState } from "react";
 import { useCourseApi } from "../../api/courseApi";
 
 function DeleteCourseModal({ isOpen, onClose, course, onDeleted }) {
@@ -27,7 +27,7 @@ function DeleteCourseModal({ isOpen, onClose, course, onDeleted }) {
       setLoading(true);
       setErrorText("");
 
-      await deleteCourse(course.id); // ✅ dùng API đã tách
+      await deleteCourse(course.id);
 
       handleClose();
       if (onDeleted) onDeleted();
@@ -60,7 +60,7 @@ function DeleteCourseModal({ isOpen, onClose, course, onDeleted }) {
           <span>Thao tác này không thể hoàn tác.</span>
         </div>
 
-        {errorText && <div className={styles.errorBox}>{errorText}</div>}
+        {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
         <div className={styles.actions}>
           <button

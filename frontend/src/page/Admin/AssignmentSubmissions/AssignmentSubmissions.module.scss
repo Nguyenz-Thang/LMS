@@ -1,10 +1,10 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-height: 100%;
-  padding: 24px;
-  background: #f6f8fb;
+  padding: 28px 32px;
+  background: #fff;
 }
 
 .topBar {
@@ -16,7 +16,7 @@
 .backBtn,
 .refreshBtn,
 .gradeBtn {
-  border: none;
+  border: 1px solid #dbe3ef;
   outline: none;
   cursor: pointer;
   display: inline-flex;
@@ -28,70 +28,50 @@
 
 .backBtn,
 .refreshBtn {
-  height: 42px;
-  padding: 0 14px;
-  border-radius: 12px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 6px;
   background: #fff;
-  color: #0f172a;
-  border: 1px solid #e2e8f0;
+  color: #334155;
 }
 
 .headerCard {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 20px;
-  background: #fff;
-  border: 1px solid #e9edf5;
-  border-radius: 18px;
+  padding-bottom: 4px;
 
   h1 {
-    margin: 0 0 4px;
-    font-size: 24px;
-    color: #0f172a;
+    margin: 0 0 6px;
+    color: #020617;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 0;
   }
 
   p {
     margin: 0;
     color: #64748b;
+    font-size: 14px;
   }
 }
 
-.headerIcon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ecfdf5;
-  color: #047857;
-  flex-shrink: 0;
+.breadcrumb {
+  margin-bottom: 14px;
+  color: #64748b;
+  font-size: 13px;
 }
 
-.summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
+.listHeader {
+  h2 {
+    margin: 0 0 4px;
+    color: #020617;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
 
-.summaryCard {
-  background: #fff;
-  border: 1px solid #e9edf5;
-  border-radius: 16px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-
-  span {
+  p {
+    margin: 0;
     color: #64748b;
     font-size: 13px;
-  }
-
-  strong {
-    color: #0f172a;
-    font-size: 24px;
   }
 }
 
@@ -100,15 +80,16 @@
 }
 
 .searchBox {
-  height: 48px;
+  height: 42px;
   flex: 1;
+  max-width: 520px;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 14px;
+  padding: 0 12px;
   color: #64748b;
 
   input {
@@ -124,8 +105,8 @@
 .successBox,
 .errorBox,
 .stateBox {
-  padding: 14px 16px;
-  border-radius: 14px;
+  padding: 12px 14px;
+  border-radius: 6px;
   font-size: 14px;
 }
 
@@ -143,7 +124,7 @@
 
 .stateBox {
   background: #fff;
-  border: 1px solid #e9edf5;
+  border: 1px solid #e2e8f0;
   color: #64748b;
   text-align: center;
 }
@@ -151,14 +132,15 @@
 .submissionList {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .submissionCard {
   background: #fff;
-  border: 1px solid #e9edf5;
-  border-radius: 18px;
-  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
 }
 
 .submissionHead {
@@ -170,7 +152,8 @@
   h2 {
     margin: 0 0 4px;
     color: #0f172a;
-    font-size: 18px;
+    font-size: 17px;
+    font-weight: 800;
   }
 
   p {
@@ -185,21 +168,23 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 10px;
-  border-radius: 999px;
+  padding: 6px 9px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .statusSubmitted {
-  background: #fef3c7;
+  background: #fffbeb;
   color: #b45309;
+  border: 1px solid #fde68a;
 }
 
 .statusGraded {
-  background: #dcfce7;
-  color: #15803d;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #bbf7d0;
 }
 
 .metaRow {
@@ -214,14 +199,14 @@
 .contentGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 18px;
-  margin-top: 16px;
+  gap: 14px;
+  margin-top: 14px;
 }
 
 .answerBox,
 .gradeBox {
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 14px;
   background: #f8fafc;
 }
@@ -229,8 +214,8 @@
 .answerBox {
   h3 {
     margin: 0 0 8px;
-    font-size: 14px;
     color: #0f172a;
+    font-size: 14px;
   }
 
   p {
@@ -253,7 +238,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fff;
   border: 1px solid #dbe3ef;
   color: #2563eb;
@@ -279,7 +264,7 @@
   input,
   textarea {
     border: 1px solid #cbd5e1;
-    border-radius: 10px;
+    border-radius: 6px;
     padding: 10px 12px;
     font: inherit;
     color: #0f172a;
@@ -293,9 +278,10 @@
 }
 
 .gradeBtn {
-  height: 42px;
-  border-radius: 11px;
-  background: #2563eb;
+  height: 40px;
+  border-radius: 6px;
+  border-color: #0f172a;
+  background: #0f172a;
   color: #fff;
 
   &:disabled {
@@ -305,7 +291,6 @@
 }
 
 @media (max-width: 900px) {
-  .summaryGrid,
   .contentGrid {
     grid-template-columns: 1fr;
   }
@@ -313,7 +298,7 @@
 
 @media (max-width: 640px) {
   .page {
-    padding: 16px;
+    padding: 18px;
   }
 
   .topBar,

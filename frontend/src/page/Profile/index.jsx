@@ -1,12 +1,14 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import {
-  PencilLine,
-  User,
-  Mail,
   CalendarDays,
-  ShieldCheck,
-  Image as ImageIcon,
   Hash,
+  Image as ImageIcon,
+  Mail,
+  PencilLine,
+  ShieldCheck,
+  User,
+  Users,
+  X,
 } from "lucide-react";
 import api from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
@@ -21,7 +23,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [editingField, setEditingField] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
   const [avatarPreview, setAvatarPreview] = useState("");
@@ -59,10 +61,10 @@ export default function Profile() {
     return displayName.trim().charAt(0).toUpperCase() || "U";
   }, [displayName]);
 
-  const formatDate = (date) => {
-    if (!date) return "Chưa cập nhật";
+  const formatDate = (date, fallback = "Chưa cập nhật") => {
+    if (!date) return fallback;
     const d = new Date(date);
-    if (Number.isNaN(d.getTime())) return date;
+    if (Number.isNaN(d.getTime())) return fallback;
     return d.toLocaleDateString("vi-VN");
   };
 
@@ -87,6 +89,21 @@ export default function Profile() {
     return `${BACKEND_BASE_URL}${value}`;
   };
 
+  const getJoinedDate = () => {
+    const value = user?.createdAt || user?.createdDate || user?.joinedAt;
+    return formatDate(value, "Chưa có dữ liệu");
+  };
+
+  const syncFormFromUser = (profile) => {
+    setProfileForm({
+      fullName: profile?.fullName || "",
+      email: profile?.email || "",
+      avatar: profile?.avatar || "",
+      dob: normalizeDateInput(profile?.dob),
+    });
+    setAvatarPreview(profile?.avatar ? buildImageUrl(profile.avatar) : "");
+  };
+
   const fetchMyInfo = async () => {
     try {
       setLoading(true);
@@ -97,13 +114,7 @@ export default function Profile() {
       const profile = res?.data?.result || null;
 
       setUser(profile);
-      setProfileForm({
-        fullName: profile?.fullName || "",
-        email: profile?.email || "",
-        avatar: profile?.avatar || "",
-        dob: normalizeDateInput(profile?.dob),
-      });
-      setAvatarPreview(profile?.avatar ? buildImageUrl(profile.avatar) : "");
+      syncFormFromUser(profile);
     } catch (error) {
       setErrorText(
         error?.response?.data?.message || "Không tải được thông tin cá nhân.",
@@ -125,30 +136,23 @@ export default function Profile() {
     }
   };
 
-  const startEditField = (field) => {
-    setEditingField(field);
+  const openEditModal = () => {
+    syncFormFromUser(user);
     setMessage("");
     setErrorText("");
+    setShowEditModal(true);
   };
 
-  const cancelEditField = () => {
-    setEditingField(null);
-    setMessage("");
-    setErrorText("");
-    setProfileForm({
-      fullName: user?.fullName || "",
-      email: user?.email || "",
-      avatar: user?.avatar || "",
-      dob: normalizeDateInput(user?.dob),
-    });
-    setAvatarPreview(user?.avatar ? buildImageUrl(user.avatar) : "");
+  const closeEditModal = () => {
+    if (savingProfile || uploadingAvatar) return;
+    syncFormFromUser(user);
+    setShowEditModal(false);
   };
 
   const uploadAvatar = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
 
-    // Nếu backend của bạn có endpoint riêng cho avatar thì đổi lại ở đây
     const res = await api.post("/courses/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
@@ -191,7 +195,8 @@ export default function Profile() {
     }
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (event) => {
+    event?.preventDefault();
     if (!user?.id) return;
 
     try {
@@ -212,22 +217,14 @@ export default function Profile() {
       const freshUser = profileRes?.data?.result || null;
 
       setUser(freshUser);
-      setEditingField(null);
+      setShowEditModal(false);
       setMessage("Cập nhật thông tin thành công.");
 
       if (freshUser && token) {
         login({ user: freshUser, token });
       }
 
-      setProfileForm({
-        fullName: freshUser?.fullName || "",
-        email: freshUser?.email || "",
-        avatar: freshUser?.avatar || "",
-        dob: normalizeDateInput(freshUser?.dob),
-      });
-      setAvatarPreview(
-        freshUser?.avatar ? buildImageUrl(freshUser.avatar) : "",
-      );
+      syncFormFromUser(freshUser);
     } catch (error) {
       setErrorText(
         error?.response?.data?.message || "Cập nhật thông tin thất bại.",
@@ -237,125 +234,15 @@ export default function Profile() {
     }
   };
 
-  const renderEditableValue = (field) => {
-    switch (field) {
-      case "fullName":
-        return (
-          <input
-            name="fullName"
-            value={profileForm.fullName}
-            onChange={handleProfileInput}
-            placeholder="Nhập họ và tên"
-          />
-        );
-
-      case "email":
-        return (
-          <input
-            name="email"
-            type="email"
-            value={profileForm.email}
-            onChange={handleProfileInput}
-            placeholder="Nhập email"
-          />
-        );
-
-      case "avatar":
-        return (
-          <div className={styles.avatarEditor}>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarFileChange}
-              className={styles.fileInput}
-            />
-
-            {avatarPreview ? (
-              <div className={styles.avatarPreviewBox}>
-                <img src={avatarPreview} alt="Avatar preview" />
-              </div>
-            ) : (
-              <div className={styles.emptyPreview}>Chưa có ảnh xem trước</div>
-            )}
-
-            <p className={styles.uploadHint}>
-              {uploadingAvatar
-                ? "Đang upload ảnh..."
-                : profileForm.avatar
-                  ? "Ảnh đã sẵn sàng, bấm Lưu để cập nhật avatar."
-                  : "Chọn ảnh để upload avatar."}
-            </p>
-          </div>
-        );
-
-      case "dob":
-        return (
-          <input
-            type="date"
-            name="dob"
-            value={profileForm.dob}
-            onChange={handleProfileInput}
-          />
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  const renderDetailRow = ({ icon, label, value, field, editable = true }) => {
-    const isEditing = editingField === field;
-
-    return (
-      <div className={styles.detailRow}>
-        <div className={styles.detailLabel}>
-          {icon}
-          <span>{label}</span>
-        </div>
-
-        <div className={styles.detailValue}>
-          {isEditing ? renderEditableValue(field) : <strong>{value}</strong>}
-        </div>
-
-        <div className={styles.detailAction}>
-          {editable ? (
-            isEditing ? (
-              <div className={styles.actionGroup}>
-                <button
-                  type="button"
-                  className={styles.saveBtn}
-                  onClick={handleSaveProfile}
-                  disabled={savingProfile || uploadingAvatar}
-                >
-                  {uploadingAvatar
-                    ? "Đang upload..."
-                    : savingProfile
-                      ? "Đang lưu..."
-                      : "Lưu"}
-                </button>
-                <button
-                  type="button"
-                  className={styles.cancelBtn}
-                  onClick={cancelEditField}
-                  disabled={savingProfile || uploadingAvatar}
-                >
-                  Hủy
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className={styles.editBtn}
-                onClick={() => startEditField(field)}
-              >
-                <PencilLine size={16} />
-              </button>
-            )
-          ) : null}
-        </div>
+  const renderInfoRow = ({ icon, label, value }) => (
+    <div className={styles.detailRow}>
+      <div className={styles.detailLabel}>
+        {icon}
+        <span>{label}</span>
       </div>
-    );
-  };
+      <strong>{value}</strong>
+    </div>
+  );
 
   if (loading) {
     return <div className={styles.loading}>Đang tải thông tin cá nhân...</div>;
@@ -363,82 +250,210 @@ export default function Profile() {
 
   return (
     <div className={styles.profilePage}>
-      <div className={styles.profileHeader}>
-        <div className={styles.cover}></div>
-
-        <div className={styles.userIntro}>
-          {user?.avatar ? (
-            <img
-              src={buildImageUrl(user.avatar)}
-              alt={displayName}
-              className={styles.avatarImage}
-            />
-          ) : (
-            <div className={styles.avatar}>{avatarLetter}</div>
-          )}
-
-          <div className={styles.userMeta}>
-            <h1>{displayName}</h1>
-            <p>@{user?.username || authUser?.username || "user"}</p>
-          </div>
-        </div>
+      <div className={styles.breadcrumb}>
+        Tài khoản <span>\</span> Thông tin cá nhân
       </div>
 
       {message && <div className={styles.successBox}>{message}</div>}
       {errorText && <div className={styles.errorBox}>{errorText}</div>}
 
-      <div className={styles.detailCard}>
-        <h2>Thông tin cá nhân</h2>
+      <div className={styles.profileLayout}>
+        <aside className={styles.profileSide}>
+          <div className={styles.avatarBlock}>
+            {user?.avatar ? (
+              <img
+                src={buildImageUrl(user.avatar)}
+                alt={displayName}
+                className={styles.avatarImage}
+              />
+            ) : (
+              <div className={styles.avatar}>{avatarLetter}</div>
+            )}
+          </div>
 
-        {renderDetailRow({
-          icon: <Hash size={18} />,
-          label: "ID",
-          value: user?.id || "Chưa có",
-          editable: false,
-        })}
+          <div className={styles.userMeta}>
+            <h1>{displayName}</h1>
+            <p>@{user?.username || authUser?.username || "user"}</p>
+          </div>
 
-        {renderDetailRow({
-          icon: <User size={18} />,
-          label: "Tên đăng nhập",
-          value: user?.username || "Chưa cập nhật",
-          editable: false,
-        })}
+          <div className={styles.quickInfo}>
+            <div>
+              <Users size={16} />
+              <span>{getRoleText(user?.roles)}</span>
+            </div>
+            <div>
+              <CalendarDays size={16} />
+              <span>Tham gia: {getJoinedDate()}</span>
+            </div>
+            <div>
+              <Mail size={16} />
+              <span>{user?.email || "Chưa cập nhật email"}</span>
+            </div>
+          </div>
+        </aside>
 
-        {renderDetailRow({
-          icon: <User size={18} />,
-          label: "Họ tên",
-          value: user?.fullName || "Chưa cập nhật",
-          field: "fullName",
-        })}
+        <section className={styles.detailCard}>
+          <div className={styles.sectionHead}>
+            <div>
+              <h2>Thông tin cá nhân</h2>
+              <p>Các thông tin cơ bản của tài khoản.</p>
+            </div>
 
-        {renderDetailRow({
-          icon: <Mail size={18} />,
-          label: "Email",
-          value: user?.email || "Chưa cập nhật",
-          field: "email",
-        })}
+            <button
+              type="button"
+              className={styles.editProfileBtn}
+              onClick={openEditModal}
+            >
+              <PencilLine size={16} />
+              Chỉnh sửa
+            </button>
+          </div>
 
-        {renderDetailRow({
-          icon: <ImageIcon size={18} />,
-          label: "Avatar",
-          value: user?.avatar ? "Đã có avatar" : "Chưa cập nhật",
-          field: "avatar",
-        })}
+          {renderInfoRow({
+            icon: <Hash size={18} />,
+            label: "ID",
+            value: user?.id || "Chưa có",
+          })}
 
-        {renderDetailRow({
-          icon: <CalendarDays size={18} />,
-          label: "Ngày sinh",
-          value: formatDate(user?.dob),
-          field: "dob",
-        })}
+          {renderInfoRow({
+            icon: <User size={18} />,
+            label: "Tên đăng nhập",
+            value: user?.username || "Chưa cập nhật",
+          })}
 
-        {renderDetailRow({
-          icon: <ShieldCheck size={18} />,
-          label: "Vai trò",
-          value: getRoleText(user?.roles),
-          editable: false,
-        })}
+          {renderInfoRow({
+            icon: <User size={18} />,
+            label: "Họ tên",
+            value: user?.fullName || "Chưa cập nhật",
+          })}
+
+          {renderInfoRow({
+            icon: <Mail size={18} />,
+            label: "Email",
+            value: user?.email || "Chưa cập nhật",
+          })}
+
+          {renderInfoRow({
+            icon: <CalendarDays size={18} />,
+            label: "Ngày sinh",
+            value: formatDate(user?.dob),
+          })}
+
+          {renderInfoRow({
+            icon: <CalendarDays size={18} />,
+            label: "Ngày tham gia",
+            value: getJoinedDate(),
+          })}
+
+          {renderInfoRow({
+            icon: <ShieldCheck size={18} />,
+            label: "Vai trò",
+            value: getRoleText(user?.roles),
+          })}
+        </section>
       </div>
+
+      {showEditModal ? (
+        <div className={styles.modalBackdrop} role="presentation">
+          <form className={styles.modal} onSubmit={handleSaveProfile}>
+            <div className={styles.modalHead}>
+              <div>
+                <h2>Chỉnh sửa thông tin</h2>
+                <p>Cập nhật hồ sơ cá nhân của bạn.</p>
+              </div>
+              <button
+                type="button"
+                className={styles.closeBtn}
+                onClick={closeEditModal}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <label className={styles.formField}>
+              <span>Họ tên</span>
+              <input
+                name="fullName"
+                value={profileForm.fullName}
+                onChange={handleProfileInput}
+                placeholder="Nhập họ và tên"
+              />
+            </label>
+
+            <label className={styles.formField}>
+              <span>Email</span>
+              <input
+                name="email"
+                type="email"
+                value={profileForm.email}
+                onChange={handleProfileInput}
+                placeholder="Nhập email"
+              />
+            </label>
+
+            <label className={styles.formField}>
+              <span>Ngày sinh</span>
+              <input
+                type="date"
+                name="dob"
+                value={profileForm.dob}
+                onChange={handleProfileInput}
+              />
+            </label>
+
+            <div className={styles.formField}>
+              <span>Avatar</span>
+              <div className={styles.avatarEditor}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarFileChange}
+                  className={styles.fileInput}
+                />
+
+                {avatarPreview ? (
+                  <div className={styles.avatarPreviewBox}>
+                    <img src={avatarPreview} alt="Avatar preview" />
+                  </div>
+                ) : (
+                  <div className={styles.emptyPreview}>Chưa có ảnh xem trước</div>
+                )}
+
+                <p className={styles.uploadHint}>
+                  {uploadingAvatar
+                    ? "Đang upload ảnh..."
+                    : profileForm.avatar
+                      ? "Ảnh đã sẵn sàng, bấm Lưu để cập nhật avatar."
+                      : "Chọn ảnh để upload avatar."}
+                </p>
+              </div>
+            </div>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.cancelBtn}
+                onClick={closeEditModal}
+                disabled={savingProfile || uploadingAvatar}
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className={styles.saveBtn}
+                disabled={savingProfile || uploadingAvatar}
+              >
+                {uploadingAvatar
+                  ? "Đang upload..."
+                  : savingProfile
+                    ? "Đang lưu..."
+                    : "Lưu thay đổi"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

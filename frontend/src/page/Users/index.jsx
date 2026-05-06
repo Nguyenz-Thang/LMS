@@ -372,22 +372,14 @@ export default function UserManagement() {
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryStrip}>
+      <div className={styles.listHeader}>
         <div>
-          <span>Tổng người dùng</span>
-          <strong>{users.length}</strong>
-        </div>
-        <div>
-          <span>Quản trị viên</span>
-          <strong>{adminCount}</strong>
-        </div>
-        <div>
-          <span>Giảng viên</span>
-          <strong>{instructorCount}</strong>
-        </div>
-        <div>
-          <span>Học viên</span>
-          <strong>{studentCount}</strong>
+          <h2>Danh sách người dùng</h2>
+          <p>
+            Hiển thị {filteredUsers.length} / {users.length} người dùng. Quản
+            trị {adminCount}, giảng viên {instructorCount}, học viên{" "}
+            {studentCount}.
+          </p>
         </div>
       </div>
 

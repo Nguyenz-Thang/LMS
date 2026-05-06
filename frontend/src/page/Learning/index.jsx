@@ -12,6 +12,7 @@ export default function Learning() {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const contentAreaRef = useRef(null);
+  const lessonRequestSeqRef = useRef(0);
   const learningApi = useLearningApi();
 
   const [courseData, setCourseData] = useState(null);
@@ -153,13 +154,90 @@ export default function Learning() {
     }
   };
 
+  const markLessonCompletedLocally = (completedLessonId) => {
+    if (!completedLessonId) return;
+
+    setLessonData((prev) =>
+      prev && prev.lessonId === completedLessonId
+        ? { ...prev, completed: true }
+        : prev,
+    );
+
+    setCourseData((prev) => {
+      if (!prev?.sections) return prev;
+
+      let changed = false;
+      let completedCount = 0;
+      let totalLessons = 0;
+      const flatLessonIds = [];
+
+      (prev.sections || []).forEach((section) => {
+        (section.lessons || []).forEach((lesson) => {
+          flatLessonIds.push(lesson.id);
+        });
+      });
+
+      const completedIndex = flatLessonIds.indexOf(completedLessonId);
+      const nextLessonId =
+        completedIndex >= 0 && completedIndex < flatLessonIds.length - 1
+          ? flatLessonIds[completedIndex + 1]
+          : null;
+
+      const sections = prev.sections.map((section) => ({
+        ...section,
+        lessons: (section.lessons || []).map((lesson) => {
+          totalLessons += 1;
+          let nextLesson = lesson;
+
+          if (lesson.id === completedLessonId && !lesson.completed) {
+            changed = true;
+            nextLesson = {
+              ...lesson,
+              completed: true,
+              locked: false,
+            };
+          } else if (lesson.id === nextLessonId && lesson.locked) {
+            changed = true;
+            nextLesson = {
+              ...lesson,
+              locked: false,
+            };
+          }
+
+          if (nextLesson.completed) {
+            completedCount += 1;
+          }
+
+          return nextLesson;
+        }),
+      }));
+
+      if (!changed) return prev;
+
+      const denominator = prev.totalLessons || totalLessons || 1;
+      return {
+        ...prev,
+        sections,
+        completedLessons: completedCount,
+        progressPercent: Math.round((completedCount * 100) / denominator),
+      };
+    });
+  };
+
   const fetchLessonDetail = async (targetLessonId) => {
+    const requestSeq = lessonRequestSeqRef.current + 1;
+    lessonRequestSeqRef.current = requestSeq;
+
     try {
       setLoadingLesson(true);
       setErrorText("");
 
       const res = await learningApi.getLearningLesson(courseId, targetLessonId);
       const data = res?.result || null;
+
+      if (lessonRequestSeqRef.current !== requestSeq) {
+        return;
+      }
 
       setLessonData(data);
       await syncBookmarkState(targetLessonId);
@@ -200,7 +278,9 @@ export default function Learning() {
         error?.body?.message || error?.message || "Không tải được bài học.",
       );
     } finally {
-      setLoadingLesson(false);
+      if (lessonRequestSeqRef.current === requestSeq) {
+        setLoadingLesson(false);
+      }
     }
   };
 
@@ -247,11 +327,6 @@ export default function Learning() {
   };
 
   const handleBackNavigation = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
     const from = location.state?.from;
     if (from && !String(from).startsWith("/learning/")) {
       navigate(from, { replace: true });
@@ -277,8 +352,7 @@ export default function Learning() {
         completed: true,
       });
 
-      await fetchLearningCourse();
-      await fetchLessonDetail(lessonData.lessonId);
+      markLessonCompletedLocally(lessonData.lessonId);
 
       if (autoNavigate && lessonData.nextLessonId) {
         navigate(`/learning/${courseId}/${lessonData.nextLessonId}`);
@@ -414,9 +488,8 @@ export default function Learning() {
               });
             }}
             onLearningStateChange={async ({ autoNavigate = false } = {}) => {
-              await fetchLearningCourse();
               if (lessonData?.lessonId) {
-                await fetchLessonDetail(lessonData.lessonId);
+                markLessonCompletedLocally(lessonData.lessonId);
               }
               if (autoNavigate && lessonData?.nextLessonId) {
                 navigate(`/learning/${courseId}/${lessonData.nextLessonId}`);

@@ -152,25 +152,39 @@ export default function Courses() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.headerBlock}>
+      <div className={styles.breadcrumb}>
+        Khóa học <span>\</span> Danh sách khóa học
+      </div>
+
+      <section className={styles.header}>
         <div>
           <h1>Khóa học</h1>
           <p>
-            Chọn một khóa học phù hợp với mục tiêu hiện tại và vào thẳng phần học
-            hoặc xem chi tiết.
+            Chọn khóa học phù hợp để xem chi tiết hoặc vào tiếp phần học hiện
+            tại nếu bạn đã đăng ký.
           </p>
         </div>
 
-        <div className={styles.searchBox}>
-          <Search size={18} />
+        <label className={styles.searchBox}>
+          <Search size={17} />
           <input
             type="text"
-            placeholder="Tìm theo tên khóa học, giảng viên, danh mục..."
+            placeholder="Tìm khóa học, giảng viên, danh mục..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
+        </label>
+      </section>
+
+      <section className={styles.toolbar}>
+        <div>
+          <h2>Danh sách khóa học</h2>
+          <p>
+            Hiển thị {visibleCourses.length} / {pageInfo.totalElements || 0} khóa
+            học.
+          </p>
         </div>
-      </div>
+      </section>
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
@@ -183,15 +197,14 @@ export default function Courses() {
       ) : (
         <div className={styles.courseGrid}>
           {visibleCourses.map((course) => (
-            <div key={course.id} className={styles.cardShell}>
-              <CourseShowcaseCard
-                course={course}
-                stats={courseStatsMap[course.id]}
-                baseUrl={LMS_BASE_URL}
-                onClick={() => handleOpenCourse(course.id)}
-                busy={openingCourseId === course.id}
-              />
-            </div>
+            <CourseShowcaseCard
+              key={course.id}
+              course={course}
+              stats={courseStatsMap[course.id]}
+              baseUrl={LMS_BASE_URL}
+              onClick={() => handleOpenCourse(course.id)}
+              busy={openingCourseId === course.id}
+            />
           ))}
         </div>
       )}

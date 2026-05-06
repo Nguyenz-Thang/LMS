@@ -31,6 +31,7 @@ import Quizzes from "../../page/Quizzes";
 import QuizTake from "../../page/QuizTake";
 import QuizResults from "../../page/QuizResults";
 import QuizResultDetail from "../../page/QuizResults/Detail";
+import QuizResultSummary from "../../page/QuizResults/Summary";
 import Settings from "../../page/Settings";
 import Discussions from "../../page/Discussions";
 import Chatbot from "../../page/Chatbot";
@@ -93,6 +94,10 @@ function AppRoutes() {
               <Route path="/quizzes" element={<Quizzes />} />
               <Route path="/quizzes/:quizId/take" element={<QuizTake />} />
               <Route path="/quiz-results" element={<QuizResults />} />
+              <Route
+                path="/quiz-results/:attemptId/summary"
+                element={<QuizResultSummary />}
+              />
               <Route path="/discussions" element={<Discussions />} />
               <Route path="/chatbot" element={<Chatbot />} />
               <Route

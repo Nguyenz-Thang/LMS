@@ -203,22 +203,13 @@ export default function QuizAttempts() {
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryStrip}>
+      <div className={styles.listHeader}>
         <div>
-          <span>Tổng lượt làm</span>
-          <strong>{attempts.length}</strong>
-        </div>
-        <div>
-          <span>Đã nộp</span>
-          <strong>{submittedCount}</strong>
-        </div>
-        <div>
-          <span>Đang làm</span>
-          <strong>{inProgressCount}</strong>
-        </div>
-        <div>
-          <span>Đang hiển thị</span>
-          <strong>{filteredAttempts.length}</strong>
+          <h2>Danh sách lượt làm</h2>
+          <p>
+            Hiển thị {filteredAttempts.length} / {attempts.length} lượt làm, đã
+            nộp {submittedCount}, đang làm {inProgressCount}.
+          </p>
         </div>
       </div>
 

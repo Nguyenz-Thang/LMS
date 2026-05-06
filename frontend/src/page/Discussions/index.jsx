@@ -34,8 +34,10 @@ function getAuthorName(author) {
 
 function formatDate(value) {
   if (!value) return "Gần đây";
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Gần đây";
+
   return date.toLocaleString("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
@@ -125,7 +127,8 @@ export default function Discussions() {
     } catch (error) {
       setTopics([]);
       setErrorText(
-        error?.response?.data?.message || "Không tải được danh sách thảo luận.",
+        error?.response?.data?.message ||
+          "Không tải được danh sách thảo luận.",
       );
     } finally {
       setLoadingTopics(false);
@@ -213,7 +216,9 @@ export default function Discussions() {
       await fetchTopic(activeTopic.id);
       await fetchTopics();
     } catch (error) {
-      setErrorText(error?.response?.data?.message || "Không gửi được phản hồi.");
+      setErrorText(
+        error?.response?.data?.message || "Không gửi được phản hồi.",
+      );
     } finally {
       setSavingReply(false);
     }
@@ -221,6 +226,7 @@ export default function Discussions() {
 
   const toggleModeration = async (field) => {
     if (!activeTopic?.id) return;
+
     try {
       const res = await moderateDiscussionTopic(activeTopic.id, {
         [field]: !activeTopic[field],
@@ -282,13 +288,16 @@ export default function Discussions() {
 
   return (
     <div className={styles.page}>
+      <div className={styles.breadcrumb}>
+        Khóa học <span>\</span> Thảo luận
+      </div>
+
       <section className={styles.header}>
         <div>
-          <span className={styles.eyebrow}>Cộng đồng học tập</span>
           <h1>Thảo luận khóa học</h1>
           <p>
             Đặt câu hỏi, trao đổi với giảng viên và theo dõi các chủ đề chung
-            của khóa học. Bình luận gắn trong từng bài học không hiển thị ở đây.
+            của khóa học.
           </p>
         </div>
 
@@ -306,16 +315,16 @@ export default function Discussions() {
 
       <section className={styles.toolbar}>
         <form className={styles.searchBox} onSubmit={applySearch}>
-          <Search size={18} />
+          <Search size={17} />
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="Tìm theo tiêu đề hoặc nội dung..."
+            placeholder="Tìm chủ đề..."
           />
           <button type="submit">Tìm</button>
         </form>
 
-        <div className={styles.filterBox}>
+        <label className={styles.filterBox}>
           <Filter size={16} />
           <select
             value={courseId}
@@ -328,7 +337,7 @@ export default function Discussions() {
               </option>
             ))}
           </select>
-        </div>
+        </label>
       </section>
 
       {showCreateForm ? (
@@ -367,8 +376,10 @@ export default function Discussions() {
       <div className={styles.contentGrid}>
         <section className={styles.topicList}>
           <div className={styles.listHead}>
-            <h2>Chủ đề mới</h2>
-            <span>{pageInfo.totalElements} chủ đề</span>
+            <div>
+              <h2>Chủ đề mới</h2>
+              <p>{pageInfo.totalElements} chủ đề</p>
+            </div>
           </div>
 
           {loadingTopics ? (
@@ -521,7 +532,8 @@ export default function Discussions() {
 
                 {activeTopic.locked && !activeTopic.canModerate ? (
                   <div className={styles.lockedBox}>
-                    Chủ đề đã khóa, chỉ giảng viên hoặc quản trị viên có thể phản hồi.
+                    Chủ đề đã khóa, chỉ giảng viên hoặc quản trị viên có thể
+                    phản hồi.
                   </div>
                 ) : (
                   <form className={styles.replyForm} onSubmit={submitReply}>

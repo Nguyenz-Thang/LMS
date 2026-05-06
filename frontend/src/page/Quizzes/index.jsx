@@ -4,9 +4,7 @@ import {
   ClipboardCheck,
   Eye,
   Filter,
-  PlayCircle,
   RefreshCw,
-  RotateCcw,
   Search,
   Trophy,
 } from "lucide-react";
@@ -61,8 +59,26 @@ function getQuizState(quiz) {
   return FILTER_OPTIONS.NOT_STARTED;
 }
 
-function getQuizStateLabel(quiz) {
-  return getFilterLabel(getQuizState(quiz));
+function getStateClass(state) {
+  switch (state) {
+    case FILTER_OPTIONS.IN_PROGRESS:
+      return styles.badgeWarning;
+    case FILTER_OPTIONS.DONE:
+      return styles.badgeSuccess;
+    case FILTER_OPTIONS.NOT_STARTED:
+    default:
+      return styles.badgeNeutral;
+  }
+}
+
+function StatCard({ label, value, note }) {
+  return (
+    <article className={styles.statCard}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{note}</small>
+    </article>
+  );
 }
 
 export default function Quizzes() {
@@ -100,7 +116,8 @@ export default function Quizzes() {
       (sum, item) => sum + (item.attemptCount || 0),
       0,
     );
-    const attempted = quizzes.filter((item) => (item.attemptCount || 0) > 0).length;
+    const attempted = quizzes.filter((item) => (item.attemptCount || 0) > 0)
+      .length;
     const inProgress = quizzes.filter(
       (item) => getQuizState(item) === FILTER_OPTIONS.IN_PROGRESS,
     ).length;
@@ -123,75 +140,92 @@ export default function Quizzes() {
         quiz?.description?.toLowerCase().includes(normalizedKeyword);
 
       const matchesStatus =
-        statusFilter === FILTER_OPTIONS.ALL || getQuizState(quiz) === statusFilter;
+        statusFilter === FILTER_OPTIONS.ALL ||
+        getQuizState(quiz) === statusFilter;
 
       return matchesKeyword && matchesStatus;
     });
   }, [keyword, quizzes, statusFilter]);
 
+  const openQuiz = (quizId) => {
+    navigate(`/quizzes/${quizId}/take`);
+  };
+
   return (
     <div className={styles.page}>
-      <div className={styles.headerBlock}>
-        <div className={styles.headerLeft}>
-          <div className={styles.headerIcon}>
-            <ClipboardCheck size={24} />
-          </div>
-          <div>
-            <h1>Bài kiểm tra</h1>
-            <p>
-              Làm bài kiểm tra, tiếp tục lượt đang dở và xem lại kết quả các lần
-              làm gần nhất.
-            </p>
-          </div>
+      <div className={styles.breadcrumb}>
+        Khóa học <span>\</span> Bài kiểm tra
+      </div>
+
+      <section className={styles.header}>
+        <div>
+          <h1>Bài kiểm tra</h1>
+          <p>
+            Làm bài kiểm tra, tiếp tục lượt đang dở và xem lại kết quả các lần
+            làm gần nhất.
+          </p>
         </div>
 
         <button type="button" className={styles.refreshBtn} onClick={fetchQuizzes}>
           <RefreshCw size={16} />
           <span>Làm mới</span>
         </button>
-      </div>
+      </section>
 
-      <div className={styles.toolbar}>
-        <div className={styles.searchBox}>
-          <Search size={18} />
-          <input
-            type="text"
-            placeholder="Tìm theo tên hoặc mô tả bài kiểm tra..."
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-          />
+      <section className={styles.statGrid}>
+        <StatCard
+          label="Tổng bài kiểm tra"
+          value={stats.total}
+          note="Tất cả bài đang hiển thị"
+        />
+        <StatCard
+          label="Đã từng làm"
+          value={stats.attempted}
+          note="Có ít nhất một lượt làm"
+        />
+        <StatCard
+          label="Đang làm dở"
+          value={stats.inProgress}
+          note="Có lượt chưa nộp"
+        />
+        <StatCard
+          label="Tổng lượt làm"
+          value={stats.totalAttempts}
+          note="Tổng số attempt đã tạo"
+        />
+      </section>
+
+      <section className={styles.toolbar}>
+        <div>
+          <h2>Danh sách bài kiểm tra</h2>
+          <p>
+            Hiển thị {filteredQuizzes.length} / {quizzes.length} bài kiểm tra.
+          </p>
         </div>
 
-        <div className={styles.filterBox}>
-          <Filter size={16} />
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-          >
-            <option value={FILTER_OPTIONS.ALL}>Tất cả trạng thái</option>
-            <option value={FILTER_OPTIONS.NOT_STARTED}>Chưa làm</option>
-            <option value={FILTER_OPTIONS.IN_PROGRESS}>Đang làm</option>
-            <option value={FILTER_OPTIONS.DONE}>Đã làm</option>
-          </select>
-        </div>
-      </div>
+        <div className={styles.controls}>
+          <label className={styles.searchBox}>
+            <Search size={17} />
+            <input
+              type="text"
+              placeholder="Tìm bài kiểm tra..."
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
+          </label>
 
-      <section className={styles.statsGrid}>
-        <div className={styles.statCard}>
-          <span>Tổng bài kiểm tra</span>
-          <strong>{stats.total}</strong>
-        </div>
-        <div className={styles.statCard}>
-          <span>Đã từng làm</span>
-          <strong>{stats.attempted}</strong>
-        </div>
-        <div className={styles.statCard}>
-          <span>Đang làm dở</span>
-          <strong>{stats.inProgress}</strong>
-        </div>
-        <div className={styles.statCard}>
-          <span>Tổng lượt làm</span>
-          <strong>{stats.totalAttempts}</strong>
+          <label className={styles.filterBox}>
+            <Filter size={16} />
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value={FILTER_OPTIONS.ALL}>Tất cả trạng thái</option>
+              <option value={FILTER_OPTIONS.NOT_STARTED}>Chưa làm</option>
+              <option value={FILTER_OPTIONS.IN_PROGRESS}>Đang làm</option>
+              <option value={FILTER_OPTIONS.DONE}>Đã làm</option>
+            </select>
+          </label>
         </div>
       </section>
 
@@ -206,13 +240,23 @@ export default function Quizzes() {
         ) : (
           <div className={styles.grid}>
             {filteredQuizzes.map((quiz) => {
-              const resume =
-                quiz.latestAttemptStatus === "IN_PROGRESS" && quiz.latestAttemptId;
               const state = getQuizState(quiz);
 
               return (
-                <article key={quiz.quizId} className={styles.card}>
-                  <div className={styles.cardHead}>
+                <article
+                  key={quiz.quizId}
+                  className={styles.card}
+                  onClick={() => openQuiz(quiz.quizId)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openQuiz(quiz.quizId);
+                    }
+                  }}
+                >
+                  <div className={styles.cardHeader}>
                     <div className={styles.iconWrap}>
                       <ClipboardCheck size={22} />
                     </div>
@@ -221,23 +265,18 @@ export default function Quizzes() {
                       <span className={styles.badgeNeutral}>
                         {quiz.questionCount || 0} câu
                       </span>
-                      <span
-                        className={
-                          state === FILTER_OPTIONS.IN_PROGRESS
-                            ? styles.badgeWarning
-                            : state === FILTER_OPTIONS.DONE
-                              ? styles.badgeSuccess
-                              : styles.badgeNeutral
-                        }
-                      >
-                        {getQuizStateLabel(quiz)}
+                      <span className={getStateClass(state)}>
+                        {getFilterLabel(state)}
                       </span>
                     </div>
                   </div>
 
                   <div className={styles.cardContent}>
                     <h3>{quiz.title}</h3>
-                    <p>{quiz.description || "Chưa có mô tả cho bài kiểm tra này."}</p>
+                    <p>
+                      {quiz.description ||
+                        "Chưa có mô tả cho bài kiểm tra này."}
+                    </p>
                   </div>
 
                   <div className={styles.infoGrid}>
@@ -252,38 +291,30 @@ export default function Quizzes() {
                     <div>
                       <span>Lần gần nhất</span>
                       <strong>
-                        {formatDateTime(quiz.latestSubmittedAt || quiz.latestStartedAt)}
+                        {formatDateTime(
+                          quiz.latestSubmittedAt || quiz.latestStartedAt,
+                        )}
                       </strong>
                     </div>
                   </div>
 
-                  <div className={styles.actions}>
+                  {quiz.latestAttemptId ? (
                     <button
                       type="button"
-                      className={styles.primaryBtn}
-                      onClick={() => navigate(`/quizzes/${quiz.quizId}/take`)}
+                      className={styles.resultBtn}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigate(`/quiz-results/${quiz.latestAttemptId}`);
+                      }}
                     >
-                      {resume ? <RotateCcw size={16} /> : <PlayCircle size={16} />}
-                      <span>{resume ? "Tiếp tục làm" : "Vào làm bài"}</span>
+                      {state === FILTER_OPTIONS.DONE ? (
+                        <Trophy size={16} />
+                      ) : (
+                        <Eye size={16} />
+                      )}
+                      <span>Xem kết quả</span>
                     </button>
-
-                    {quiz.latestAttemptId ? (
-                      <button
-                        type="button"
-                        className={styles.ghostBtn}
-                        onClick={() =>
-                          navigate(`/quiz-results/${quiz.latestAttemptId}`)
-                        }
-                      >
-                        {state === FILTER_OPTIONS.DONE ? (
-                          <Trophy size={16} />
-                        ) : (
-                          <Eye size={16} />
-                        )}
-                        <span>Xem kết quả</span>
-                      </button>
-                    ) : null}
-                  </div>
+                  ) : null}
                 </article>
               );
             })}

@@ -4,6 +4,7 @@ import {
   formatClockDuration,
   formatDuration,
   getLessonIcon,
+  getLessonTypeLabel,
 } from "../utils/learningHelpers";
 
 function withEffectiveLocks(sections = []) {
@@ -39,10 +40,10 @@ export default function LearningSidebar({
   return (
     <aside className={styles.sidebar}>
       <div className={styles.sidebarHead}>
-        <h3>Noi dung khoa hoc</h3>
+        <h3>Nội dung khóa học</h3>
         <p>
-          {courseData?.totalSections || 0} chuong •{" "}
-          {courseData?.totalLessons || 0} bai hoc •{" "}
+          {courseData?.totalSections || 0} chương •{" "}
+          {courseData?.totalLessons || 0} bài học •{" "}
           {formatDuration(courseData?.totalDurationMinutes || 0)}
         </p>
       </div>
@@ -63,7 +64,7 @@ export default function LearningSidebar({
                     {sectionIndex + 1}. {section.title}
                   </strong>
                   <span>
-                    {section.totalLessons || 0} bai •{" "}
+                    {section.totalLessons || 0} bài •{" "}
                     {formatDuration(section.totalDurationMinutes || 0)}
                   </span>
                 </div>
@@ -110,8 +111,8 @@ export default function LearningSidebar({
                             <strong>{lesson.title}</strong>
                             <span>
                               {lesson.effectiveLocked
-                                ? "Hoan thanh bai truoc de mo"
-                                : lesson.lessonType}{" "}
+                                ? "Hoàn thành bài trước để mở"
+                                : getLessonTypeLabel(lesson.lessonType)}{" "}
                               • {formatClockDuration(lesson.durationMinutes)}
                             </span>
                           </div>

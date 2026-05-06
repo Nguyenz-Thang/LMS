@@ -3,76 +3,48 @@
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
-  padding: 24px;
-  background: #f6f8fb;
+  padding: 28px 32px;
+  background: #fff;
 }
 
 .headerBar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  background: #fff;
-  border: 1px solid #e5eaf2;
-  border-radius: 12px;
-  padding: 18px 20px;
+  gap: 18px;
 
   h1 {
-    margin: 0 0 4px;
-    color: #0f172a;
-    font-size: 24px;
-    font-weight: 700;
+    margin: 0 0 6px;
+    color: #020617;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 0;
   }
 
   p {
     margin: 0;
     color: #64748b;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
   }
 }
 
 .titleGroup {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
+  display: block;
 }
 
-.titleIcon,
-.avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #2563eb;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+.titleIcon {
+  display: none;
 }
 
-.avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  overflow: hidden;
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-}
-
-.addBtn {
+.addBtn,
+.saveAction {
   height: 40px;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 6px;
   padding: 0 14px;
-  background: #2563eb;
-  color: #fff;
+  background: #f1f5f9;
+  color: #0f172a;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -84,7 +56,7 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 220px 48px;
+  grid-template-columns: minmax(260px, 1fr) 220px 44px;
   gap: 10px;
 }
 
@@ -93,7 +65,7 @@
 .resetBtn {
   height: 42px;
   border: 1px solid #dbe3ef;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
 }
 
@@ -116,65 +88,47 @@
   font-size: 14px;
 }
 
-.filterBox select {
-  cursor: pointer;
-}
-
-.resetBtn {
+.resetBtn,
+.iconBtn {
   color: #334155;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-
-  &:hover {
-    background: #f8fafc;
-    border-color: #bfdbfe;
-    color: #2563eb;
-  }
 }
 
 .errorBox,
 .modalError {
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
   font-size: 14px;
 }
 
-.summaryStrip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  div {
-    min-width: 150px;
-    background: #fff;
-    border: 1px solid #e5eaf2;
-    border-radius: 10px;
-    padding: 12px 14px;
-  }
-
-  span {
-    display: block;
-    color: #64748b;
-    font-size: 12px;
-    margin-bottom: 4px;
-  }
-
-  strong {
-    color: #0f172a;
+.listHeader {
+  h2 {
+    margin: 0 0 4px;
+    color: #020617;
     font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
   }
 }
 
 .tableCard {
   background: #fff;
-  border: 1px solid #e5eaf2;
-  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
 }
 
 .tableWrap {
@@ -188,13 +142,13 @@
   border-collapse: collapse;
 
   thead {
-    background: #f8fafc;
+    background: #f1f5f9;
   }
 
   th,
   td {
-    padding: 13px 14px;
-    border-bottom: 1px solid #edf2f7;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e5eaf2;
     text-align: left;
     vertical-align: middle;
   }
@@ -203,20 +157,11 @@
     color: #475569;
     font-size: 12px;
     font-weight: 800;
-    text-transform: uppercase;
   }
 
   td {
     color: #334155;
     font-size: 13px;
-  }
-
-  tbody tr:hover {
-    background: #fbfdff;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: none;
   }
 }
 
@@ -236,21 +181,30 @@
   strong {
     color: #0f172a;
     font-size: 14px;
-    line-height: 1.35;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 280px;
   }
 
   span {
     color: #64748b;
     font-size: 12px;
-    line-height: 1.35;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 300px;
+  }
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #dbe3ef;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 }
 
@@ -261,10 +215,6 @@
   gap: 7px;
   color: #334155;
   white-space: nowrap;
-
-  svg {
-    color: #64748b;
-  }
 }
 
 .roleList {
@@ -275,52 +225,32 @@
 
 .roleTag,
 .emptyRole {
-  min-height: 28px;
-  border-radius: 8px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #2563eb;
+  min-height: 26px;
+  border-radius: 6px;
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+  color: #334155;
   display: inline-flex;
   align-items: center;
-  padding: 0 9px;
+  padding: 0 8px;
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
 }
 
-.emptyRole {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-  color: #64748b;
-}
-
-.actionGroup {
+.actionGroup,
+.modalActions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .iconBtn {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   border: 1px solid #dbe3ef;
   background: #fff;
-  color: #334155;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-
-  &:hover:not(:disabled) {
-    background: #f8fafc;
-    border-color: #bfdbfe;
-    color: #2563eb;
-  }
 
   &:disabled {
     opacity: 0.55;
@@ -330,24 +260,6 @@
 
 .deleteAction {
   color: #dc2626;
-
-  &:hover:not(:disabled) {
-    color: #dc2626;
-    background: #fef2f2;
-    border-color: #fecaca;
-  }
-}
-
-.saveAction {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-
-  &:hover:not(:disabled) {
-    background: #1d4ed8;
-    border-color: #1d4ed8;
-    color: #fff;
-  }
 }
 
 .stateBox {
@@ -373,8 +285,8 @@
   max-height: calc(100vh - 40px);
   overflow: auto;
   background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e5eaf2;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
 }
 
@@ -384,13 +296,13 @@
   justify-content: space-between;
   gap: 14px;
   padding: 18px 20px;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid #e5eaf2;
 
   h2 {
     margin: 0 0 4px;
     color: #0f172a;
     font-size: 20px;
-    font-weight: 700;
+    font-weight: 800;
   }
 
   p {
@@ -428,23 +340,12 @@
   input {
     width: 100%;
     border: 1px solid #dbe3ef;
-    border-radius: 8px;
+    border-radius: 6px;
     background: #fff;
     padding: 11px 12px;
     color: #0f172a;
     font-size: 14px;
     outline: none;
-
-    &:focus {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-    }
-
-    &:disabled {
-      background: #f8fafc;
-      color: #94a3b8;
-      cursor: not-allowed;
-    }
   }
 }
 
@@ -456,7 +357,7 @@
 
 .roleOption {
   min-height: 34px;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid #dbe3ef;
   background: #fff;
   color: #0f172a;
@@ -467,12 +368,6 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-
-  input {
-    width: 14px;
-    height: 14px;
-    margin: 0;
-  }
 }
 
 .roleLoading {
@@ -481,24 +376,18 @@
 }
 
 .modalActions {
-  display: flex;
   justify-content: flex-end;
-  gap: 8px;
 }
 
 @media (max-width: 960px) {
   .toolbar {
     grid-template-columns: 1fr;
   }
-
-  .summaryStrip {
-    flex-wrap: wrap;
-  }
 }
 
 @media (max-width: 640px) {
   .page {
-    padding: 16px;
+    padding: 18px;
   }
 
   .headerBar {
@@ -506,16 +395,8 @@
     align-items: stretch;
   }
 
-  .titleGroup {
-    align-items: flex-start;
-  }
-
   .addBtn {
     width: 100%;
-  }
-
-  .summaryStrip div {
-    flex: 1 1 150px;
   }
 
   .formGrid {

@@ -306,6 +306,16 @@ export function useLearningApi() {
     [authedFetch],
   );
 
+  const getLessonChatbotConversation = useCallback(
+    async (lessonId) =>
+      toJson(
+        await authedFetch(
+          `${LMS_BASE_URL}/chatbot/lessons/${lessonId}/conversation`,
+        ),
+      ),
+    [authedFetch],
+  );
+
   const deleteChatbotConversation = useCallback(
     async (conversationId) =>
       toJson(
@@ -362,6 +372,7 @@ export function useLearningApi() {
     listChatbotConversations,
     createChatbotConversation,
     getChatbotConversation,
+    getLessonChatbotConversation,
     deleteChatbotConversation,
     sendChatbotMessage,
   };

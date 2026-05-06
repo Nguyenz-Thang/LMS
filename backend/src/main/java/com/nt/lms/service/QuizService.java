@@ -69,6 +69,7 @@ public class QuizService {
                 .course(course)
                 .lesson(lesson)
                 .maxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null))
+                .timeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes()))
                 .isPublished(false)
                 .quizScope(lesson != null ? "LESSON" : "INDEPENDENT")
                 .createdSource("MANUAL")
@@ -94,6 +95,7 @@ public class QuizService {
                 .courseId(quiz.getCourse() != null ? quiz.getCourse().getId() : null)
                 .lessonId(quiz.getLesson() != null ? quiz.getLesson().getId() : null)
                 .maxAttempts(quiz.getMaxAttempts())
+                .timeLimitMinutes(quiz.getTimeLimitMinutes())
                 .isPublished(quiz.getIsPublished())
                 .questions(
                         questions.stream().map(q -> {
@@ -155,6 +157,7 @@ public class QuizService {
         quiz.setCourse(course);
         quiz.setLesson(lesson);
         quiz.setMaxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null));
+        quiz.setTimeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes()));
         quiz.setQuizScope(lesson != null ? "LESSON" : "INDEPENDENT");
         if (quiz.getCreatedSource() == null || quiz.getCreatedSource().isBlank()) {
             quiz.setCreatedSource("MANUAL");
@@ -253,6 +256,10 @@ public class QuizService {
         }
 
         if (request.getMaxAttempts() != null && request.getMaxAttempts() < 1) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        if (request.getTimeLimitMinutes() != null && request.getTimeLimitMinutes() < 0) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
@@ -397,6 +404,7 @@ public class QuizService {
                             .courseId(q.getCourse() != null ? q.getCourse().getId() : null)
                             .lessonId(q.getLesson() != null ? q.getLesson().getId() : null)
                             .maxAttempts(q.getMaxAttempts())
+                            .timeLimitMinutes(q.getTimeLimitMinutes())
                             .isPublished(q.getIsPublished())
                             .attemptCount(attemptCount)
                             .questions(null)
@@ -452,6 +460,14 @@ public class QuizService {
         }
 
         return requestedMaxAttempts;
+    }
+
+    private Integer resolveTimeLimitMinutes(Integer requestedTimeLimitMinutes) {
+        if (requestedTimeLimitMinutes == null || requestedTimeLimitMinutes <= 0) {
+            return null;
+        }
+
+        return requestedTimeLimitMinutes;
     }
 
     private AdminQuizAttemptResponse buildAdminAttemptResponse(Quiz quiz, QuizAttempt attempt) {

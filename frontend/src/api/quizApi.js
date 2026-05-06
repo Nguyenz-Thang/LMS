@@ -38,8 +38,3 @@ export async function unpublishQuiz(quizId) {
   const res = await api.post(`/quizzes/${quizId}/unpublish`);
   return res?.data;
 }
-
-export async function generateQuizFromLesson(lessonId, payload = {}) {
-  const res = await api.post(`/quizzes/ai/lessons/${lessonId}/generate`, payload);
-  return res?.data;
-}

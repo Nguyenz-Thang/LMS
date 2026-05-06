@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, MessageCircle, Plus, Send, Sparkles, Trash2 } from "lucide-react";
+import { Bot, MessageCircle, Plus, Send, Trash2 } from "lucide-react";
 import { useLearningApi } from "../../api/learningApi";
 import styles from "./Chatbot.module.scss";
 
@@ -280,14 +280,11 @@ export default function Chatbot() {
             <Bot size={24} />
           </div>
           <div>
-            <span>
-              <Sparkles size={15} />
-              Trợ lý cá nhân
-            </span>
+            <span>Trợ lý cá nhân</span>
             <h1>{activeTitle}</h1>
             <p>
-              Lưu lịch sử và hỗ trợ các câu hỏi tổng quát về tiến độ học tập,
-              kế hoạch ôn tập và trạng thái hoàn thành của bạn.
+              Hỏi AI về tiến độ học tập, kế hoạch ôn tập và trạng thái hoàn
+              thành hiện tại của bạn.
             </p>
           </div>
         </header>

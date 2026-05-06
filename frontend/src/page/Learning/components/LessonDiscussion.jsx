@@ -26,7 +26,7 @@ import {
 import styles from "../Learning.module.scss";
 
 function getAuthorName(author) {
-  return author?.fullName?.trim() || author?.username || "Nguoi hoc";
+  return author?.fullName?.trim() || author?.username || "Người học";
 }
 
 function getInitial(author) {
@@ -173,12 +173,12 @@ function CommentEditor({
     if (format === "inlineCode") insertTextAtCursor(textareaEl, value, onChange, "`", "`");
     if (format === "codeBlock") insertTextAtCursor(textareaEl, value, onChange, "```\n", "\n```");
     if (format === "link") {
-      const url = window.prompt("Nhap URL lien ket");
-      if (url) insertTextAtCursor(textareaEl, value, onChange, "[noi dung lien ket](", `${url})`);
+      const url = window.prompt("Nhập URL liên kết");
+      if (url) insertTextAtCursor(textareaEl, value, onChange, "[nội dung liên kết](", `${url})`);
     }
     if (format === "image") {
-      const url = window.prompt("Nhap URL anh");
-      if (url) insertTextAtCursor(textareaEl, value, onChange, "![mo ta anh](", `${url})`);
+      const url = window.prompt("Nhập URL ảnh");
+      if (url) insertTextAtCursor(textareaEl, value, onChange, "![mô tả ảnh](", `${url})`);
     }
     if (format === "unlink") {
       onChange(value.replace(/\[(.*?)]\(.*?\)/g, "$1"));
@@ -186,16 +186,16 @@ function CommentEditor({
   };
 
   const tools = [
-    ["bold", Bold, "Dam"],
-    ["italic", Italic, "Nghieng"],
-    ["quote", Quote, "Trich dan"],
-    ["ul", List, "Danh sach"],
-    ["ol", ListOrdered, "Danh sach so"],
+    ["bold", Bold, "Đậm"],
+    ["italic", Italic, "Nghiêng"],
+    ["quote", Quote, "Trích dẫn"],
+    ["ul", List, "Danh sách"],
+    ["ol", ListOrdered, "Danh sách số"],
     ["inlineCode", Code, "Code inline"],
     ["codeBlock", Code, "Code block"],
-    ["image", Image, "Anh URL"],
-    ["link", Link, "Lien ket"],
-    ["unlink", Unlink, "Bo lien ket"],
+    ["image", Image, "Ảnh URL"],
+    ["link", Link, "Liên kết"],
+    ["unlink", Unlink, "Bỏ liên kết"],
   ];
 
   return (
@@ -204,17 +204,20 @@ function CommentEditor({
       onSubmit={onSubmit}
     >
       <div className={styles.commentToolbar}>
-        {tools.map(([key, Icon, label]) => (
-          <button
-            key={key}
-            type="button"
-            title={label}
-            onClick={() => applyFormat(key)}
-            disabled={disabled}
-          >
-            <Icon size={compact ? 14 : 16} />
-          </button>
-        ))}
+        {tools.map(([key, ToolIcon, label]) => {
+          const icon = ToolIcon({ size: compact ? 14 : 16 });
+          return (
+            <button
+              key={key}
+              type="button"
+              title={label}
+              onClick={() => applyFormat(key)}
+              disabled={disabled}
+            >
+              {icon}
+            </button>
+          );
+        })}
       </div>
       <textarea
         ref={setTextareaEl}
@@ -226,7 +229,7 @@ function CommentEditor({
       />
       <button type="submit" disabled={saving || !value.trim() || disabled}>
         <Send size={16} />
-        {compact ? "Gui" : saving ? "Dang gui..." : "Gui binh luan"}
+        {compact ? "Gửi" : saving ? "Đang gửi..." : "Gửi bình luận"}
       </button>
     </form>
   );
@@ -263,7 +266,7 @@ export default function LessonDiscussion({ lessonId }) {
     } catch (error) {
       setComments([]);
       setErrorText(
-        error?.response?.data?.message || "Khong tai duoc binh luan bai hoc.",
+        error?.response?.data?.message || "Không tải được bình luận bài học.",
       );
     } finally {
       setLoading(false);
@@ -303,7 +306,7 @@ export default function LessonDiscussion({ lessonId }) {
       await fetchComments();
     } catch (error) {
       setErrorText(
-        error?.response?.data?.message || "Khong gui duoc binh luan.",
+        error?.response?.data?.message || "Không gửi được bình luận.",
       );
     } finally {
       setSaving(false);
@@ -328,7 +331,7 @@ export default function LessonDiscussion({ lessonId }) {
       await fetchComments();
     } catch (error) {
       setErrorText(
-        error?.response?.data?.message || "Khong gui duoc cau tra loi.",
+        error?.response?.data?.message || "Không gửi được câu trả lời.",
       );
     } finally {
       setSaving(false);
@@ -336,7 +339,7 @@ export default function LessonDiscussion({ lessonId }) {
   };
 
   const removeComment = async (commentId) => {
-    const confirmed = window.confirm("Xoa binh luan nay?");
+    const confirmed = window.confirm("Xóa bình luận này?");
     if (!confirmed) return;
 
     try {
@@ -345,7 +348,7 @@ export default function LessonDiscussion({ lessonId }) {
       await fetchComments();
     } catch (error) {
       setErrorText(
-        error?.response?.data?.message || "Khong xoa duoc binh luan.",
+        error?.response?.data?.message || "Không xóa được bình luận.",
       );
     }
   };
@@ -385,7 +388,7 @@ export default function LessonDiscussion({ lessonId }) {
                 type="button"
                 className={reportedMap[comment.id] ? styles.commentReportedBtn : ""}
                 onClick={() => toggleReport(comment.id)}
-                title="Bao cao binh luan"
+                title="Báo cáo bình luận"
               >
                 <MoreHorizontal size={16} />
               </button>
@@ -393,8 +396,8 @@ export default function LessonDiscussion({ lessonId }) {
                 <button
                   type="button"
                   onClick={() => removeComment(comment.id)}
-                  aria-label="Xoa binh luan"
-                  title="Xoa binh luan"
+                  aria-label="Xóa bình luận"
+                  title="Xóa bình luận"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -411,7 +414,7 @@ export default function LessonDiscussion({ lessonId }) {
               onClick={() => toggleLike(comment.id)}
             >
               <ThumbsUp size={14} />
-              Thich
+              Thích
             </button>
             {!nested ? (
               <button
@@ -421,14 +424,14 @@ export default function LessonDiscussion({ lessonId }) {
                   setReplyContent("");
                 }}
               >
-                Phan hoi
+                Phản hồi
               </button>
             ) : null}
           </div>
 
           {reportedMap[comment.id] ? (
             <div className={styles.commentReportedText}>
-              Da ghi nhan bao cao. Admin se xem lai khi co module kiem duyet.
+              Đã ghi nhận báo cáo. Admin sẽ xem lại khi có module kiểm duyệt.
             </div>
           ) : null}
 
@@ -437,7 +440,7 @@ export default function LessonDiscussion({ lessonId }) {
               compact
               value={replyContent}
               onChange={setReplyContent}
-              placeholder={`Tra loi ${getAuthorName(comment.author)}...`}
+              placeholder={`Trả lời ${getAuthorName(comment.author)}...`}
               disabled={Boolean(topic?.locked)}
               saving={saving}
               onSubmit={(event) => submitReply(event, comment.id)}
@@ -457,8 +460,8 @@ export default function LessonDiscussion({ lessonId }) {
                 }
               >
                 {expanded
-                  ? "An cau tra loi"
-                  : `Xem ${childReplies.length} cau tra loi`}
+                  ? "Ẩn câu trả lời"
+                  : `Xem ${childReplies.length} câu trả lời`}
               </button>
 
               {expanded ? childReplies.map((reply) => renderComment(reply, true)) : null}
@@ -477,7 +480,7 @@ export default function LessonDiscussion({ lessonId }) {
         onClick={() => setOpen(true)}
       >
         <MessageCircle size={18} />
-        Hoi dap
+        Hỏi đáp
       </button>
 
       {open ? (
@@ -485,17 +488,17 @@ export default function LessonDiscussion({ lessonId }) {
           <button
             type="button"
             className={styles.qaBackdrop}
-            aria-label="Dong hoi dap"
+            aria-label="Đóng hỏi đáp"
             onClick={() => setOpen(false)}
           />
 
           <aside className={styles.qaDrawer}>
             <header className={styles.qaDrawerHead}>
               <div>
-                <h3>Hoi dap bai hoc</h3>
-                <span>{comments.length} binh luan</span>
+                <h3>Hỏi đáp bài học</h3>
+                <span>{comments.length} bình luận</span>
               </div>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Dong">
+              <button type="button" onClick={() => setOpen(false)} aria-label="Đóng">
                 <X size={22} />
               </button>
             </header>
@@ -508,7 +511,7 @@ export default function LessonDiscussion({ lessonId }) {
                 onSubmit={submitComment}
                 disabled={Boolean(topic?.locked)}
                 saving={saving}
-                placeholder="Nhap binh luan, cau hoi code, loi gap phai..."
+                placeholder="Nhập bình luận, câu hỏi code, lỗi gặp phải..."
               />
             </div>
 
@@ -517,15 +520,15 @@ export default function LessonDiscussion({ lessonId }) {
             ) : null}
 
             <div className={styles.qaNotice}>
-              <strong>{comments.length} binh luan</strong>
-              <span>Neu thay binh luan spam, hay bam report giup admin.</span>
+              <strong>{comments.length} bình luận</strong>
+              <span>Nếu thấy bình luận spam, hãy bấm báo cáo giúp admin.</span>
             </div>
 
             {loading ? (
-              <div className={styles.lessonDiscussionState}>Dang tai binh luan...</div>
+              <div className={styles.lessonDiscussionState}>Đang tải bình luận...</div>
             ) : rootComments.length === 0 ? (
               <div className={styles.lessonDiscussionState}>
-                Chua co binh luan nao cho bai hoc nay.
+                Chưa có bình luận nào cho bài học này.
               </div>
             ) : (
               <div className={styles.lessonCommentList}>
@@ -536,7 +539,7 @@ export default function LessonDiscussion({ lessonId }) {
             {topic?.locked ? (
               <div className={styles.lessonDiscussionLocked}>
                 <MessageCircle size={16} />
-                Chu de binh luan cua bai hoc dang bi khoa.
+                Chủ đề bình luận của bài học đang bị khóa.
               </div>
             ) : null}
           </aside>

@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  GraduationCap,
-  Search,
-  RefreshCw,
   BookOpen,
-  CircleCheck,
-  Ban,
+  CalendarCheck,
+  CheckCircle2,
   Clock3,
-  Trophy,
-  LayoutGrid,
+  GraduationCap,
+  RefreshCw,
+  Search,
+  Tag,
 } from "lucide-react";
 import {
   getMyEnrollments,
@@ -42,6 +41,10 @@ function normalizeEnrollment(rawEnrollment, courseDetail = null) {
   };
 }
 
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+}
+
 function getStatusLabel(status) {
   switch (status) {
     case "COMPLETED":
@@ -54,25 +57,39 @@ function getStatusLabel(status) {
   }
 }
 
+function getStatusClass(status) {
+  switch (status) {
+    case "COMPLETED":
+      return styles.statusCompleted;
+    case "CANCELLED":
+      return styles.statusCancelled;
+    case "ACTIVE":
+    default:
+      return styles.statusActive;
+  }
+}
+
 function formatDateTime(value) {
   if (!value) return "Chưa cập nhật";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Chưa cập nhật";
 
-  return date.toLocaleString("vi-VN");
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function getProgressLabel(progress, status) {
+function getProgressNote(progress, status) {
   if (status === "COMPLETED") return "Bạn đã hoàn thành khóa học này.";
-  if (status === "CANCELLED") {
-    return "Khóa học đã dừng, bạn vẫn có thể xem lại khi cần.";
-  }
-  if (progress >= 75) return "Bạn đang ở chặng cuối, tiếp tục để hoàn thành.";
-  if (progress >= 30) {
-    return "Tiến độ đang ổn định, tiếp tục học để không bị ngắt quãng.";
-  }
-  return "Bạn vừa bắt đầu, nên duy trì nhịp học đều mỗi ngày.";
+  if (status === "CANCELLED") return "Khóa học đã dừng, vẫn có thể xem lại.";
+  if (progress >= 70) return "Sắp hoàn thành, tiếp tục duy trì tiến độ.";
+  if (progress >= 30) return "Tiến độ ổn định, nên học đều mỗi tuần.";
+  return "Bạn mới bắt đầu, hãy vào học khi có thời gian.";
 }
 
 function getImageSrc(thumbnailUrl) {
@@ -80,6 +97,19 @@ function getImageSrc(thumbnailUrl) {
   if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
   if (thumbnailUrl.startsWith("/")) return `${LMS_BASE_URL}${thumbnailUrl}`;
   return `${LMS_BASE_URL}/${thumbnailUrl}`;
+}
+
+function StatCard({ icon, label, value, note }) {
+  return (
+    <article className={styles.statCard}>
+      <span className={styles.statIcon}>{icon}</span>
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+        <small>{note}</small>
+      </div>
+    </article>
+  );
 }
 
 export default function MyCoursesPage() {
@@ -135,7 +165,6 @@ export default function MyCoursesPage() {
       const matchesKeyword =
         !normalizedKeyword ||
         course.courseTitle.toLowerCase().includes(normalizedKeyword);
-
       const matchesStatus =
         statusFilter === STATUS_OPTIONS.ALL || course.status === statusFilter;
 
@@ -185,92 +214,102 @@ export default function MyCoursesPage() {
   const completedCount = enrollments.filter(
     (item) => item.status === "COMPLETED",
   ).length;
+  const averageProgress =
+    totalCount === 0
+      ? 0
+      : Math.round(
+          enrollments.reduce(
+            (total, item) => total + clampPercent(item.progressPercent),
+            0,
+          ) / totalCount,
+        );
 
   return (
     <div className={styles.page}>
-      <div className={styles.headerCard}>
-        <div className={styles.headerLeft}>
-          <div className={styles.headerIcon}>
-            <GraduationCap size={24} />
-          </div>
-
-          <div>
-            <h1>Khóa học của tôi</h1>
-            <p>
-              Theo dõi các khóa học đã đăng ký, xem tiến độ hiện tại và quay lại
-              đúng phần học của bạn.
-            </p>
-          </div>
-        </div>
-
-        <div className={styles.headerStats}>
-          <div className={styles.headerStatItem}>
-            <LayoutGrid size={16} />
-            <span>{totalCount} khóa học</span>
-          </div>
-
-          <div className={styles.headerStatItem}>
-            <Trophy size={16} />
-            <span>{completedCount} đã hoàn thành</span>
-          </div>
-        </div>
+      <div className={styles.breadcrumb}>
+        Khóa học <span>\</span> Khóa học của tôi
       </div>
 
-      <div className={styles.toolbar}>
-        <div className={styles.searchBox}>
-          <Search size={18} />
-          <input
-            type="text"
-            placeholder="Tìm theo tên khóa học..."
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
-        </div>
-
-        <div className={styles.filterBox}>
-          <span>Trạng thái</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value={STATUS_OPTIONS.ALL}>Tất cả</option>
-            <option value={STATUS_OPTIONS.ACTIVE}>Đang học</option>
-            <option value={STATUS_OPTIONS.COMPLETED}>Hoàn thành</option>
-            <option value={STATUS_OPTIONS.CANCELLED}>Đã hủy</option>
-          </select>
+      <section className={styles.header}>
+        <div>
+          <h1>Khóa học của tôi</h1>
+          <p>
+            Theo dõi các khóa học đã đăng ký, tiến độ hiện tại và lần truy cập
+            gần nhất.
+          </p>
         </div>
 
         <button
           type="button"
           className={styles.refreshBtn}
           onClick={fetchMyCourses}
+          disabled={loading}
         >
           <RefreshCw size={16} />
           <span>Làm mới</span>
         </button>
-      </div>
+      </section>
 
-      <div className={styles.summaryRow}>
-        <div className={styles.summaryCard}>
-          <span>Tổng khóa học</span>
-          <strong>{totalCount}</strong>
+      <section className={styles.statGrid}>
+        <StatCard
+          icon={<BookOpen size={20} />}
+          label="Tổng khóa học"
+          value={totalCount}
+          note="Tất cả khóa học đã đăng ký"
+        />
+        <StatCard
+          icon={<GraduationCap size={20} />}
+          label="Đang học"
+          value={activeCount}
+          note="Các khóa còn hoạt động"
+        />
+        <StatCard
+          icon={<CheckCircle2 size={20} />}
+          label="Hoàn thành"
+          value={completedCount}
+          note="Khóa đã hoàn tất"
+        />
+        <StatCard
+          icon={<Clock3 size={20} />}
+          label="Tiến độ trung bình"
+          value={`${averageProgress}%`}
+          note="Tính trên các khóa hiện có"
+        />
+      </section>
+
+      <section className={styles.toolbar}>
+        <div>
+          <h2>Danh sách khóa học</h2>
+          <p>
+            Hiển thị {filteredCourses.length} / {totalCount} khóa học.
+          </p>
         </div>
 
-        <div className={styles.summaryCard}>
-          <span>Đang học</span>
-          <strong>{activeCount}</strong>
-        </div>
+        <div className={styles.controls}>
+          <label className={styles.searchBox}>
+            <Search size={17} />
+            <input
+              type="text"
+              placeholder="Tìm khóa học..."
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+          </label>
 
-        <div className={styles.summaryCard}>
-          <span>Hoàn thành</span>
-          <strong>{completedCount}</strong>
+          <label className={styles.filterBox}>
+            <span>Trạng thái</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value={STATUS_OPTIONS.ALL}>Tất cả</option>
+              <option value={STATUS_OPTIONS.ACTIVE}>Đang học</option>
+              <option value={STATUS_OPTIONS.COMPLETED}>Hoàn thành</option>
+              <option value={STATUS_OPTIONS.CANCELLED}>Đã hủy</option>
+            </select>
+          </label>
         </div>
-
-        <div className={styles.summaryCard}>
-          <span>Kết quả hiển thị</span>
-          <strong>{filteredCourses.length}</strong>
-        </div>
-      </div>
+      </section>
 
       {loading ? (
         <div className={styles.stateBox}>Đang tải khóa học của bạn...</div>
@@ -278,9 +317,7 @@ export default function MyCoursesPage() {
         <div className={styles.errorBox}>{errorText}</div>
       ) : filteredCourses.length === 0 ? (
         <div className={styles.emptyCard}>
-          <div className={styles.emptyIcon}>
-            <BookOpen size={28} />
-          </div>
+          <BookOpen size={28} />
           <h3>Chưa có khóa học phù hợp</h3>
           <p>
             Bạn chưa đăng ký khóa học nào hoặc không có kết quả khớp với bộ lọc
@@ -288,8 +325,9 @@ export default function MyCoursesPage() {
           </p>
         </div>
       ) : (
-        <div className={styles.grid}>
+        <div className={styles.courseGrid}>
           {filteredCourses.map((course) => {
+            const progress = clampPercent(course.progressPercent);
             const thumbnailSrc = getImageSrc(course.thumbnailUrl);
 
             return (
@@ -310,88 +348,66 @@ export default function MyCoursesPage() {
                   }
                 }}
               >
-                <div
-                  className={styles.cardCover}
-                  style={
-                    thumbnailSrc
-                      ? { "--cover-image": `url(${thumbnailSrc})` }
-                      : undefined
-                  }
-                >
-                  <div className={styles.cardCoverOverlay} />
-
-                  <div className={styles.cardTop}>
-                    <div className={styles.cardBadgeWrap}>
-                      {course.status === "COMPLETED" ? (
-                        <span className={styles.statusCompleted}>
-                          <CircleCheck size={14} />
-                          <span>{getStatusLabel(course.status)}</span>
-                        </span>
-                      ) : course.status === "CANCELLED" ? (
-                        <span className={styles.statusCancelled}>
-                          <Ban size={14} />
-                          <span>{getStatusLabel(course.status)}</span>
-                        </span>
-                      ) : (
-                        <span className={styles.statusActive}>
-                          <BookOpen size={14} />
-                          <span>{getStatusLabel(course.status)}</span>
-                        </span>
-                      )}
+                <div className={styles.thumbnailWrap}>
+                  {thumbnailSrc ? (
+                    <img
+                      src={thumbnailSrc}
+                      alt={course.courseTitle}
+                      className={styles.thumbnail}
+                    />
+                  ) : (
+                    <div className={styles.thumbnailFallback}>
+                      <BookOpen size={28} />
                     </div>
+                  )}
+                </div>
 
-                    <span className={styles.progressPill}>
-                      {Math.max(0, Math.min(100, course.progressPercent))}%
-                    </span>
-                  </div>
-
-                  <div className={styles.coverBody}>
-                    <span className={styles.categoryChip}>
+                <div className={styles.cardHeader}>
+                  <div>
+                    <span className={styles.courseType}>
                       {course.categoryName}
                     </span>
                     <h3>{course.courseTitle}</h3>
-                    <p>
-                      {getProgressLabel(course.progressPercent, course.status)}
-                    </p>
+                  </div>
+
+                  <span
+                    className={`${styles.statusBadge} ${getStatusClass(
+                      course.status,
+                    )}`}
+                  >
+                    {getStatusLabel(course.status)}
+                  </span>
+                </div>
+
+                <div className={styles.metaList}>
+                  <div className={styles.metaItem}>
+                    <Tag size={15} />
+                    <span>{course.categoryName}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <CalendarCheck size={15} />
+                    <span>Đăng ký: {formatDateTime(course.enrolledAt)}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <Clock3 size={15} />
+                    <span>
+                      Truy cập gần nhất: {formatDateTime(course.lastAccessedAt)}
+                    </span>
                   </div>
                 </div>
 
-                <div className={styles.cardBody}>
-                  <div className={styles.progressBlock}>
-                    <div className={styles.progressLabelRow}>
-                      <span>Tiến độ học tập</span>
-                      <strong>
-                        {Math.max(0, Math.min(100, course.progressPercent))}%
-                      </strong>
-                    </div>
-
-                    <div className={styles.progressTrack}>
-                      <div
-                        className={styles.progressBar}
-                        style={{
-                          width: `${Math.max(
-                            0,
-                            Math.min(100, course.progressPercent),
-                          )}%`,
-                        }}
-                      />
-                    </div>
+                <div className={styles.progressBlock}>
+                  <div className={styles.progressHeader}>
+                    <span>Tiến độ học tập</span>
+                    <strong>{progress}%</strong>
                   </div>
-
-                  <div className={styles.metaList}>
-                    <div className={styles.metaItem}>
-                      <Clock3 size={15} />
-                      <span>Đăng ký: {formatDateTime(course.enrolledAt)}</span>
-                    </div>
-
-                    <div className={styles.metaItem}>
-                      <Clock3 size={15} />
-                      <span>
-                        Truy cập gần nhất:{" "}
-                        {formatDateTime(course.lastAccessedAt)}
-                      </span>
-                    </div>
+                  <div className={styles.progressTrack}>
+                    <div
+                      className={styles.progressBar}
+                      style={{ width: `${progress}%` }}
+                    />
                   </div>
+                  <p>{getProgressNote(progress, course.status)}</p>
                 </div>
               </article>
             );

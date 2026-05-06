@@ -18,7 +18,6 @@ async function toJson(res) {
 
 export function useLessonApi() {
   const { token, logout } = useContext(AuthContext);
-  const RESOURCE_BASE = `${BASE}`;
 
   const authedFetch = useCallback(
     async (url, options = {}) => {
@@ -85,58 +84,10 @@ export function useLessonApi() {
     [authedFetch],
   );
 
-  const getLessonResources = useCallback(
-    async (lessonId) =>
-      toJson(await authedFetch(`${RESOURCE_BASE}/${lessonId}/resources`)),
-    [authedFetch, RESOURCE_BASE],
-  );
-
-  const createLessonResource = useCallback(
-    async (lessonId, payload) =>
-      toJson(
-        await authedFetch(`${RESOURCE_BASE}/${lessonId}/resources`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }),
-      ),
-    [authedFetch, RESOURCE_BASE],
-  );
-
-  const updateLessonResource = useCallback(
-    async (lessonId, resourceId, payload) =>
-      toJson(
-        await authedFetch(`${RESOURCE_BASE}/${lessonId}/resources/${resourceId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }),
-      ),
-    [authedFetch, RESOURCE_BASE],
-  );
-
-  const deleteLessonResource = useCallback(
-    async (lessonId, resourceId) =>
-      toJson(
-        await authedFetch(`${RESOURCE_BASE}/${lessonId}/resources/${resourceId}`, {
-          method: "DELETE",
-        }),
-      ),
-    [authedFetch, RESOURCE_BASE],
-  );
-
   return {
     createLesson,
     updateLesson,
     deleteLesson,
     getLessonById,
-    getLessonResources,
-    createLessonResource,
-    updateLessonResource,
-    deleteLessonResource,
   };
 }

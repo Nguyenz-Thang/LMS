@@ -12,6 +12,7 @@ import {
 import QuizBlock from "./QuizBlock";
 import AssignmentBlock from "./AssignmentBlock";
 import LessonDiscussion from "./LessonDiscussion";
+import LessonAiAssistant from "./LessonAiAssistant";
 
 const NOTE_EDITOR_FORMATS = [
   "header",
@@ -47,26 +48,28 @@ export default function LearningContent({
 }) {
   const readingCompletionRef = useRef(null);
   const noteQuillRef = useRef(null);
+  const youtubeFrameRef = useRef(null);
+  const youtubePlayerRef = useRef(null);
   const videoCompletionTriggeredRef = useRef(false);
   const [notes, setNotes] = useState([]);
   const [bookmarked, setBookmarked] = useState(false);
   const [noteContent, setNoteContent] = useState("");
-  const [timeMarkerSec, setTimeMarkerSec] = useState("");
   const [editingNoteId, setEditingNoteId] = useState("");
   const [noteError, setNoteError] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
 
   useEffect(() => {
     setNotes(Array.isArray(lessonData?.notes) ? lessonData.notes : []);
     setBookmarked(Boolean(lessonData?.bookmarked));
     videoCompletionTriggeredRef.current = false;
     setNoteContent("");
-    setTimeMarkerSec("");
     setEditingNoteId("");
     setNoteError("");
     setNotesOpen(false);
+    setMediaError(false);
   }, [lessonData]);
 
   useEffect(() => {
@@ -85,7 +88,7 @@ export default function LearningContent({
       (entries) => {
         const [entry] = entries;
         if (entry?.isIntersecting) {
-          onLessonCompleted?.({ autoNavigate: true });
+          onLessonCompleted?.({ autoNavigate: false });
         }
       },
       {
@@ -143,18 +146,189 @@ export default function LearningContent({
 
     const lastPosition = Number(lessonData?.lastPositionSec || 0);
     const separator = baseUrl.includes("?") ? "&" : "?";
-    return `${baseUrl}${separator}rel=0${lastPosition > 0 ? `&start=${lastPosition}` : ""}`;
+    return `${baseUrl}${separator}rel=0&enablejsapi=1${lastPosition > 0 ? `&start=${lastPosition}` : ""}`;
+  };
+
+  const completeVideoLesson = async (watchedSeconds = 0) => {
+    if (videoCompletionTriggeredRef.current || lessonData?.completed) {
+      return;
+    }
+
+    videoCompletionTriggeredRef.current = true;
+
+    try {
+      await saveLessonProgress(lessonData.lessonId, {
+        watchedSeconds,
+        lastPositionSec: watchedSeconds,
+        completed: false,
+      });
+    } catch {
+      // Ignore transient save errors before completion handoff.
+    }
+
+    await onLessonCompleted?.({ autoNavigate: false });
+  };
+
+  useEffect(() => {
+    if (
+      !lessonData?.lessonId ||
+      !lessonData?.videoUrl ||
+      !isYoutubeUrl(lessonData.videoUrl) ||
+      lessonData.completed ||
+      !youtubeFrameRef.current
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let pollId = null;
+
+    const setupPlayer = () => {
+      if (cancelled || !window.YT?.Player || !youtubeFrameRef.current) {
+        return;
+      }
+
+      youtubePlayerRef.current?.destroy?.();
+      youtubePlayerRef.current = new window.YT.Player(youtubeFrameRef.current, {
+        events: {
+          onStateChange: async (event) => {
+            const ended = event.data === window.YT.PlayerState.ENDED;
+            if (!ended) return;
+
+            const duration = Math.floor(
+              event.target?.getDuration?.() || lessonData.durationMinutes * 60 || 0,
+            );
+            await completeVideoLesson(duration);
+          },
+        },
+      });
+
+      pollId = window.setInterval(async () => {
+        const player = youtubePlayerRef.current;
+        if (!player?.getDuration || !player?.getCurrentTime) return;
+
+        const duration = Number(player.getDuration() || 0);
+        const currentTime = Number(player.getCurrentTime() || 0);
+        if (duration > 0 && currentTime / duration >= 0.9) {
+          await completeVideoLesson(Math.floor(currentTime));
+        }
+      }, 3000);
+    };
+
+    if (window.YT?.Player) {
+      setupPlayer();
+    } else {
+      const previousReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previousReady?.();
+        setupPlayer();
+      };
+
+      if (!document.querySelector("script[src='https://www.youtube.com/iframe_api']")) {
+        const script = document.createElement("script");
+        script.src = "https://www.youtube.com/iframe_api";
+        document.body.appendChild(script);
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      if (pollId) window.clearInterval(pollId);
+      youtubePlayerRef.current?.destroy?.();
+      youtubePlayerRef.current = null;
+    };
+  }, [
+    lessonData?.completed,
+    lessonData?.durationMinutes,
+    lessonData?.lessonId,
+    lessonData?.videoUrl,
+    saveLessonProgress,
+    onLessonCompleted,
+  ]);
+
+  const renderMainMedia = () => {
+    if (lessonData.videoUrl && isYoutubeUrl(lessonData.videoUrl)) {
+      return (
+        <iframe
+          ref={youtubeFrameRef}
+          className={styles.youtubeFrame}
+          src={getYoutubeLessonEmbedUrl()}
+          title={lessonData.title || "YouTube video player"}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+        />
+      );
+    }
+
+    if (lessonData.videoUrl) {
+      return (
+        <video
+          ref={videoRef}
+          className={styles.videoPlayer}
+          controls
+          src={toAssetUrl(lessonData.videoUrl)}
+          poster={
+            lessonData.thumbnailUrl
+              ? toAssetUrl(lessonData.thumbnailUrl)
+              : undefined
+          }
+          onPause={async (e) => {
+            const currentSec = Math.floor(e.currentTarget.currentTime || 0);
+            try {
+              await saveLessonProgress(lessonData.lessonId, {
+                watchedSeconds: currentSec,
+                lastPositionSec: currentSec,
+                completed: false,
+              });
+            } catch {
+              // Ignore transient auto-save failures while the learner is watching.
+            }
+          }}
+          onTimeUpdate={async (e) => {
+            if (videoCompletionTriggeredRef.current || lessonData.completed) {
+              return;
+            }
+
+            const duration = Number(e.currentTarget.duration || 0);
+            const currentTime = Number(e.currentTarget.currentTime || 0);
+
+            if (!duration || currentTime / duration < 0.9) {
+              return;
+            }
+
+            await completeVideoLesson(Math.floor(currentTime));
+          }}
+          onEnded={async (e) => {
+            const totalSec = Math.floor(e.currentTarget.duration || 0);
+            await completeVideoLesson(totalSec);
+          }}
+        />
+      );
+    }
+
+    if (lessonData.thumbnailUrl) {
+      return (
+        <img
+          src={toAssetUrl(lessonData.thumbnailUrl)}
+          alt={lessonData.title}
+          className={styles.lessonImage}
+          onError={() => setMediaError(true)}
+        />
+      );
+    }
+
+    return null;
   };
 
   const resetNoteForm = () => {
     setNoteContent("");
-    setTimeMarkerSec("");
     setEditingNoteId("");
     setNoteError("");
   };
 
   const openNotePanel = () => {
-    setTimeMarkerSec("");
     setNotesOpen(true);
   };
 
@@ -207,7 +381,6 @@ export default function LearningContent({
   const handleEditNote = (note) => {
     setEditingNoteId(note.id);
     setNoteContent(note.noteContent || "");
-    setTimeMarkerSec("");
     setNoteError("");
     setNotesOpen(true);
   };
@@ -270,99 +443,9 @@ export default function LearningContent({
 
   return (
     <>
-      <div className={styles.mediaBox}>
-        {lessonData.videoUrl ? (
-          isYoutubeUrl(lessonData.videoUrl) ? (
-            <iframe
-              className={styles.youtubeFrame}
-              src={getYoutubeLessonEmbedUrl()}
-              title={lessonData.title || "YouTube video player"}
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
-          ) : (
-            <video
-              ref={videoRef}
-              className={styles.videoPlayer}
-              controls
-              src={toAssetUrl(lessonData.videoUrl)}
-              poster={
-                lessonData.thumbnailUrl
-                  ? toAssetUrl(lessonData.thumbnailUrl)
-                  : undefined
-              }
-              onPause={async (e) => {
-                const currentSec = Math.floor(e.currentTarget.currentTime || 0);
-                try {
-                  await saveLessonProgress(lessonData.lessonId, {
-                    watchedSeconds: currentSec,
-                    lastPositionSec: currentSec,
-                    completed: false,
-                  });
-                } catch {
-                  // Ignore transient auto-save failures while the learner is watching.
-                }
-              }}
-              onTimeUpdate={async (e) => {
-                if (videoCompletionTriggeredRef.current || lessonData.completed) {
-                  return;
-                }
-
-                const duration = Number(e.currentTarget.duration || 0);
-                const currentTime = Number(e.currentTarget.currentTime || 0);
-
-                if (!duration || currentTime / duration < 0.9) {
-                  return;
-                }
-
-                videoCompletionTriggeredRef.current = true;
-
-                try {
-                  const watchedSec = Math.floor(currentTime);
-                  await saveLessonProgress(lessonData.lessonId, {
-                    watchedSeconds: watchedSec,
-                    lastPositionSec: watchedSec,
-                    completed: false,
-                  });
-                } catch {
-                  // Ignore transient save errors before completion handoff.
-                }
-
-                await onLessonCompleted?.({ autoNavigate: false });
-              }}
-              onEnded={async (e) => {
-                if (videoCompletionTriggeredRef.current) {
-                  return;
-                }
-
-                videoCompletionTriggeredRef.current = true;
-                const totalSec = Math.floor(e.currentTarget.duration || 0);
-                try {
-                  await saveLessonProgress(lessonData.lessonId, {
-                    watchedSeconds: totalSec,
-                    lastPositionSec: totalSec,
-                    completed: false,
-                  });
-                } catch {
-                  // Ignore transient save errors before completion handoff.
-                }
-
-                await onLessonCompleted?.({ autoNavigate: false });
-              }}
-            />
-          )
-        ) : lessonData.thumbnailUrl ? (
-          <img
-            src={toAssetUrl(lessonData.thumbnailUrl)}
-            alt={lessonData.title}
-            className={styles.lessonImage}
-          />
-        ) : (
-          <div className={styles.emptyMedia}>Không có video cho bài học này.</div>
-        )}
-      </div>
+      {lessonData.videoUrl || (lessonData.thumbnailUrl && !mediaError) ? (
+        <div className={styles.mediaBox}>{renderMainMedia()}</div>
+      ) : null}
 
       <div className={styles.lessonHeader}>
         <div className={styles.lessonHeaderTop}>
@@ -527,6 +610,8 @@ export default function LearningContent({
       ) : null}
 
       <LessonDiscussion lessonId={lessonData.lessonId} />
+
+      <LessonAiAssistant lessonData={lessonData} learningApi={learningApi} />
 
       {notesOpen ? (
         <div className={styles.noteOverlay}>

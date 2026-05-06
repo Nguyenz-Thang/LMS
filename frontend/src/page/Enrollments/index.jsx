@@ -194,20 +194,6 @@ export default function EnrollmentManagement() {
     });
   }, [enrollments, keyword, statusFilter]);
 
-  const activeCount = enrollments.filter((item) => item.status === "ACTIVE").length;
-  const completedCount = enrollments.filter(
-    (item) => item.status === "COMPLETED",
-  ).length;
-  const averageProgress =
-    enrollments.length === 0
-      ? 0
-      : Math.round(
-          enrollments.reduce(
-            (total, item) => total + getProgressValue(item.progressPercent),
-            0,
-          ) / enrollments.length,
-        );
-
   const resetFilters = () => {
     setKeyword("");
     setStatusFilter("ALL");
@@ -216,15 +202,10 @@ export default function EnrollmentManagement() {
   return (
     <div className={styles.page}>
       <div className={styles.headerBar}>
-        <div className={styles.titleGroup}>
-          <span className={styles.titleIcon}>
-            <GraduationCap size={22} />
-          </span>
-
-          <div>
-            <h1>Quản lý đăng ký học</h1>
-            <p>Theo dõi người học đã đăng ký khóa học và tiến độ học tập.</p>
-          </div>
+        <div>
+          <div className={styles.breadcrumb}>Quản trị \ Đăng ký học</div>
+          <h1>Quản lí đăng ký học</h1>
+          <p>Theo dõi học viên đã đăng ký khóa học và tiến độ học tập.</p>
         </div>
       </div>
 
@@ -267,22 +248,12 @@ export default function EnrollmentManagement() {
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryStrip}>
+      <div className={styles.listHeader}>
         <div>
-          <span>Tổng đăng ký</span>
-          <strong>{enrollments.length}</strong>
-        </div>
-        <div>
-          <span>Đang học</span>
-          <strong>{activeCount}</strong>
-        </div>
-        <div>
-          <span>Hoàn thành</span>
-          <strong>{completedCount}</strong>
-        </div>
-        <div>
-          <span>Tiến độ trung bình</span>
-          <strong>{averageProgress}%</strong>
+          <h2>Danh sách đăng ký</h2>
+          <p>
+            Hiển thị {filteredEnrollments.length} / {enrollments.length} đăng ký.
+          </p>
         </div>
       </div>
 
@@ -334,9 +305,7 @@ export default function EnrollmentManagement() {
                             <strong>
                               {enrollment.fullName || enrollment.username}
                             </strong>
-                            <span>
-                              {enrollment.email || enrollment.username}
-                            </span>
+                            <span>{enrollment.email || enrollment.username}</span>
                           </div>
                         </div>
                       </td>

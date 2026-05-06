@@ -261,22 +261,13 @@ export default function RoleManagement() {
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryStrip}>
+      <div className={styles.listHeader}>
         <div>
-          <span>Tổng vai trò</span>
-          <strong>{roles.length}</strong>
-        </div>
-        <div>
-          <span>Vai trò hệ thống</span>
-          <strong>{systemRolesCount}</strong>
-        </div>
-        <div>
-          <span>Vai trò tùy chỉnh</span>
-          <strong>{customRolesCount}</strong>
-        </div>
-        <div>
-          <span>Đang hiển thị</span>
-          <strong>{filteredRoles.length}</strong>
+          <h2>Danh sách vai trò</h2>
+          <p>
+            Hiển thị {filteredRoles.length} / {roles.length} vai trò. Hệ thống{" "}
+            {systemRolesCount}, tùy chỉnh {customRolesCount}.
+          </p>
         </div>
       </div>
 

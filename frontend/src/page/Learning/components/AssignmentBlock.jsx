@@ -79,7 +79,7 @@ export default function AssignmentBlock({
         submitNow: true,
       });
       setAssignmentData(res?.result || null);
-      await onAssignmentSubmitted?.({ autoNavigate: true });
+      await onAssignmentSubmitted?.({ autoNavigate: false });
     } catch (error) {
       setAssignmentError(
         error?.body?.message || error?.message || "Không nộp được bài tập.",

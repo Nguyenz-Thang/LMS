@@ -159,28 +159,16 @@ export default function Category() {
     }
   };
 
-  const resetSearch = () => {
-    setSearch("");
-  };
-
   return (
     <div className={styles.categoryPage}>
       <div className={styles.headerBar}>
-        <div className={styles.titleGroup}>
-          <span className={styles.titleIcon}>
-            <FolderTree size={22} />
-          </span>
-          <div>
-            <h1>Quản lý danh mục</h1>
-            <p>Quản lý nhóm khóa học dùng để phân loại nội dung trong hệ thống.</p>
-          </div>
+        <div>
+          <div className={styles.breadcrumb}>Quản trị \ Danh mục</div>
+          <h1>Quản lí danh mục</h1>
+          <p>Quản lí nhóm khóa học dùng để phân loại nội dung trong hệ thống.</p>
         </div>
 
-        <button
-          type="button"
-          className={styles.addBtn}
-          onClick={openCreateModal}
-        >
+        <button type="button" className={styles.addBtn} onClick={openCreateModal}>
           <Plus size={18} />
           <span>Thêm danh mục</span>
         </button>
@@ -200,7 +188,7 @@ export default function Category() {
         <button
           type="button"
           className={styles.resetBtn}
-          onClick={resetSearch}
+          onClick={() => setSearch("")}
           title="Đặt lại tìm kiếm"
           aria-label="Đặt lại tìm kiếm"
         >
@@ -210,14 +198,12 @@ export default function Category() {
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryStrip}>
+      <div className={styles.listHeader}>
         <div>
-          <span>Tổng danh mục</span>
-          <strong>{categories.length}</strong>
-        </div>
-        <div>
-          <span>Đang hiển thị</span>
-          <strong>{filteredCategories.length}</strong>
+          <h2>Danh sách danh mục</h2>
+          <p>
+            Hiển thị {filteredCategories.length} / {categories.length} danh mục.
+          </p>
         </div>
       </div>
 
@@ -302,9 +288,7 @@ export default function Category() {
           <div className={styles.modal} role="dialog" aria-modal="true">
             <div className={styles.modalHeader}>
               <div>
-                <h2>
-                  {editingCategory ? "Sửa danh mục" : "Thêm danh mục"}
-                </h2>
+                <h2>{editingCategory ? "Sửa danh mục" : "Thêm danh mục"}</h2>
                 <p>
                   {editingCategory
                     ? "Cập nhật tên và mô tả danh mục khóa học."
@@ -354,23 +338,17 @@ export default function Category() {
               <div className={styles.modalActions}>
                 <button
                   type="button"
-                  className={styles.iconBtn}
+                  className={styles.cancelBtn}
                   onClick={closeModal}
                   disabled={saving}
-                  title="Hủy"
-                  aria-label="Hủy"
                 >
                   <X size={17} />
+                  <span>Hủy</span>
                 </button>
 
-                <button
-                  type="submit"
-                  className={`${styles.iconBtn} ${styles.saveAction}`}
-                  disabled={saving}
-                  title={editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
-                  aria-label={editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}
-                >
+                <button type="submit" className={styles.saveBtn} disabled={saving}>
                   <Save size={17} />
+                  <span>{editingCategory ? "Lưu thay đổi" : "Thêm danh mục"}</span>
                 </button>
               </div>
             </form>

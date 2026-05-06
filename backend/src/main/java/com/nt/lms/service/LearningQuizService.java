@@ -190,6 +190,10 @@ public class LearningQuizService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quiz này đã nộp, không thể sửa đáp án");
         }
 
+        if (isAttemptTimeExpired(attempt)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Đã hết thời gian làm bài");
+        }
+
         Question question = questionRepository.findById(request.getQuestionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy câu hỏi"));
 
@@ -521,6 +525,15 @@ public class LearningQuizService {
         }
 
         return safeTotalScore(attempt) > 0 && calculateScorePercent(attempt) >= 100.0;
+    }
+
+    private boolean isAttemptTimeExpired(QuizAttempt attempt) {
+        Integer limitMinutes = attempt.getQuiz() != null ? attempt.getQuiz().getTimeLimitMinutes() : null;
+
+        return limitMinutes != null
+                && limitMinutes > 0
+                && attempt.getStartedAt() != null
+                && LocalDateTime.now().isAfter(attempt.getStartedAt().plusMinutes(limitMinutes));
     }
 
     private double calculateScorePercent(QuizAttempt attempt) {

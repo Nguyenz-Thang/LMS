@@ -88,6 +88,14 @@ function getVisibilityMeta(visibility) {
     };
   }
 
+  if (visibility === "UNLISTED") {
+    return {
+      label: "Không liệt kê",
+      className: "visibilityPrivate",
+      icon: Lock,
+    };
+  }
+
   return {
     label: "Công khai",
     className: "visibilityPublic",
@@ -288,14 +296,16 @@ export default function Courses() {
   const getImageSrc = (thumbnailUrl) => {
     if (!thumbnailUrl) return FALLBACK_THUMB;
     if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
-    return `${LMS_BASE_URL}${thumbnailUrl}`;
+    if (thumbnailUrl.startsWith("/")) return `${LMS_BASE_URL}${thumbnailUrl}`;
+    return `${LMS_BASE_URL}/${thumbnailUrl}`;
   };
 
   return (
     <div className={styles.coursesPage}>
       <div className={styles.headerBar}>
         <div>
-          <h1>Quản lý khóa học</h1>
+          <div className={styles.breadcrumb}>Quản trị \ Khóa học</div>
+          <h1>Quản lí khóa học</h1>
           <p>Theo dõi, duyệt và cập nhật khóa học trong hệ thống.</p>
         </div>
 
@@ -367,21 +377,16 @@ export default function Courses() {
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryStrip}>
+      <div className={styles.listHeader}>
         <div>
-          <span>Tổng</span>
-          <strong>{pageInfo.totalElements}</strong>
+          <h2>Danh sách khóa học</h2>
+          <p>
+            Hiển thị {filteredCourses.length} / {pageInfo.totalElements} khóa học.
+          </p>
         </div>
-        <div>
-          <span>Đang hiển thị</span>
-          <strong>{filteredCourses.length}</strong>
-        </div>
-        <div>
-          <span>Trang</span>
-          <strong>
-            {pageInfo.page + 1}/{Math.max(pageInfo.totalPages, 1)}
-          </strong>
-        </div>
+        <span>
+          Trang {pageInfo.page + 1} / {Math.max(pageInfo.totalPages, 1)}
+        </span>
       </div>
 
       <div className={styles.tableCard}>
@@ -427,9 +432,7 @@ export default function Courses() {
                           />
                           <div className={styles.courseInfo}>
                             <strong>{course.title}</strong>
-                            <span>
-                              {course.description || "Chưa có mô tả."}
-                            </span>
+                            <span>{course.description || "Chưa có mô tả."}</span>
                           </div>
                         </div>
                       </td>

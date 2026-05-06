@@ -1,34 +1,8 @@
-import { Clock3, PlayCircle, UserRound, Users } from "lucide-react";
+import { BookOpen, Clock3, PlayCircle, UserRound, Users } from "lucide-react";
 import styles from "./CourseShowcaseCard.module.scss";
 
-const FALLBACK_THUMB =
-  "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
-
-const PALETTES = [
-  ["#1fb6ff", "#4f46e5"],
-  ["#facc15", "#fb923c"],
-  ["#f43f5e", "#6d28d9"],
-  ["#14b8a6", "#0ea5e9"],
-  ["#312e81", "#7c3aed"],
-  ["#f97316", "#f59e0b"],
-  ["#22c55e", "#166534"],
-  ["#db2777", "#f97316"],
-];
-
-function hashString(value = "") {
-  return Array.from(value).reduce(
-    (acc, char) => acc + char.charCodeAt(0),
-    0,
-  );
-}
-
-function getPaletteSeed(course) {
-  const source = `${course?.id || ""}${course?.title || ""}`;
-  return PALETTES[hashString(source) % PALETTES.length];
-}
-
-function getImageSrc(value, baseUrl, fallback = FALLBACK_THUMB) {
-  if (!value) return fallback;
+function getImageSrc(value, baseUrl) {
+  if (!value) return "";
   if (value.startsWith("http")) return value;
   if (value.startsWith("/")) return `${baseUrl}${value}`;
   return `${baseUrl}/${value}`;
@@ -40,13 +14,14 @@ function trimText(text = "", fallback = "") {
 }
 
 function formatDuration(totalMinutes) {
-  if (!totalMinutes || totalMinutes <= 0) return "0";
+  if (!totalMinutes || totalMinutes <= 0) return "0 phút";
+
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
 
-  if (hours > 0 && mins > 0) return `${hours}h${mins}p`;
-  if (hours > 0) return `${hours}h`;
-  return `${mins}p`;
+  if (hours > 0 && mins > 0) return `${hours} giờ ${mins} phút`;
+  if (hours > 0) return `${hours} giờ`;
+  return `${mins} phút`;
 }
 
 function formatNumber(value) {
@@ -60,54 +35,45 @@ export default function CourseShowcaseCard({
   onClick,
   busy = false,
 }) {
-  const [startColor, endColor] = getPaletteSeed(course);
-  const hasThumb = Boolean(course?.thumbnailUrl);
   const categoryName = trimText(course?.categoryName, "Khóa học");
   const title = trimText(course?.title, "Khóa học đang cập nhật");
-  const subtitle = trimText(
-    course?.description,
-    course?.instructorName || "Khóa học thực hành từ cơ bản đến nâng cao",
-  );
+  const description = trimText(course?.description, "Chưa có mô tả khóa học.");
   const instructorName = trimText(course?.instructorName, "Chưa cập nhật");
-  const instructorAvatar = getImageSrc(course?.instructorAvatar, baseUrl, "");
+  const instructorAvatar = getImageSrc(course?.instructorAvatar, baseUrl);
+  const thumbnail = getImageSrc(course?.thumbnailUrl, baseUrl);
 
   return (
     <article
       className={`${styles.card} ${busy ? styles.cardBusy : ""}`}
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick?.();
+        }
+      }}
     >
-      <div
-        className={styles.cover}
-        style={{
-          "--cover-start": startColor,
-          "--cover-end": endColor,
-          ...(hasThumb
-            ? {
-                "--cover-image": `url(${getImageSrc(
-                  course.thumbnailUrl,
-                  baseUrl,
-                )})`,
-              }
-            : {}),
-        }}
-      >
-        <div className={styles.coverOverlay} />
-        <div className={styles.coverNoise} />
-
-        <div className={styles.coverTop}>
-          <span className={styles.categoryChip}>{categoryName}</span>
-        </div>
-
-        <div className={styles.coverBody}>
-          <h3>{title}</h3>
-          <p>{subtitle}</p>
-        </div>
+      <div className={styles.thumbnailWrap}>
+        {thumbnail ? (
+          <img src={thumbnail} alt={title} className={styles.thumbnail} />
+        ) : (
+          <div className={styles.thumbnailFallback}>
+            <BookOpen size={30} />
+          </div>
+        )}
       </div>
 
       <div className={styles.body}>
-        <div className={styles.bodyTop}>
-          <h4>{title}</h4>
+        <div className={styles.titleRow}>
+          <div>
+            <span className={styles.categoryText}>{categoryName}</span>
+            <h3>{title}</h3>
+          </div>
         </div>
+
+        <p className={styles.description}>{description}</p>
 
         <div className={styles.statsRow}>
           <span>

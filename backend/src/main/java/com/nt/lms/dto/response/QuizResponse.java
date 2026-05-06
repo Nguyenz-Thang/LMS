@@ -16,6 +16,7 @@ public class QuizResponse {
     String courseId;
     String lessonId;
     Integer maxAttempts;
+    Integer timeLimitMinutes;
     Boolean isPublished;
     Long attemptCount;
     List<Question> questions;

@@ -10,9 +10,12 @@ import com.nt.lms.dto.response.ChatbotConversationResponse;
 import com.nt.lms.dto.response.ChatbotMessageResponse;
 import com.nt.lms.entity.ChatbotConversation;
 import com.nt.lms.entity.ChatbotMessage;
+import com.nt.lms.entity.Assignment;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Lesson;
+import com.nt.lms.entity.LessonBlock;
 import com.nt.lms.entity.LessonProgress;
+import com.nt.lms.entity.LessonResource;
 import com.nt.lms.entity.Question;
 import com.nt.lms.entity.User;
 import com.nt.lms.entity.Quiz;
@@ -21,9 +24,12 @@ import com.nt.lms.enums.ChatbotContextType;
 import com.nt.lms.enums.ChatbotSenderType;
 import com.nt.lms.repository.ChatbotConversationRepository;
 import com.nt.lms.repository.ChatbotMessageRepository;
+import com.nt.lms.repository.AssignmentRepository;
 import com.nt.lms.repository.CourseRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
+import com.nt.lms.repository.LessonBlockRepository;
+import com.nt.lms.repository.LessonResourceRepository;
 import com.nt.lms.repository.QuestionRepository;
 import com.nt.lms.repository.QuizOptionRepository;
 import com.nt.lms.repository.QuizRepository;
@@ -53,6 +59,9 @@ public class ChatbotService {
 	private final UserRepository userRepository;
 	private final CourseRepository courseRepository;
 	private final LessonRepository lessonRepository;
+	private final LessonBlockRepository lessonBlockRepository;
+	private final LessonResourceRepository lessonResourceRepository;
+	private final AssignmentRepository assignmentRepository;
 	private final LessonProgressRepository lessonProgressRepository;
 	private final QuizRepository quizRepository;
 	private final QuestionRepository questionRepository;
@@ -343,6 +352,50 @@ public class ChatbotService {
 			builder.append("Bài học hiện tại: ").append(safeTitle(lesson.getTitle())).append("\n");
 			builder.append("Mô tả bài học: ").append(limit(toPlainText(lesson.getDescription()), CONTEXT_TEXT_LIMIT)).append("\n");
 			builder.append("Nội dung bài học: ").append(limit(toPlainText(lesson.getContent()), CONTEXT_TEXT_LIMIT)).append("\n");
+			List<LessonBlock> lessonBlocks = lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
+			if (!lessonBlocks.isEmpty()) {
+				builder.append("Các block trong bài học:\n");
+				for (LessonBlock block : lessonBlocks) {
+					builder.append("- ")
+							.append(block.getBlockType() == null ? "UNKNOWN" : block.getBlockType().name())
+							.append(": ")
+							.append(limit(toPlainText(safeText(block.getTitle(), "")), 220));
+					if (StringUtils.hasText(block.getContent())) {
+						builder.append(" | Nội dung: ")
+								.append(limit(toPlainText(block.getContent()), CONTEXT_TEXT_LIMIT));
+					}
+					if (StringUtils.hasText(block.getMediaUrl())) {
+						builder.append(" | Media/File: ")
+								.append(limit(block.getMediaUrl(), 500));
+					}
+					if (block.getQuiz() != null) {
+						builder.append("\n");
+						appendQuizContext(builder, block.getQuiz());
+					}
+					builder.append("\n");
+				}
+			}
+			quizRepository.findFirstByLessonId(lesson.getId())
+					.ifPresent(quiz -> {
+						builder.append("Quiz gan voi bai hoc:\n");
+						appendQuizContext(builder, quiz);
+					});
+			assignmentRepository.findFirstByLessonId(lesson.getId())
+					.ifPresent(assignment -> {
+						builder.append("Bai tap gan voi bai hoc:\n");
+						appendAssignmentContext(builder, assignment);
+					});
+			List<LessonResource> lessonResources = lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lesson.getId());
+			if (!lessonResources.isEmpty()) {
+				builder.append("Tài liệu đính kèm:\n");
+				for (LessonResource resource : lessonResources) {
+					builder.append("- ")
+							.append(safeText(resource.getFileName(), "File"))
+							.append(" (")
+							.append(safeText(resource.getFileType(), "unknown"))
+							.append(")\n");
+				}
+			}
 			if (lesson.getSection() != null && lesson.getSection().getCourse() != null) {
 				course = lesson.getSection().getCourse();
 			}
@@ -373,6 +426,53 @@ public class ChatbotService {
 		return builder.toString().trim();
 	}
 
+	private void appendQuizContext(StringBuilder builder, Quiz quiz) {
+		if (quiz == null) {
+			builder.append("Khong tim thay quiz.\n");
+			return;
+		}
+		builder.append("Quiz: ").append(safeTitle(quiz.getTitle())).append("\n");
+		builder.append("Mo ta quiz: ").append(limit(toPlainText(quiz.getDescription()), CONTEXT_TEXT_LIMIT)).append("\n");
+		List<Question> questions = questionRepository.findByQuizIdOrderByOrderIndexAsc(quiz.getId());
+		for (Question question : questions) {
+			builder.append("  Cau hoi ")
+					.append(question.getOrderIndex() == null ? "" : question.getOrderIndex() + 1)
+					.append(": ")
+					.append(limit(toPlainText(question.getContent()), CONTEXT_TEXT_LIMIT))
+					.append("\n");
+			List<QuizOption> options = quizOptionRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
+			for (QuizOption option : options) {
+				builder.append("    - ")
+						.append(option.isCorrect() ? "[Dung] " : "")
+						.append(limit(toPlainText(option.getOptionText()), 500))
+						.append("\n");
+			}
+			if (StringUtils.hasText(question.getExplanation())) {
+				builder.append("    Giai thich: ")
+						.append(limit(toPlainText(question.getExplanation()), CONTEXT_TEXT_LIMIT))
+						.append("\n");
+			}
+		}
+	}
+
+	private void appendAssignmentContext(StringBuilder builder, Assignment assignment) {
+		if (assignment == null) {
+			builder.append("Khong tim thay bai tap.\n");
+			return;
+		}
+		builder.append("Bai tap: ").append(safeTitle(assignment.getTitle())).append("\n");
+		builder.append("Mo ta/yeu cau: ")
+				.append(limit(toPlainText(assignment.getDescription()), CONTEXT_TEXT_LIMIT))
+				.append("\n");
+		builder.append("Loai bai tap: ").append(safeText(assignment.getAssignmentType(), "")).append("\n");
+		if (assignment.getMaxScore() != null) {
+			builder.append("Diem toi da: ").append(assignment.getMaxScore()).append("\n");
+		}
+		if (assignment.getDueAt() != null) {
+			builder.append("Han nop: ").append(assignment.getDueAt()).append("\n");
+		}
+	}
+
 	private AiLessonAssistantResponse buildFallbackResponse(
 			String question,
 			String personalizedContext,
@@ -384,6 +484,11 @@ public class ChatbotService {
 						|| reason.contains("429")
 						|| reason.contains("TOO_MANY_REQUESTS")
 						|| reason.contains("RESOURCE_EXHAUSTED"));
+		boolean temporarilyUnavailable = reason != null
+				&& (reason.contains("503")
+						|| reason.contains("quá tải")
+						|| reason.contains("UNAVAILABLE")
+						|| reason.contains("high demand"));
 		String lowerQuestion = question == null ? "" : question.toLowerCase();
 		if (conversation.getContextType() == ChatbotContextType.GENERAL
 				&& (lowerQuestion.contains("tiến độ") || lowerQuestion.contains("tien do")
@@ -395,7 +500,9 @@ public class ChatbotService {
 			long remaining = Math.max(total - completed, 0);
 			int percent = total == 0 ? 0 : (int) Math.round((completed * 100.0) / total);
 			StringBuilder progressAnswer = new StringBuilder();
-			if (quotaExceeded) {
+			if (temporarilyUnavailable) {
+				progressAnswer.append("Gemini API đang quá tải tạm thời, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
+			} else if (quotaExceeded) {
 				progressAnswer.append("Gemini API đang hết quota hoặc bị giới hạn tốc độ, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
 			} else {
 				progressAnswer.append("Hiện chưa gọi được dịch vụ AI, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
@@ -422,22 +529,38 @@ public class ChatbotService {
 							"Tôi còn bao nhiêu bài chưa hoàn thành?",
 							"Gợi ý kế hoạch ôn tập hôm nay",
 							"Tạo danh sách việc cần làm để hoàn thành khóa học"))
-					.model(quotaExceeded ? "fallback-quota" : "fallback-local")
+					.model(temporarilyUnavailable ? "fallback-unavailable" : quotaExceeded ? "fallback-quota" : "fallback-local")
 					.build();
 		}
 
 		StringBuilder answer = new StringBuilder();
-		if (quotaExceeded) {
+		if (temporarilyUnavailable) {
+			answer.append("Gemini API đang quá tải tạm thời, nên mình chưa thể gọi AI trực tiếp lúc này.\n\n");
+		} else if (quotaExceeded) {
 			answer.append("Gemini API đang hết quota hoặc bị giới hạn tốc độ, nên mình chưa thể gọi AI trực tiếp lúc này.\n\n");
 		} else {
 			answer.append("Hiện chưa gọi được dịch vụ AI, nên mình trả lời tạm theo dữ liệu học tập đang có.\n\n");
 		}
-		answer.append("Đây là hội thoại tổng quát nên mình không có ngữ cảnh bài học cụ thể. Hiện mình chỉ có thể hỗ trợ các thông tin tổng quan như tiến độ học tập, số bài đã hoàn thành và kế hoạch ôn tập.\n\n");
-		answer.append("Bạn có thể hỏi một trong các ý sau:\n");
-		answer.append("- Tóm tắt tiến độ học tập của tôi\n");
-		answer.append("- Tôi còn bao nhiêu bài chưa hoàn thành?\n");
-		answer.append("- Gợi ý kế hoạch ôn tập hôm nay\n\n");
-		answer.append("Khi Gemini hoạt động lại, chatbot sẽ trả lời đầy đủ và cá nhân hóa hơn.");
+		if (conversation.getContextType() == ChatbotContextType.LESSON && conversation.getLesson() != null) {
+			Lesson lesson = conversation.getLesson();
+			answer.append("Đây là hội thoại của bài học: ").append(safeTitle(lesson.getTitle())).append(".\n");
+			if (StringUtils.hasText(lesson.getDescription())) {
+				answer.append("Mô tả: ").append(limit(toPlainText(lesson.getDescription()), 500)).append("\n");
+			}
+			if (StringUtils.hasText(lesson.getContent())) {
+				answer.append("Nội dung chính hiện có trong hệ thống: ")
+						.append(limit(toPlainText(lesson.getContent()), 900))
+						.append("\n\n");
+			}
+			answer.append("Khi Gemini hoạt động lại, mình sẽ trả lời chi tiết theo toàn bộ nội dung bài, video, block và tài liệu đính kèm. Tạo quiz tự động cũng cần Gemini nên hãy thử lại sau ít phút.");
+		} else {
+			answer.append("Đây là hội thoại tổng quát nên mình không có ngữ cảnh bài học cụ thể. Hiện mình chỉ có thể hỗ trợ các thông tin tổng quan như tiến độ học tập, số bài đã hoàn thành và kế hoạch ôn tập.\n\n");
+			answer.append("Bạn có thể hỏi một trong các ý sau:\n");
+			answer.append("- Tóm tắt tiến độ học tập của tôi\n");
+			answer.append("- Tôi còn bao nhiêu bài chưa hoàn thành?\n");
+			answer.append("- Gợi ý kế hoạch ôn tập hôm nay\n\n");
+			answer.append("Khi Gemini hoạt động lại, chatbot sẽ trả lời đầy đủ và cá nhân hóa hơn.");
+		}
 
 		return AiLessonAssistantResponse.builder()
 				.lessonId(conversation.getLesson() != null ? conversation.getLesson().getId() : null)
@@ -446,7 +569,7 @@ public class ChatbotService {
 						"Tóm tắt tiến độ học tập của tôi",
 						"Tôi còn bao nhiêu bài chưa hoàn thành?",
 						"Gợi ý kế hoạch ôn tập hôm nay"))
-				.model(quotaExceeded ? "fallback-quota" : "fallback-local")
+				.model(temporarilyUnavailable ? "fallback-unavailable" : quotaExceeded ? "fallback-quota" : "fallback-local")
 				.build();
 	}
 

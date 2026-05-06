@@ -31,6 +31,11 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString("vi-VN");
 }
 
+function formatTimeLimit(minutes) {
+  const safeMinutes = Number(minutes) || 0;
+  return safeMinutes > 0 ? `${safeMinutes} phút` : "Không giới hạn";
+}
+
 export default function QuizManagement() {
   const navigate = useNavigate();
 
@@ -152,14 +157,10 @@ export default function QuizManagement() {
   return (
     <div className={styles.page}>
       <div className={styles.headerBar}>
-        <div className={styles.titleGroup}>
-          <span className={styles.titleIcon}>
-            <FileQuestion size={22} />
-          </span>
-          <div>
-            <h1>Quản lý bài kiểm tra</h1>
-            <p>Theo dõi, chỉnh sửa và chia sẻ bài kiểm tra trong hệ thống.</p>
-          </div>
+        <div>
+          <div className={styles.breadcrumb}>Quản trị \ Quiz</div>
+          <h1>Quản lí bài kiểm tra</h1>
+          <p>Theo dõi, chỉnh sửa và chia sẻ bài kiểm tra trong hệ thống.</p>
         </div>
 
         <button
@@ -211,18 +212,13 @@ export default function QuizManagement() {
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
-      <div className={styles.summaryStrip}>
+      <div className={styles.listHeader}>
         <div>
-          <span>Tổng bài kiểm tra</span>
-          <strong>{quizzes.length}</strong>
-        </div>
-        <div>
-          <span>Tổng lượt làm</span>
-          <strong>{formatNumber(totalAttempts)}</strong>
-        </div>
-        <div>
-          <span>Đang hiển thị</span>
-          <strong>{filteredQuizzes.length}</strong>
+          <h2>Danh sách bài kiểm tra</h2>
+          <p>
+            Hiển thị {filteredQuizzes.length} / {quizzes.length} bài, tổng{" "}
+            {formatNumber(totalAttempts)} lượt làm.
+          </p>
         </div>
       </div>
 
@@ -243,6 +239,7 @@ export default function QuizManagement() {
                   <th>Bài kiểm tra</th>
                   <th>Mô tả</th>
                   <th>Loại</th>
+                  <th>Thời gian</th>
                   <th>Lượt làm</th>
                   <th>Trạng thái</th>
                   <th>Thao tác</th>
@@ -279,6 +276,8 @@ export default function QuizManagement() {
                         {quiz.courseId ? "Thuộc khóa học" : "Bài độc lập"}
                       </span>
                     </td>
+
+                    <td>{formatTimeLimit(quiz.timeLimitMinutes)}</td>
 
                     <td>
                       <button
@@ -324,7 +323,11 @@ export default function QuizManagement() {
                             className={styles.iconBtn}
                             onClick={() => handleTogglePublish(quiz)}
                             disabled={updatingId === quiz.id}
-                            title={quiz.isPublished ? "Ẩn bài kiểm tra" : "Công khai bài kiểm tra"}
+                            title={
+                              quiz.isPublished
+                                ? "Ẩn bài kiểm tra"
+                                : "Công khai bài kiểm tra"
+                            }
                             aria-label={
                               quiz.isPublished
                                 ? "Ẩn bài kiểm tra"

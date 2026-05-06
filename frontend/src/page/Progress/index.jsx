@@ -2,16 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowRight,
   BarChart3,
   BrainCircuit,
   CalendarRange,
-  CircleCheckBig,
+  CheckCircle2,
   Clock3,
   GraduationCap,
   PauseCircle,
   Search,
-  Trophy,
 } from "lucide-react";
 import {
   getMyEnrollments,
@@ -24,7 +22,7 @@ function normalizeEnrollment(rawEnrollment) {
   return {
     id: rawEnrollment?.id || "",
     courseId: rawEnrollment?.courseId || "",
-    courseTitle: rawEnrollment?.courseTitle || "KhÃ³a há»c khÃ´ng xÃ¡c Ä‘á»‹nh",
+    courseTitle: rawEnrollment?.courseTitle || "Khóa học không xác định",
     status: rawEnrollment?.status || "ACTIVE",
     progressPercent: Number(rawEnrollment?.progressPercent) || 0,
     enrolledAt: rawEnrollment?.enrolledAt || null,
@@ -32,11 +30,23 @@ function normalizeEnrollment(rawEnrollment) {
   };
 }
 
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+}
+
 function formatDateTime(value) {
-  if (!value) return "ChÆ°a cáº­p nháº­t";
+  if (!value) return "Chưa cập nhật";
+
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "ChÆ°a cáº­p nháº­t";
-  return date.toLocaleString("vi-VN");
+  if (Number.isNaN(date.getTime())) return "Chưa cập nhật";
+
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatDuration(seconds) {
@@ -44,17 +54,30 @@ function formatDuration(seconds) {
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
 
-  if (hours <= 0) return `${minutes} phÃºt`;
-  if (minutes <= 0) return `${hours} giá»`;
-  return `${hours} giá» ${minutes} phÃºt`;
+  if (hours <= 0) return `${minutes} phút`;
+  if (minutes <= 0) return `${hours} giờ`;
+  return `${hours} giờ ${minutes} phút`;
 }
 
 function getRiskLabel(level) {
-  return level === "HIGH" ? "Cáº§n chÃº Ã½ nhiá»u" : "Cáº§n theo dÃµi";
+  return level === "HIGH" ? "Cần chú ý nhiều" : "Cần theo dõi";
 }
 
 function getRiskClass(level) {
   return level === "HIGH" ? styles.riskHigh : styles.riskMedium;
+}
+
+function StatCard({ icon, label, value, note }) {
+  return (
+    <article className={styles.statCard}>
+      <span className={styles.statIcon}>{icon}</span>
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+        {note ? <small>{note}</small> : null}
+      </div>
+    </article>
+  );
 }
 
 export default function ProgressPage() {
@@ -87,7 +110,7 @@ export default function ProgressPage() {
         setErrorText(
           error?.response?.data?.message ||
             error?.message ||
-            "KhÃ´ng táº£i Ä‘Æ°á»£c dá»¯ liá»‡u tiáº¿n Ä‘á»™ há»c.",
+            "Không tải được dữ liệu tiến độ học.",
         );
       } finally {
         setLoading(false);
@@ -116,6 +139,7 @@ export default function ProgressPage() {
         const bAccess = b.lastAccessedAt
           ? new Date(b.lastAccessedAt).getTime()
           : 0;
+
         if (aAccess !== bAccess) return bAccess - aAccess;
         return b.progressPercent - a.progressPercent;
       })[0];
@@ -143,7 +167,7 @@ export default function ProgressPage() {
       ? 0
       : Math.round(
           enrollments.reduce(
-            (total, item) => total + Math.max(0, Math.min(100, item.progressPercent)),
+            (total, item) => total + clampPercent(item.progressPercent),
             0,
           ) / enrollments.length,
         );
@@ -162,7 +186,7 @@ export default function ProgressPage() {
       setOpeningCourseId(item.courseId);
       await markEnrollmentAccess(item.courseId);
     } catch {
-      // Váº«n má»Ÿ khÃ³a há»c náº¿u viá»‡c ghi nháº­n láº§n truy cáº­p bá»‹ lá»—i.
+      // Vẫn mở khóa học nếu việc ghi nhận lần truy cập bị lỗi.
     } finally {
       setOpeningCourseId("");
       navigate(`/courses/${item.courseId}`);
@@ -171,84 +195,68 @@ export default function ProgressPage() {
 
   return (
     <div className={styles.page}>
-      <section className={styles.headerBlock}>
-        <div className={styles.headerLeft}>
-          <div className={styles.headerIcon}>
-            <BarChart3 size={24} />
-          </div>
-          <div>
-            <h1>Tiáº¿n Ä‘á»™ há»c táº­p</h1>
-            <p>
-              Theo dÃµi thá»i lÆ°á»£ng há»c, bÃ i Ä‘Ã£ hoÃ n thÃ nh, káº¿t quáº£ bÃ i kiá»ƒm tra
-              vÃ  cÃ¡c khÃ³a há»c cáº§n quay láº¡i Ä‘Ãºng lÃºc.
-            </p>
-          </div>
+      <div className={styles.breadcrumb}>
+        Khóa học <span>\</span> Tiến độ học
+      </div>
+
+      <section className={styles.header}>
+        <div>
+          <h1>Tiến độ học tập</h1>
+          <p>
+            Theo dõi thời lượng học, bài đã hoàn thành, kết quả kiểm tra và các
+            khóa học cần quay lại.
+          </p>
         </div>
 
-        <div className={styles.searchBox}>
-          <Search size={18} />
+        <label className={styles.searchBox}>
+          <Search size={17} />
           <input
             type="text"
-            placeholder="TÃ¬m theo tÃªn khÃ³a há»c..."
+            placeholder="Tìm khóa học..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
-        </div>
+        </label>
       </section>
 
       {loading ? (
-        <div className={styles.stateBox}>Äang táº£i tiáº¿n Ä‘á»™ há»c táº­p...</div>
+        <div className={styles.stateBox}>Đang tải tiến độ học tập...</div>
       ) : errorText ? (
         <div className={styles.errorBox}>{errorText}</div>
       ) : (
         <>
-          <section className={styles.statsGrid}>
-            <div className={styles.statCard}>
-              <span className={styles.statIcon}>
-                <Clock3 size={18} />
-              </span>
-              <div>
-                <p>Thá»i gian há»c Ä‘Ã£ ghi nháº­n</p>
-                <strong>{formatDuration(summary.totalLearningSeconds)}</strong>
-              </div>
-            </div>
-
-            <div className={styles.statCard}>
-              <span className={styles.statIcon}>
-                <CircleCheckBig size={18} />
-              </span>
-              <div>
-                <p>BÃ i Ä‘Ã£ hoÃ n thÃ nh</p>
-                <strong>{summary.totalCompletedLessons || 0}</strong>
-              </div>
-            </div>
-
-            <div className={styles.statCard}>
-              <span className={styles.statIcon}>
-                <GraduationCap size={18} />
-              </span>
-              <div>
-                <p>KhÃ³a há»c Ä‘ang há»c</p>
-                <strong>{summary.activeCourses || 0}</strong>
-              </div>
-            </div>
-
-            <div className={styles.statCard}>
-              <span className={styles.statIcon}>
-                <Trophy size={18} />
-              </span>
-              <div>
-                <p>Tiáº¿n Ä‘á»™ trung bÃ¬nh</p>
-                <strong>{averageProgress}%</strong>
-              </div>
-            </div>
+          <section className={styles.statGrid}>
+            <StatCard
+              icon={<Clock3 size={20} />}
+              label="Thời gian học"
+              value={formatDuration(summary.totalLearningSeconds)}
+              note="Thời lượng đã ghi nhận"
+            />
+            <StatCard
+              icon={<CheckCircle2 size={20} />}
+              label="Bài đã hoàn thành"
+              value={summary.totalCompletedLessons || 0}
+              note="Tổng số bài đã học xong"
+            />
+            <StatCard
+              icon={<GraduationCap size={20} />}
+              label="Khóa đang học"
+              value={summary.activeCourses || 0}
+              note="Các khóa còn hoạt động"
+            />
+            <StatCard
+              icon={<BarChart3 size={20} />}
+              label="Tiến độ trung bình"
+              value={`${averageProgress}%`}
+              note="Tính trên các khóa hiện có"
+            />
           </section>
 
           {recommendedCourse ? (
             <section
-              className={`${styles.spotlight} ${
+              className={`${styles.continueCard} ${
                 openingCourseId === recommendedCourse.courseId
-                  ? styles.spotlightBusy
+                  ? styles.continueCardBusy
                   : ""
               }`}
               onClick={() => continueLearning(recommendedCourse)}
@@ -261,27 +269,18 @@ export default function ProgressPage() {
                 }
               }}
             >
-              <div className={styles.spotlightBadge}>
-                <ArrowRight size={16} />
-                <span>NÃªn há»c tiáº¿p</span>
+              <div>
+                <span className={styles.sectionLabel}>Nên học tiếp</span>
+                <h2>{recommendedCourse.courseTitle}</h2>
+                <p>
+                  Gợi ý dựa trên tiến độ hiện tại và lần truy cập gần nhất của
+                  bạn.
+                </p>
               </div>
 
-              <div className={styles.spotlightBody}>
-                <div>
-                  <h2>{recommendedCourse.courseTitle}</h2>
-                  <p>
-                    KhÃ³a há»c nÃ y Ä‘Æ°á»£c gá»£i Ã½ dá»±a trÃªn tiáº¿n Ä‘á»™ hiá»‡n táº¡i vÃ  láº§n
-                    truy cáº­p gáº§n nháº¥t cá»§a báº¡n.
-                  </p>
-                </div>
-
-                <div className={styles.spotlightMeta}>
-                  <strong>
-                    {Math.max(0, Math.min(100, recommendedCourse.progressPercent))}
-                    %
-                  </strong>
-                  <span>ÄÃ£ hoÃ n thÃ nh</span>
-                </div>
+              <div className={styles.continueProgress}>
+                <strong>{clampPercent(recommendedCourse.progressPercent)}%</strong>
+                <span>Đã hoàn thành</span>
               </div>
             </section>
           ) : null}
@@ -290,55 +289,69 @@ export default function ProgressPage() {
             <article className={styles.panelCard}>
               <div className={styles.panelHead}>
                 <div>
-                  <h3>HoÃ n thÃ nh theo ngÃ y</h3>
-                  <p>7 ngÃ y gáº§n nháº¥t</p>
+                  <h3>Hoàn thành theo ngày</h3>
+                  <p>7 ngày gần nhất</p>
                 </div>
                 <CalendarRange size={18} />
               </div>
 
-              <div className={styles.chartBars}>
-                {dailyCompletions.map((item) => {
-                  const value = Number(item?.value) || 0;
-                  const height = `${Math.max(10, (value / maxDailyValue) * 100)}%`;
+              {dailyCompletions.length === 0 ? (
+                <div className={styles.panelEmpty}>Chưa có dữ liệu.</div>
+              ) : (
+                <div className={styles.chartBars}>
+                  {dailyCompletions.map((item) => {
+                    const value = Number(item?.value) || 0;
+                    const height = `${Math.max(
+                      8,
+                      (value / maxDailyValue) * 100,
+                    )}%`;
 
-                  return (
-                    <div key={item.key} className={styles.chartItem}>
-                      <span className={styles.chartValue}>{value}</span>
-                      <div className={styles.chartColumn}>
-                        <div className={styles.chartBar} style={{ height }} />
+                    return (
+                      <div key={item.key} className={styles.chartItem}>
+                        <span className={styles.chartValue}>{value}</span>
+                        <div className={styles.chartColumn}>
+                          <div className={styles.chartBar} style={{ height }} />
+                        </div>
+                        <span className={styles.chartLabel}>{item.label}</span>
                       </div>
-                      <span className={styles.chartLabel}>{item.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </article>
 
             <article className={styles.panelCard}>
               <div className={styles.panelHead}>
                 <div>
-                  <h3>HoÃ n thÃ nh theo tuáº§n</h3>
-                  <p>6 tuáº§n gáº§n nháº¥t</p>
+                  <h3>Hoàn thành theo tuần</h3>
+                  <p>6 tuần gần nhất</p>
                 </div>
                 <CalendarRange size={18} />
               </div>
 
-              <div className={styles.timelineList}>
-                {weeklyCompletions.map((item) => {
-                  const value = Number(item?.value) || 0;
-                  const width = `${(value / maxWeeklyValue) * 100}%`;
+              {weeklyCompletions.length === 0 ? (
+                <div className={styles.panelEmpty}>Chưa có dữ liệu.</div>
+              ) : (
+                <div className={styles.timelineList}>
+                  {weeklyCompletions.map((item) => {
+                    const value = Number(item?.value) || 0;
+                    const width = `${(value / maxWeeklyValue) * 100}%`;
 
-                  return (
-                    <div key={item.key} className={styles.timelineRow}>
-                      <span>{item.label}</span>
-                      <div className={styles.timelineTrack}>
-                        <div className={styles.timelineFill} style={{ width }} />
+                    return (
+                      <div key={item.key} className={styles.timelineRow}>
+                        <span>{item.label}</span>
+                        <div className={styles.timelineTrack}>
+                          <div
+                            className={styles.timelineFill}
+                            style={{ width }}
+                          />
+                        </div>
+                        <strong>{value}</strong>
                       </div>
-                      <strong>{value}</strong>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </article>
           </section>
 
@@ -346,28 +359,28 @@ export default function ProgressPage() {
             <article className={styles.panelCard}>
               <div className={styles.panelHead}>
                 <div>
-                  <h3>Káº¿t quáº£ bÃ i kiá»ƒm tra</h3>
-                  <p>CÃ¡c bÃ i kiá»ƒm tra Ä‘á»™c láº­p Ä‘Ã£ lÃ m</p>
+                  <h3>Kết quả bài kiểm tra</h3>
+                  <p>Các bài kiểm tra độc lập đã làm</p>
                 </div>
                 <BrainCircuit size={18} />
               </div>
 
               {independentQuizzes.length === 0 ? (
                 <div className={styles.panelEmpty}>
-                  ChÆ°a cÃ³ dá»¯ liá»‡u bÃ i kiá»ƒm tra Ä‘á»™c láº­p.
+                  Chưa có dữ liệu bài kiểm tra độc lập.
                 </div>
               ) : (
-                <div className={styles.quizList}>
+                <div className={styles.itemList}>
                   {independentQuizzes.map((quiz) => (
-                    <div key={quiz.quizId} className={styles.quizItem}>
+                    <div key={quiz.quizId} className={styles.infoItem}>
                       <div>
                         <h4>{quiz.title}</h4>
-                        <p>{quiz.attemptCount || 0} lÆ°á»£t lÃ m</p>
+                        <p>{quiz.attemptCount || 0} lượt làm</p>
                       </div>
-                      <div className={styles.quizScores}>
-                        <span>Tá»‘t nháº¥t {Math.round(quiz.bestScorePercent || 0)}%</span>
-                        <span>Gáº§n nháº¥t {Math.round(quiz.lastScorePercent || 0)}%</span>
-                        <span>Má»‘c Ä‘áº¡t {Math.round(quiz.passingScorePercent || 0)}%</span>
+                      <div className={styles.badgeList}>
+                        <span>Tốt nhất {Math.round(quiz.bestScorePercent || 0)}%</span>
+                        <span>Gần nhất {Math.round(quiz.lastScorePercent || 0)}%</span>
+                        <span>Mốc đạt {Math.round(quiz.passingScorePercent || 0)}%</span>
                       </div>
                     </div>
                   ))}
@@ -378,28 +391,28 @@ export default function ProgressPage() {
             <article className={styles.panelCard}>
               <div className={styles.panelHead}>
                 <div>
-                  <h3>BÃ i há»c Ä‘ang dá»«ng</h3>
-                  <p>CÃ¡c bÃ i há»c cÃ²n dang dá»Ÿ gáº§n Ä‘Ã¢y</p>
+                  <h3>Bài học đang dừng</h3>
+                  <p>Các bài học còn dang dở gần đây</p>
                 </div>
                 <PauseCircle size={18} />
               </div>
 
               {pausedLessons.length === 0 ? (
                 <div className={styles.panelEmpty}>
-                  ChÆ°a cÃ³ bÃ i há»c nÃ o Ä‘ang dá»«ng giá»¯a chá»«ng.
+                  Chưa có bài học nào đang dừng giữa chừng.
                 </div>
               ) : (
-                <div className={styles.pauseList}>
+                <div className={styles.itemList}>
                   {pausedLessons.map((lesson) => (
-                    <div key={lesson.lessonId} className={styles.pauseItem}>
+                    <div key={lesson.lessonId} className={styles.infoItem}>
                       <div>
                         <h4>{lesson.lessonTitle}</h4>
-                        <p>{lesson.courseTitle || "KhÃ´ng rÃµ khÃ³a há»c"}</p>
+                        <p>{lesson.courseTitle || "Không rõ khóa học"}</p>
                       </div>
-                      <div className={styles.pauseMeta}>
-                        <span>Dá»«ng á»Ÿ {lesson.lastPositionSec || 0}s</span>
+                      <div className={styles.badgeList}>
+                        <span>Dừng ở {lesson.lastPositionSec || 0}s</span>
                         <span>
-                          ÄÃ£ há»c {Math.round(lesson.completionPercent || 0)}%
+                          Đã học {Math.round(lesson.completionPercent || 0)}%
                         </span>
                         <span>{formatDateTime(lesson.lastAccessedAt)}</span>
                       </div>
@@ -413,10 +426,10 @@ export default function ProgressPage() {
           <article className={styles.panelCard}>
             <div className={styles.panelHead}>
               <div>
-                <h3>KhÃ³a há»c cáº§n chÃº Ã½</h3>
+                <h3>Khóa học cần chú ý</h3>
                 <p>
-                  Cáº£nh bÃ¡o dá»±a trÃªn láº§n truy cáº­p gáº§n nháº¥t, Ä‘á»™ lá»‡ch tiáº¿n Ä‘á»™ vÃ  sá»‘
-                  bÃ i Ä‘Ã£ hoÃ n thÃ nh.
+                  Cảnh báo dựa trên lần truy cập gần nhất, độ lệch tiến độ và số
+                  bài đã hoàn thành.
                 </p>
               </div>
               <AlertTriangle size={18} />
@@ -424,13 +437,13 @@ export default function ProgressPage() {
 
             {atRiskCourses.length === 0 ? (
               <div className={styles.panelEmpty}>
-                Hiá»‡n táº¡i chÆ°a cÃ³ khÃ³a há»c nÃ o bá»‹ Ä‘Ã¡nh dáº¥u cáº§n chÃº Ã½.
+                Hiện tại chưa có khóa học nào bị đánh dấu cần chú ý.
               </div>
             ) : (
-              <div className={styles.riskList}>
+              <div className={styles.itemList}>
                 {atRiskCourses.map((course) => (
-                  <div key={course.courseId} className={styles.riskItem}>
-                    <div className={styles.riskTitleRow}>
+                  <div key={course.courseId} className={styles.infoItem}>
+                    <div className={styles.riskTitle}>
                       <div>
                         <h4>{course.courseTitle}</h4>
                         <p>{course.reason}</p>
@@ -444,22 +457,21 @@ export default function ProgressPage() {
                       </span>
                     </div>
 
-                    <div className={styles.riskMetrics}>
-                      <span>Hiá»‡n táº¡i {Math.round(course.progressPercent || 0)}%</span>
+                    <div className={styles.badgeList}>
+                      <span>Hiện tại {Math.round(course.progressPercent || 0)}%</span>
                       <span>
-                        Ká»³ vá»ng {Math.round(course.expectedProgressPercent || 0)}%
+                        Kỳ vọng {Math.round(course.expectedProgressPercent || 0)}%
                       </span>
                       <span>
-                        {course.completedLessons || 0}/{course.totalLessons || 0} bÃ i
+                        {course.completedLessons || 0}/{course.totalLessons || 0} bài
                       </span>
-                      <span>Váº¯ng {course.daysSinceLastAccess || 0} ngÃ y</span>
+                      <span>Vắng {course.daysSinceLastAccess || 0} ngày</span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </article>
-
         </>
       )}
     </div>

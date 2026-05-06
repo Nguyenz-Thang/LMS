@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import { CheckCircle2, CircleHelp, RotateCcw } from "lucide-react";
 import styles from "./StandaloneQuizPlayer.module.scss";
@@ -30,6 +30,36 @@ function formatDuration(startedAt, submittedAt, status) {
   return `${minutes} phút ${seconds} giây`;
 }
 
+function formatTimeLimit(minutes) {
+  const safeMinutes = Number(minutes) || 0;
+  return safeMinutes > 0 ? `${safeMinutes} phút` : "Không giới hạn";
+}
+
+function formatClock(totalSeconds) {
+  const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function getRemainingSeconds(quizData) {
+  const limitMinutes = Number(quizData?.timeLimitMinutes) || 0;
+
+  if (
+    limitMinutes <= 0 ||
+    !quizData?.startedAt ||
+    quizData?.attemptStatus !== "IN_PROGRESS"
+  ) {
+    return null;
+  }
+
+  const startedAt = new Date(quizData.startedAt).getTime();
+  if (Number.isNaN(startedAt)) return null;
+
+  const deadline = startedAt + limitMinutes * 60 * 1000;
+  return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+}
+
 function formatAttemptStatus(status) {
   switch (status) {
     case "IN_PROGRESS":
@@ -56,10 +86,8 @@ export default function StandaloneQuizPlayer({
   onRetake,
 }) {
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
-
-  useEffect(() => {
-    setActiveQuestionIndex(0);
-  }, [quizData?.attemptId, quizData?.quizId]);
+  const [timerTick, setTimerTick] = useState(0);
+  const autoSubmittedAttemptIdRef = useRef("");
 
   const questions = useMemo(() => quizData?.questions || [], [quizData]);
   const totalQuestions = questions.length;
@@ -77,8 +105,46 @@ export default function StandaloneQuizPlayer({
       ? (item.selectedOptionIds || []).length > 0
       : Boolean(item.selectedOptionId),
   ).length;
-  const allAnswered = totalQuestions > 0 && answeredCount === totalQuestions;
   const isLastQuestion = safeQuestionIndex === totalQuestions - 1;
+  const remainingSeconds = useMemo(
+    () => getRemainingSeconds(quizData),
+    [
+      quizData?.attemptStatus,
+      quizData?.startedAt,
+      quizData?.timeLimitMinutes,
+      timerTick,
+    ],
+  );
+
+  useEffect(() => {
+    if (!canAnswer || remainingSeconds === null) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      setTimerTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [canAnswer, remainingSeconds]);
+
+  useEffect(() => {
+    if (
+      remainingSeconds !== 0 ||
+      !canAnswer ||
+      !onSubmit ||
+      !quizData?.attemptId ||
+      autoSubmittedAttemptIdRef.current === quizData.attemptId
+    ) {
+      return;
+    }
+
+    autoSubmittedAttemptIdRef.current = quizData.attemptId;
+    onSubmit();
+  }, [
+    canAnswer,
+    onSubmit,
+    quizData?.attemptId,
+    remainingSeconds,
+  ]);
 
   const handleOptionClick = (question, optionId) => {
     if (!onSelectOption) return;
@@ -112,11 +178,11 @@ export default function StandaloneQuizPlayer({
       <div className={styles.startCard}>
         <div className={styles.startHeader}>
           <div>
-            <div className={styles.eyebrow}>Bài kiểm tra</div>
+            <span className={styles.sectionLabel}>Bài kiểm tra</span>
             <h1>{quizData.title}</h1>
             <p>
               {quizData.description ||
-                "Làm bài theo từng câu, nộp bài và xem giải thích ngay sau đó."}
+                "Làm bài theo từng câu, nộp bài và xem kết quả sau khi hoàn thành."}
             </p>
           </div>
 
@@ -130,8 +196,8 @@ export default function StandaloneQuizPlayer({
               <strong>{quizData.maxAttempts ?? 1}</strong>
             </div>
             <div className={styles.summaryItem}>
-              <span>Điểm đạt</span>
-              <strong>{quizData.passingScore || 100}%</strong>
+              <span>Thời gian</span>
+              <strong>{formatTimeLimit(quizData.timeLimitMinutes)}</strong>
             </div>
           </div>
         </div>
@@ -141,21 +207,21 @@ export default function StandaloneQuizPlayer({
             <CircleHelp size={18} />
             <div>
               <strong>1. Bắt đầu</strong>
-              <p>Hệ thống tạo một lượt làm mới hoặc tiếp tục lượt đang dở.</p>
+              <p>Tạo một lượt làm mới hoặc tiếp tục lượt đang dở.</p>
             </div>
           </div>
           <div className={styles.stepCard}>
             <CheckCircle2 size={18} />
             <div>
               <strong>2. Trả lời từng câu</strong>
-              <p>Di chuyển qua lại giữa các câu theo kiểu luyện từng bước.</p>
+              <p>Chọn đáp án rồi chuyển qua câu tiếp theo.</p>
             </div>
           </div>
           <div className={styles.stepCard}>
             <RotateCcw size={18} />
             <div>
-              <strong>3. Nộp bài và xem lại</strong>
-              <p>Kết quả và giải thích được lưu ở trang kết quả bài kiểm tra.</p>
+              <strong>3. Nộp bài</strong>
+              <p>Kết quả và giải thích được lưu ở trang kết quả.</p>
             </div>
           </div>
         </div>
@@ -180,42 +246,50 @@ export default function StandaloneQuizPlayer({
     <div className={styles.player}>
       <div className={styles.headCard}>
         <div>
-          <div className={styles.eyebrow}>
+          <span className={styles.sectionLabel}>
             {mode === "review" ? "Xem lại kết quả" : "Đang làm bài"}
-          </div>
+          </span>
           <h1>{quizData.title}</h1>
           <p>{quizData.description || "Chưa có mô tả."}</p>
         </div>
 
         <div className={styles.headMeta}>
-          <div className={styles.metaPill}>
+          <div className={styles.metaItem}>
             <span>Lần làm</span>
             <strong>#{quizData.attemptNo || 1}</strong>
           </div>
-          <div className={styles.metaPill}>
+          <div className={styles.metaItem}>
             <span>Đã trả lời</span>
             <strong>
               {answeredCount}/{totalQuestions}
             </strong>
           </div>
-          <div className={styles.metaPill}>
+          <div className={styles.metaItem}>
             <span>Số câu đúng</span>
             <strong>{formatScore(quizData.score || 0, quizData.totalScore || 0)}</strong>
           </div>
-          <div className={styles.metaPill}>
+          <div className={styles.metaItem}>
             <span>Tỷ lệ đúng</span>
             <strong>
               {formatPercent(quizData.score || 0, quizData.totalScore || 0)}
             </strong>
           </div>
-          <div className={styles.metaPill}>
-            <span>Thời gian làm</span>
-            <strong>
-              {formatDuration(
-                quizData.startedAt,
-                quizData.submittedAt,
-                quizData.attemptStatus,
-              )}
+          <div className={styles.metaItem}>
+            <span>{remainingSeconds !== null ? "Còn lại" : "Thời gian làm"}</span>
+            <strong
+              className={
+                remainingSeconds !== null && remainingSeconds <= 60
+                  ? styles.timeDanger
+                  : ""
+              }
+            >
+              {remainingSeconds !== null
+                ? formatClock(remainingSeconds)
+                : formatDuration(
+                    quizData.startedAt,
+                    quizData.submittedAt,
+                    quizData.attemptStatus,
+                  )}
             </strong>
           </div>
         </div>
@@ -223,6 +297,27 @@ export default function StandaloneQuizPlayer({
 
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
+          {canAnswer ? (
+            <button
+              type="button"
+              className={styles.submitSidebarBtn}
+              onClick={onSubmit}
+              disabled={submitting}
+            >
+              {submitting ? "Đang nộp..." : "Nộp bài"}
+            </button>
+          ) : null}
+
+          {!canAnswer && onRetake ? (
+            <button
+              type="button"
+              className={styles.submitSidebarBtn}
+              onClick={onRetake}
+            >
+              Làm lại bài
+            </button>
+          ) : null}
+
           <div className={styles.sidebarCard}>
             <div className={styles.sidebarTitle}>Câu hỏi</div>
             <div className={styles.questionNav}>
@@ -273,10 +368,20 @@ export default function StandaloneQuizPlayer({
               <span>Đã trả lời</span>
               <strong>{answeredCount}</strong>
             </div>
-            {submitted ? (
+            <div className={styles.statRow}>
+              <span>Thời gian</span>
+              <strong>{formatTimeLimit(quizData.timeLimitMinutes)}</strong>
+            </div>
+            {remainingSeconds !== null ? (
               <div className={styles.statRow}>
-                <span>Kết quả</span>
-                <strong>{quizData.passed ? "Đạt" : "Chưa đạt"}</strong>
+                <span>Còn lại</span>
+                <strong
+                  className={
+                    remainingSeconds <= 60 ? styles.timeDanger : ""
+                  }
+                >
+                  {formatClock(remainingSeconds)}
+                </strong>
               </div>
             ) : null}
           </div>
@@ -366,7 +471,9 @@ export default function StandaloneQuizPlayer({
                   }}
                 />
               ) : (
-                <p className={styles.answerNote}>Câu hỏi này chưa có giải thích.</p>
+                <p className={styles.answerNote}>
+                  Câu hỏi này chưa có giải thích.
+                </p>
               )}
             </div>
           ) : null}
@@ -384,29 +491,17 @@ export default function StandaloneQuizPlayer({
             </button>
 
             {canAnswer ? (
-              !isLastQuestion ? (
-                <button
-                  type="button"
-                  className={styles.ghostBtn}
-                  onClick={() => setActiveQuestionIndex((prev) => prev + 1)}
-                  disabled={
-                    activeQuestion.questionType === "MULTIPLE_CHOICE"
-                      ? (activeQuestion.selectedOptionIds || []).length === 0
-                      : !activeQuestion.selectedOptionId
-                  }
-                >
-                  Câu tiếp theo
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.primaryBtn}
-                  onClick={onSubmit}
-                  disabled={submitting || !allAnswered}
-                >
-                  {submitting ? "Đang nộp..." : "Nộp bài"}
-                </button>
-              )
+              <div className={styles.reviewActions}>
+                {!isLastQuestion ? (
+                  <button
+                    type="button"
+                    className={styles.ghostBtn}
+                    onClick={() => setActiveQuestionIndex((prev) => prev + 1)}
+                  >
+                    Câu tiếp theo
+                  </button>
+                ) : null}
+              </div>
             ) : (
               <div className={styles.reviewActions}>
                 <button
@@ -422,15 +517,6 @@ export default function StandaloneQuizPlayer({
                   Câu tiếp theo
                 </button>
 
-                {mode === "take" ? (
-                  <button
-                    type="button"
-                    className={styles.primaryBtn}
-                    onClick={onRetake}
-                  >
-                    Làm lại bài
-                  </button>
-                ) : null}
               </div>
             )}
           </div>

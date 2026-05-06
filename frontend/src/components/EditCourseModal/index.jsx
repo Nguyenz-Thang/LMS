@@ -1,10 +1,10 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
+import { Save, Upload, X } from "lucide-react";
 import Modal from "../Modal";
 import styles from "./EditCourseModal.module.scss";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
 import { AuthContext } from "../../context/AuthContext";
-import { Save, Upload, X } from "lucide-react";
 
 function EditCourseModal({
   isOpen,
@@ -47,9 +47,7 @@ function EditCourseModal({
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
       return trimmed;
     }
-    if (trimmed.startsWith("/")) {
-      return `${LMS_BASE_URL}${trimmed}`;
-    }
+    if (trimmed.startsWith("/")) return `${LMS_BASE_URL}${trimmed}`;
     return `${LMS_BASE_URL}/${trimmed}`;
   };
 
@@ -132,7 +130,7 @@ function EditCourseModal({
       return;
     }
     if (thumbnailMode === "file" && !form.thumbnailUrl) {
-      setErrorText("Ảnh đang chưa upload xong hoặc upload thất bại.");
+      setErrorText("Ảnh chưa upload xong hoặc upload thất bại.");
       return;
     }
 
@@ -175,7 +173,7 @@ function EditCourseModal({
           <p>
             {isAdmin
               ? "Admin có thể cập nhật nội dung và trạng thái hiển thị của khóa học."
-              : "Mọi thay đổi của giảng viên sẽ đưa khóa học quay lại trạng thái chờ duyệt và ẩn với học viên cho đến khi admin duyệt lại."}
+              : "Sau khi giảng viên sửa, khóa học sẽ quay lại trạng thái chờ duyệt."}
           </p>
         </div>
 
@@ -348,23 +346,25 @@ function EditCourseModal({
               className={styles.cancelBtn}
               onClick={handleClose}
               disabled={loading || uploadingImage}
-              title="Hủy"
-              aria-label="Hủy"
             >
               <X size={17} />
+              <span>Hủy</span>
             </button>
             <button
               type="submit"
               className={styles.submitBtn}
               disabled={loading || uploadingImage}
-              title="Lưu thay đổi"
-              aria-label="Lưu thay đổi"
             >
-              {uploadingImage
-                ? "Đang upload ảnh..."
-                : loading
-                  ? "Đang lưu..."
-                  : <Save size={17} />}
+              {uploadingImage ? (
+                "Đang upload ảnh..."
+              ) : loading ? (
+                "Đang lưu..."
+              ) : (
+                <>
+                  <Save size={17} />
+                  <span>Lưu thay đổi</span>
+                </>
+              )}
             </button>
           </div>
         </form>

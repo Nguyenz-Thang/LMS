@@ -34,22 +34,9 @@ function stripHtml(html = "") {
     .trim();
 }
 
-const initialResourceForm = {
-  fileName: "",
-  fileUrl: "",
-  fileType: "",
-  fileSize: "",
-};
-
 function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   const navigate = useNavigate();
-  const {
-    updateLesson,
-    getLessonResources,
-    createLessonResource,
-    updateLessonResource,
-    deleteLessonResource,
-  } = useLessonApi();
+  const { updateLesson } = useLessonApi();
   const quillRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -72,13 +59,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
-  const [resources, setResources] = useState([]);
-  const [resourceForm, setResourceForm] = useState(initialResourceForm);
-  const [editingResourceId, setEditingResourceId] = useState("");
-  const [resourceLoading, setResourceLoading] = useState(false);
-  const [resourceSaving, setResourceSaving] = useState(false);
-  const [deletingResourceId, setDeletingResourceId] = useState("");
-  const [resourceError, setResourceError] = useState("");
   function resolveUploadedImageUrl(data) {
     const raw =
       data?.result?.url ||
@@ -199,48 +179,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
     setErrorText("");
   }, [isOpen, lesson]);
 
-  useEffect(() => {
-    if (!isOpen || !lesson?.id) return;
-
-    let active = true;
-
-    const fetchResources = async () => {
-      try {
-        setResourceLoading(true);
-        setResourceError("");
-        const res = await getLessonResources(lesson.id);
-        if (active) {
-          setResources(Array.isArray(res?.result) ? res.result : []);
-        }
-      } catch (error) {
-        if (active) {
-          setResources([]);
-          setResourceError(
-            error?.body?.message ||
-              error?.message ||
-              "Khong tai duoc tai lieu dinh kem.",
-          );
-        }
-      } finally {
-        if (active) {
-          setResourceLoading(false);
-        }
-      }
-    };
-
-    fetchResources();
-
-    return () => {
-      active = false;
-    };
-  }, [isOpen, lesson?.id, getLessonResources]);
-
-  const resetResourceForm = () => {
-    setEditingResourceId("");
-    setResourceForm(initialResourceForm);
-    setResourceError("");
-  };
-
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -313,110 +251,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       ...prev,
       content: value,
     }));
-  };
-
-  const handleResourceChange = (e) => {
-    const { name, value } = e.target;
-    setResourceForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const validateResourceForm = () => {
-    if (!lesson?.id) return "Khong tim thay bai hoc de cap nhat tai lieu.";
-    if (!resourceForm.fileName.trim()) return "Vui long nhap ten tai lieu.";
-    if (!resourceForm.fileUrl.trim()) return "Vui long nhap duong dan tai lieu.";
-    if (resourceForm.fileSize !== "" && Number(resourceForm.fileSize) < 0) {
-      return "Kich thuoc file khong duoc nho hon 0.";
-    }
-    return "";
-  };
-
-  const handleSubmitResource = async () => {
-    const validationError = validateResourceForm();
-    if (validationError) {
-      setResourceError(validationError);
-      return;
-    }
-
-    try {
-      setResourceSaving(true);
-      setResourceError("");
-
-      const payload = {
-        fileName: resourceForm.fileName.trim(),
-        fileUrl: resourceForm.fileUrl.trim(),
-        fileType: resourceForm.fileType.trim(),
-        fileSize:
-          resourceForm.fileSize === ""
-            ? 0
-            : Math.max(0, Number(resourceForm.fileSize) || 0),
-      };
-
-      const res = editingResourceId
-        ? await updateLessonResource(lesson.id, editingResourceId, payload)
-        : await createLessonResource(lesson.id, payload);
-
-      const savedResource = res?.result;
-      if (!savedResource) return;
-
-      setResources((prev) => {
-        if (editingResourceId) {
-          return prev.map((resource) =>
-            resource.id === savedResource.id ? savedResource : resource,
-          );
-        }
-
-        return [...prev, savedResource];
-      });
-
-      resetResourceForm();
-    } catch (error) {
-      setResourceError(
-        error?.body?.message ||
-          error?.message ||
-          "Khong luu duoc tai lieu dinh kem.",
-      );
-    } finally {
-      setResourceSaving(false);
-    }
-  };
-
-  const handleEditResource = (resource) => {
-    setEditingResourceId(resource.id);
-    setResourceForm({
-      fileName: resource.fileName || "",
-      fileUrl: resource.fileUrl || "",
-      fileType: resource.fileType || "",
-      fileSize:
-        resource.fileSize === null || resource.fileSize === undefined
-          ? ""
-          : String(resource.fileSize),
-    });
-    setResourceError("");
-  };
-
-  const handleDeleteResource = async (resourceId) => {
-    if (!lesson?.id) return;
-
-    try {
-      setDeletingResourceId(resourceId);
-      setResourceError("");
-      await deleteLessonResource(lesson.id, resourceId);
-      setResources((prev) => prev.filter((resource) => resource.id !== resourceId));
-      if (editingResourceId === resourceId) {
-        resetResourceForm();
-      }
-    } catch (error) {
-      setResourceError(
-        error?.body?.message ||
-          error?.message ||
-          "Khong xoa duoc tai lieu dinh kem.",
-      );
-    } finally {
-      setDeletingResourceId("");
-    }
   };
 
   const handleClose = () => {
@@ -855,148 +689,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
           </div>
 
           {errorText && <div className={styles.error}>{errorText}</div>}
-
-          <div className={styles.resourceSection}>
-            <div className={styles.resourceHeader}>
-              <div>
-                <h3>Tai lieu dinh kem</h3>
-                <p>
-                  Quan ly file/link bo tro cho bai hoc nay ngay trong modal sua.
-                </p>
-              </div>
-              <span className={styles.resourceCount}>
-                {resourceLoading ? "Dang tai..." : `${resources.length} tai lieu`}
-              </span>
-            </div>
-
-            <div className={styles.resourceForm}>
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="resourceFileName">Ten tai lieu</label>
-                  <input
-                    id="resourceFileName"
-                    name="fileName"
-                    value={resourceForm.fileName}
-                    onChange={handleResourceChange}
-                    placeholder="Vi du: Slide chuong 1"
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label htmlFor="resourceFileType">Loai file</label>
-                  <input
-                    id="resourceFileType"
-                    name="fileType"
-                    value={resourceForm.fileType}
-                    onChange={handleResourceChange}
-                    placeholder="PDF, DOCX, Link..."
-                  />
-                </div>
-              </div>
-
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="resourceFileUrl">Duong dan</label>
-                  <input
-                    id="resourceFileUrl"
-                    name="fileUrl"
-                    value={resourceForm.fileUrl}
-                    onChange={handleResourceChange}
-                    placeholder="https://... hoac /uploads/..."
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label htmlFor="resourceFileSize">Kich thuoc (bytes)</label>
-                  <input
-                    id="resourceFileSize"
-                    name="fileSize"
-                    type="number"
-                    min="0"
-                    value={resourceForm.fileSize}
-                    onChange={handleResourceChange}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              <div className={styles.resourceActions}>
-                {editingResourceId ? (
-                  <button
-                    type="button"
-                    className={styles.cancelBtn}
-                    onClick={resetResourceForm}
-                    disabled={resourceSaving}
-                  >
-                    Huy sua tai lieu
-                  </button>
-                ) : null}
-
-                <button
-                  type="button"
-                  className={styles.submitBtn}
-                  disabled={resourceSaving}
-                  onClick={handleSubmitResource}
-                >
-                  {resourceSaving
-                    ? "Dang luu tai lieu..."
-                    : editingResourceId
-                      ? "Cap nhat tai lieu"
-                      : "Them tai lieu"}
-                </button>
-              </div>
-
-              {resourceError ? (
-                <div className={styles.error}>{resourceError}</div>
-              ) : null}
-            </div>
-
-            <div className={styles.resourceList}>
-              {resourceLoading ? (
-                <div className={styles.resourceEmpty}>Dang tai danh sach tai lieu...</div>
-              ) : resources.length === 0 ? (
-                <div className={styles.resourceEmpty}>
-                  Lesson nay chua co tai lieu dinh kem.
-                </div>
-              ) : (
-                resources.map((resource) => (
-                  <div key={resource.id} className={styles.resourceItem}>
-                    <div className={styles.resourceInfo}>
-                      <strong>{resource.fileName}</strong>
-                      <span>{resource.fileType || "File"}</span>
-                      <a
-                        href={resource.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={styles.resourceLink}
-                      >
-                        {resource.fileUrl}
-                      </a>
-                    </div>
-
-                    <div className={styles.resourceItemActions}>
-                      <button
-                        type="button"
-                        className={styles.cancelBtn}
-                        onClick={() => handleEditResource(resource)}
-                        disabled={resourceSaving}
-                      >
-                        Sua
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.submitBtn}
-                        onClick={() => handleDeleteResource(resource.id)}
-                        disabled={deletingResourceId === resource.id}
-                      >
-                        {deletingResourceId === resource.id ? "Dang xoa..." : "Xoa"}
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
 
           <div className={styles.actions}>
             <button

@@ -3,69 +3,59 @@
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
-  padding: 24px;
-  background: #f6f8fb;
+  padding: 28px 32px;
+  background: #fff;
 }
 
 .headerBar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  background: #fff;
-  border: 1px solid #e5eaf2;
-  border-radius: 12px;
-  padding: 18px 20px;
+  gap: 18px;
 
   h1 {
-    margin: 0 0 4px;
-    color: #0f172a;
-    font-size: 24px;
-    font-weight: 700;
+    margin: 0 0 6px;
+    color: #020617;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 0;
   }
 
   p {
     margin: 0;
     color: #64748b;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
   }
 }
 
 .titleGroup {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   min-width: 0;
 }
 
 .titleIcon,
 .userIcon {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #2563eb;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #dbe3ef;
+  color: #334155;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.userIcon {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-}
-
 .backBtn {
   height: 40px;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 6px;
   padding: 0 14px;
-  background: #2563eb;
-  color: #fff;
+  background: #f1f5f9;
+  color: #0f172a;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -77,7 +67,7 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 220px 48px;
+  grid-template-columns: minmax(260px, 1fr) 220px 44px;
   gap: 10px;
 }
 
@@ -86,7 +76,7 @@
 .resetBtn {
   height: 42px;
   border: 1px solid #dbe3ef;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
 }
 
@@ -109,64 +99,45 @@
   font-size: 14px;
 }
 
-.filterBox select {
-  cursor: pointer;
-}
-
 .resetBtn {
   color: #334155;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-
-  &:hover {
-    background: #f8fafc;
-    border-color: #bfdbfe;
-    color: #2563eb;
-  }
 }
 
 .errorBox {
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
   font-size: 14px;
 }
 
-.summaryStrip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  div {
-    min-width: 150px;
-    background: #fff;
-    border: 1px solid #e5eaf2;
-    border-radius: 10px;
-    padding: 12px 14px;
-  }
-
-  span {
-    display: block;
-    color: #64748b;
-    font-size: 12px;
-    margin-bottom: 4px;
-  }
-
-  strong {
-    color: #0f172a;
+.listHeader {
+  h2 {
+    margin: 0 0 4px;
+    color: #020617;
     font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
   }
 }
 
 .tableCard {
   background: #fff;
-  border: 1px solid #e5eaf2;
-  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
 }
 
 .tableWrap {
@@ -180,13 +151,13 @@
   border-collapse: collapse;
 
   thead {
-    background: #f8fafc;
+    background: #f1f5f9;
   }
 
   th,
   td {
-    padding: 13px 14px;
-    border-bottom: 1px solid #edf2f7;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e5eaf2;
     text-align: left;
     vertical-align: middle;
     color: #334155;
@@ -197,15 +168,10 @@
     color: #475569;
     font-size: 12px;
     font-weight: 800;
-    text-transform: uppercase;
   }
 
   tbody tr:hover {
-    background: #fbfdff;
-  }
-
-  tbody tr:last-child td {
-    border-bottom: none;
+    background: #f8fafc;
   }
 }
 
@@ -246,8 +212,8 @@
 .correctCell,
 .wrongCell,
 .statusBadge {
-  min-height: 30px;
-  border-radius: 8px;
+  min-height: 28px;
+  border-radius: 6px;
   border: 1px solid #dbe3ef;
   background: #fff;
   color: #0f172a;
@@ -255,13 +221,15 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 10px;
+  padding: 0 9px;
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
 }
 
-.correctCell {
+.correctCell,
+.statusSubmitted,
+.statusGraded {
   background: #ecfdf5;
   border-color: #bbf7d0;
   color: #047857;
@@ -271,13 +239,6 @@
   background: #fef2f2;
   border-color: #fecaca;
   color: #dc2626;
-}
-
-.statusSubmitted,
-.statusGraded {
-  background: #ecfdf5;
-  border-color: #bbf7d0;
-  color: #047857;
 }
 
 .statusProgress {
@@ -297,15 +258,11 @@
   .toolbar {
     grid-template-columns: 1fr;
   }
-
-  .summaryStrip {
-    flex-wrap: wrap;
-  }
 }
 
 @media (max-width: 640px) {
   .page {
-    padding: 16px;
+    padding: 18px;
   }
 
   .headerBar {
@@ -313,15 +270,7 @@
     align-items: stretch;
   }
 
-  .titleGroup {
-    align-items: flex-start;
-  }
-
   .backBtn {
     width: 100%;
-  }
-
-  .summaryStrip div {
-    flex: 1 1 150px;
   }
 }

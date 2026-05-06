@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, RotateCcw } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useLearningApi } from "../../api/learningApi";
 import StandaloneQuizPlayer from "../Quizzes/components/StandaloneQuizPlayer";
 import styles from "./Detail.module.scss";
@@ -28,7 +28,9 @@ export default function QuizResultDetail() {
       } catch (error) {
         if (mounted) {
           setErrorText(
-            error?.body?.message || error?.message || "Không tải được kết quả.",
+            error?.body?.message ||
+              error?.message ||
+              "Không tải được kết quả.",
           );
         }
       } finally {
@@ -46,6 +48,10 @@ export default function QuizResultDetail() {
 
   return (
     <div className={styles.page}>
+      <div className={styles.breadcrumb}>
+        Bài kiểm tra <span>\</span> Chi tiết kết quả
+      </div>
+
       <div className={styles.toolbar}>
         <button
           type="button"
@@ -56,16 +62,6 @@ export default function QuizResultDetail() {
           <span>Quay lại kết quả bài kiểm tra</span>
         </button>
 
-        {quizData?.quizId ? (
-          <button
-            type="button"
-            className={styles.retryBtn}
-            onClick={() => navigate(`/quizzes/${quizData.quizId}/take`)}
-          >
-            <RotateCcw size={16} />
-            <span>Làm lại bài</span>
-          </button>
-        ) : null}
       </div>
 
       <StandaloneQuizPlayer
@@ -73,6 +69,11 @@ export default function QuizResultDetail() {
         quizData={quizData}
         loading={loading}
         error={errorText}
+        onRetake={
+          quizData?.quizId
+            ? () => navigate(`/quizzes/${quizData.quizId}/take`)
+            : undefined
+        }
       />
     </div>
   );

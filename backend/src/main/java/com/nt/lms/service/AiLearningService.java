@@ -4,17 +4,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.nt.lms.dto.request.AiLessonAssistantRequest;
-import com.nt.lms.dto.request.AiQuizGenerationRequest;
 import com.nt.lms.dto.response.AiLessonAssistantResponse;
 import com.nt.lms.dto.response.AiQuizDraftResponse;
 import com.nt.lms.entity.Lesson;
 import com.nt.lms.entity.LessonBlock;
 import com.nt.lms.entity.LessonResource;
+import com.nt.lms.entity.Assignment;
+import com.nt.lms.entity.Question;
+import com.nt.lms.entity.Quiz;
+import com.nt.lms.entity.QuizOption;
 import com.nt.lms.entity.User;
 import com.nt.lms.enums.LessonBlockType;
 import com.nt.lms.repository.LessonBlockRepository;
 import com.nt.lms.repository.LessonRepository;
 import com.nt.lms.repository.LessonResourceRepository;
+import com.nt.lms.repository.AssignmentRepository;
+import com.nt.lms.repository.QuestionRepository;
+import com.nt.lms.repository.QuizOptionRepository;
+import com.nt.lms.repository.QuizRepository;
 import com.nt.lms.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
@@ -42,6 +49,10 @@ public class AiLearningService {
 	private final LessonRepository lessonRepository;
 	private final LessonBlockRepository lessonBlockRepository;
 	private final LessonResourceRepository lessonResourceRepository;
+	private final QuizRepository quizRepository;
+	private final QuestionRepository questionRepository;
+	private final QuizOptionRepository quizOptionRepository;
+	private final AssignmentRepository assignmentRepository;
 	private final UserRepository userRepository;
 
 	@Value("${gemini.api-key:}")
@@ -59,6 +70,7 @@ public class AiLearningService {
 	private static final int CHAT_HISTORY_CONTENT_LIMIT = 900;
 	private static final int QUIZ_OUTPUT_TOKEN_LIMIT = 6000;
 	private static final int ASSISTANT_OUTPUT_TOKEN_LIMIT = 2200;
+	private static final long[] GEMINI_RETRY_DELAYS_MS = {800L, 1600L};
 
 	@PostConstruct
 	void logGeminiConfig() {
@@ -118,18 +130,14 @@ public class AiLearningService {
 				.build();
 	}
 
-	public AiQuizDraftResponse generateQuizDraftFromLesson(String lessonId, AiQuizGenerationRequest request, String username) {
+	public AiQuizDraftResponse generateQuizDraftFromLesson(String lessonId, Object request, String username) {
 		validateApiKey();
 		Lesson lesson = getLessonOrThrow(lessonId);
 		getUserOrThrow(username);
 
-		int questionCount = request != null && request.getQuestionCount() != null
-				? Math.max(3, Math.min(10, request.getQuestionCount()))
-				: 5;
-		String difficulty = request != null && StringUtils.hasText(request.getDifficulty())
-				? request.getDifficulty().trim().toUpperCase()
-				: "MEDIUM";
-		boolean includeExplanation = request == null || request.getIncludeExplanation() == null || request.getIncludeExplanation();
+		int questionCount = 5;
+		String difficulty = "MEDIUM";
+		boolean includeExplanation = true;
 
 		Map<String, Object> schema = createQuizDraftSchema();
 		String lessonContext = buildLessonContext(lesson);
@@ -411,28 +419,40 @@ public class AiLearningService {
 
 	private JsonNode callGeminiApi(Map<String, Object> requestBody) {
 		try {
-			log.info("Calling Gemini API: model={}, baseUrl={}", getNormalizedModel(), geminiBaseUrl.trim());
 			RestClient client = RestClient.builder()
 					.baseUrl(geminiBaseUrl.trim())
 					.defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
 					.build();
 
-			String rawBody = client.post()
-					.uri(uriBuilder -> uriBuilder
-							.path("/models/{model}:generateContent")
-							.queryParam("key", geminiApiKey.trim())
-							.build(getNormalizedModel()))
-					.body(requestBody)
-					.retrieve()
-					.body(String.class);
+			RestClientResponseException lastTransientException = null;
+			for (int attempt = 0; attempt <= GEMINI_RETRY_DELAYS_MS.length; attempt++) {
+				try {
+					log.info("Calling Gemini API: model={}, baseUrl={}, attempt={}", getNormalizedModel(), geminiBaseUrl.trim(), attempt + 1);
+					String rawBody = client.post()
+							.uri(uriBuilder -> uriBuilder
+									.path("/models/{model}:generateContent")
+									.queryParam("key", geminiApiKey.trim())
+									.build(getNormalizedModel()))
+							.body(requestBody)
+							.retrieve()
+							.body(String.class);
 
-			return objectMapper.readTree(rawBody);
+					return objectMapper.readTree(rawBody);
+				} catch (RestClientResponseException exception) {
+					log.warn(
+							"Gemini API returned error: model={}, status={}, body={}",
+							getNormalizedModel(),
+							exception.getStatusCode(),
+							exception.getResponseBodyAsString());
+					if (!isGeminiTemporarilyUnavailable(exception) || attempt >= GEMINI_RETRY_DELAYS_MS.length) {
+						throw exception;
+					}
+					lastTransientException = exception;
+					sleepBeforeRetry(GEMINI_RETRY_DELAYS_MS[attempt]);
+				}
+			}
+			throw lastTransientException;
 		} catch (RestClientResponseException exception) {
-			log.warn(
-					"Gemini API returned error: model={}, status={}, body={}",
-					getNormalizedModel(),
-					exception.getStatusCode(),
-					exception.getResponseBodyAsString());
 			throw mapGeminiError(exception);
 		} catch (ResponseStatusException exception) {
 			log.warn("Gemini API call aborted: model={}, reason={}", getNormalizedModel(), exception.getReason());
@@ -443,6 +463,22 @@ public class AiLearningService {
 					HttpStatus.BAD_GATEWAY,
 					"Không thể gọi Gemini API: " + exception.getMessage(),
 					exception);
+		}
+	}
+
+	private boolean isGeminiTemporarilyUnavailable(RestClientResponseException exception) {
+		String responseBody = exception.getResponseBodyAsString();
+		return exception.getStatusCode().value() == 503
+				|| (responseBody != null && responseBody.contains("\"status\": \"UNAVAILABLE\""))
+				|| (responseBody != null && responseBody.contains("high demand"));
+	}
+
+	private void sleepBeforeRetry(long delayMs) {
+		try {
+			Thread.sleep(delayMs);
+		} catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini API retry bị gián đoạn", exception);
 		}
 	}
 
@@ -559,6 +595,14 @@ public class AiLearningService {
 					"Gemini API đã hết quota hoặc đang bị giới hạn tốc độ. Vui lòng đợi ít phút, đổi model/API key, hoặc bật billing cho project.",
 					exception);
 		}
+		if (exception.getStatusCode().value() == 503
+				|| (responseBody != null && responseBody.contains("\"status\": \"UNAVAILABLE\""))
+				|| (responseBody != null && responseBody.contains("high demand"))) {
+			return new ResponseStatusException(
+					HttpStatus.BAD_GATEWAY,
+					"Gemini API đang quá tải tạm thời. Vui lòng thử lại sau ít phút hoặc đổi GEMINI_MODEL sang model khác đang rảnh hơn.",
+					exception);
+		}
 		if (responseBody != null && responseBody.contains("insufficient_quota")) {
 			return new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
@@ -602,12 +646,35 @@ public class AiLearningService {
 					builder.append(safeText(toPlainText(block.getContent())));
 				} else if (block.getBlockType() == LessonBlockType.FILE) {
 					builder.append(safeText(block.getMediaUrl()));
+				} else if (block.getBlockType() == LessonBlockType.VIDEO) {
+					builder.append("Video URL: ").append(safeText(block.getMediaUrl()));
+					if (StringUtils.hasText(block.getContent())) {
+						builder.append(" | Mô tả/transcript: ").append(safeText(toPlainText(block.getContent())));
+					}
+				} else if (block.getBlockType() == LessonBlockType.QUIZ) {
+					appendQuizContext(builder, block.getQuiz());
+				} else if (block.getBlockType() == LessonBlockType.ASSIGNMENT) {
+					appendAssignmentContext(builder, assignmentRepository.findFirstByLessonId(lesson.getId()).orElse(null));
 				} else {
 					builder.append(safeText(block.getContent()));
 				}
 				builder.append("\n");
 			}
 		}
+
+		quizRepository.findFirstByLessonId(lesson.getId())
+				.ifPresent(quiz -> {
+					builder.append("Quiz gắn trực tiếp với bài học:\n");
+					appendQuizContext(builder, quiz);
+					builder.append("\n");
+				});
+
+		assignmentRepository.findFirstByLessonId(lesson.getId())
+				.ifPresent(assignment -> {
+					builder.append("Bài tập gắn với bài học:\n");
+					appendAssignmentContext(builder, assignment);
+					builder.append("\n");
+				});
 
 		List<LessonResource> resources = lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lesson.getId());
 		if (!resources.isEmpty()) {
@@ -633,6 +700,53 @@ public class AiLearningService {
 				.replace("&nbsp;", " ")
 				.replaceAll("\\s+", " ")
 				.trim();
+	}
+
+	private void appendQuizContext(StringBuilder builder, Quiz quiz) {
+		if (quiz == null) {
+			builder.append("Không tìm thấy quiz.");
+			return;
+		}
+		builder.append("Quiz: ").append(safeText(quiz.getTitle())).append("\n");
+		builder.append("Mô tả quiz: ").append(safeText(toPlainText(quiz.getDescription()))).append("\n");
+		List<Question> questions = questionRepository.findByQuizIdOrderByOrderIndexAsc(quiz.getId());
+		for (Question question : questions) {
+			builder.append("  Câu hỏi ")
+					.append(question.getOrderIndex() == null ? "" : question.getOrderIndex() + 1)
+					.append(": ")
+					.append(safeText(toPlainText(question.getContent())))
+					.append("\n");
+			List<QuizOption> options = quizOptionRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
+			for (QuizOption option : options) {
+				builder.append("    - ")
+						.append(Boolean.TRUE.equals(option.isCorrect()) ? "[Đúng] " : "")
+						.append(safeText(toPlainText(option.getOptionText())))
+						.append("\n");
+			}
+			if (StringUtils.hasText(question.getExplanation())) {
+				builder.append("    Giải thích: ")
+						.append(safeText(toPlainText(question.getExplanation())))
+						.append("\n");
+			}
+		}
+	}
+
+	private void appendAssignmentContext(StringBuilder builder, Assignment assignment) {
+		if (assignment == null) {
+			builder.append("Không tìm thấy bài tập.");
+			return;
+		}
+		builder.append("Bài tập: ").append(safeText(assignment.getTitle())).append("\n");
+		builder.append("Mô tả/yêu cầu: ")
+				.append(safeText(toPlainText(assignment.getDescription())))
+				.append("\n");
+		builder.append("Loại bài tập: ").append(safeText(assignment.getAssignmentType())).append("\n");
+		if (assignment.getMaxScore() != null) {
+			builder.append("Điểm tối đa: ").append(assignment.getMaxScore()).append("\n");
+		}
+		if (assignment.getDueAt() != null) {
+			builder.append("Hạn nộp: ").append(assignment.getDueAt()).append("\n");
+		}
 	}
 
 	private String safeText(String value) {
