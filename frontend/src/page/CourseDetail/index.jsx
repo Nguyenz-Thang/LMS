@@ -12,14 +12,16 @@ import {
   Clock3,
   User,
   Tag,
-  Play,
   Layers3,
-  Eye,
   GraduationCap,
+  Copy,
+  CreditCard,
+  X,
 } from "lucide-react";
 import styles from "./CourseDetail.module.scss";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
 import { useLearningApi } from "../../api/learningApi";
+import { createCoursePayment, getPayment } from "../../api/paymentApi";
 
 const FALLBACK_THUMB =
   "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop";
@@ -58,6 +60,17 @@ function formatLevel(level) {
   return map[level] || level || "Chưa cập nhật";
 }
 
+function formatPrice(course) {
+  const price = Number(course?.price || 0);
+  if (!course?.paid || price <= 0) return "Miễn phí";
+  return `${price.toLocaleString("vi-VN")} ${course?.currency || "VND"}`;
+}
+
+function formatPaymentAmount(payment) {
+  const amount = Number(payment?.amount || 0);
+  return `${amount.toLocaleString("vi-VN")} ${payment?.currency || "VND"}`;
+}
+
 function getLessonIcon(lessonType) {
   switch (lessonType) {
     case "VIDEO":
@@ -86,6 +99,19 @@ function getLessonTypeLabel(lessonType) {
   return map[lessonType] || lessonType || "Bài học";
 }
 
+function toPlainText(html = "") {
+  return String(html)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export default function CourseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -98,10 +124,38 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
   const [starting, setStarting] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [payment, setPayment] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
 
   useEffect(() => {
     fetchDetail();
   }, [id]);
+
+  useEffect(() => {
+    if (!showPayment || !payment?.id || payment.status === "PAID") {
+      return undefined;
+    }
+
+    const timer = window.setInterval(async () => {
+      try {
+        const res = await getPayment(payment.id);
+        const nextPayment = res?.result || null;
+        if (!nextPayment) return;
+
+        setPayment(nextPayment);
+        if (nextPayment.status === "PAID") {
+          window.clearInterval(timer);
+          await startCourse();
+        }
+      } catch {
+        // Keep the payment dialog open while waiting for the next poll.
+      }
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [showPayment, payment?.id, payment?.status]);
 
   const fetchDetail = async () => {
     try {
@@ -168,37 +222,24 @@ export default function CourseDetail() {
 
     let totalLessons = 0;
     let totalDurationMinutes = 0;
-    let previewLessons = 0;
-    let firstPreviewLesson = null;
 
     sections.forEach((section) => {
       const lessons = section?.lessons || [];
       totalLessons += section?.totalLessons || lessons.length || 0;
       totalDurationMinutes += section?.totalDurationMinutes || 0;
-
-      lessons.forEach((lesson) => {
-        if (lesson?.isPreview) {
-          previewLessons += 1;
-          if (!firstPreviewLesson) {
-            firstPreviewLesson = lesson;
-          }
-        }
-      });
     });
 
     return {
       sectionCount: sections.length,
       totalLessons,
       totalDurationMinutes,
-      previewLessons,
-      firstPreviewLesson,
     };
   }, [curriculum]);
 
-  const handleStartLearning = async () => {
+  const startCourse = async (payload = null) => {
     try {
       setStarting(true);
-      const res = await startLearning(id);
+      const res = await startLearning(id, payload);
       const data = res?.result || null;
 
       if (data?.firstLessonId) {
@@ -220,23 +261,39 @@ export default function CourseDetail() {
     }
   };
 
-  const handlePreview = async () => {
-    if (stats.firstPreviewLesson?.id) {
-      navigate(`/learning/${id}/${stats.firstPreviewLesson.id}`, {
-        state: { from: `/courses/${id}` },
-      });
+  const handleStartLearning = async () => {
+    if (course?.paid && Number(course?.price || 0) > 0) {
+      setShowPayment(true);
+      await loadPayment();
       return;
     }
 
-    const firstSection = curriculum?.sections?.find(
-      (section) => (section?.lessons || []).length > 0,
-    );
-    const firstLesson = firstSection?.lessons?.[0];
+    await startCourse();
+  };
 
-    if (firstLesson?.id) {
-      navigate(`/learning/${id}/${firstLesson.id}`, {
-        state: { from: `/courses/${id}` },
-      });
+  const loadPayment = async () => {
+    try {
+      setPaymentLoading(true);
+      setPaymentError("");
+      const res = await createCoursePayment(id);
+      setPayment(res?.result || null);
+    } catch (error) {
+      setPaymentError(
+        error?.response?.data?.message ||
+          error?.body?.message ||
+          error?.message ||
+          "Không tạo được đơn thanh toán.",
+      );
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const copyText = async (value) => {
+    try {
+      await navigator.clipboard?.writeText(value);
+    } catch {
+      // Clipboard support is optional for this basic demo.
     }
   };
 
@@ -297,12 +354,6 @@ export default function CourseDetail() {
             <Clock3 size={15} />
             {formatDuration(stats.totalDurationMinutes)}
           </span>
-          <span>
-            <Eye size={15} />
-            {stats.previewLessons > 0
-              ? `${stats.previewLessons} bài học thử`
-              : "Không có học thử"}
-          </span>
         </div>
       </div>
 
@@ -313,13 +364,6 @@ export default function CourseDetail() {
             alt={course.title}
             className={styles.thumbnail}
           />
-          <button
-            type="button"
-            className={styles.playBtn}
-            onClick={handlePreview}
-          >
-            <Play size={20} />
-          </button>
         </div>
 
         <div className={styles.sideContent}>
@@ -329,18 +373,19 @@ export default function CourseDetail() {
             onClick={handleStartLearning}
             disabled={starting}
           >
-            {starting ? "Đang vào học..." : "Bắt đầu học"}
-          </button>
-
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={handlePreview}
-          >
-            Xem trước
+            {starting
+              ? "Đang xử lý..."
+              : course?.paid && Number(course?.price || 0) > 0
+                ? "Thanh toán để học"
+                : "Bắt đầu học"}
           </button>
 
           <div className={styles.sideInfo}>
+            <div className={styles.priceBox}>
+              <CreditCard size={17} />
+              <span>{formatPrice(course)}</span>
+            </div>
+
             <div className={styles.sideInfoItem}>
               <GraduationCap size={15} />
               <span>Trình độ: {formatLevel(course.level)}</span>
@@ -423,10 +468,9 @@ export default function CourseDetail() {
                               <span>
                                 {getLessonTypeLabel(lesson.lessonType)}
                               </span>
-                              {lesson.isPreview ? <span>Học thử</span> : null}
-                              {lesson.description ? (
+                              {toPlainText(lesson.description) ? (
                                 <span className={styles.lessonShortDesc}>
-                                  {lesson.description}
+                                  {toPlainText(lesson.description)}
                                 </span>
                               ) : null}
                             </div>
@@ -438,17 +482,6 @@ export default function CourseDetail() {
                             {formatClockDuration(lesson.durationMinutes)}
                           </span>
 
-                          {lesson.isPreview && (
-                            <button
-                              type="button"
-                              className={styles.lessonBtn}
-                              onClick={() =>
-                                navigate(`/learning/${id}/${lesson.id}`)
-                              }
-                            >
-                              Học
-                            </button>
-                          )}
                         </div>
                       </div>
                     ))}
@@ -459,6 +492,96 @@ export default function CourseDetail() {
           })}
         </div>
       </div>
+
+      {showPayment ? (
+        <div className={styles.paymentOverlay} role="dialog" aria-modal="true">
+          <div className={styles.paymentModal}>
+            <div className={styles.paymentHeader}>
+              <div>
+                <h2>Quét mã QR để thanh toán</h2>
+                <p>
+                  Chuyển khoản đúng nội dung{" "}
+                  <strong>{payment?.paymentCode || "đang tạo..."}</strong>. Hệ thống sẽ tự mở khóa khi SePay xác nhận.
+                </p>
+              </div>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => setShowPayment(false)}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {paymentLoading ? (
+              <div className={styles.paymentState}>Đang tạo mã thanh toán...</div>
+            ) : paymentError ? (
+              <div className={styles.paymentState}>{paymentError}</div>
+            ) : payment ? (
+              <div className={styles.paymentBody}>
+                <div className={styles.qrBox}>
+                  <img src={payment.qrUrl} alt="QR thanh toán khóa học" />
+                </div>
+
+                <div className={styles.paymentInfo}>
+                  <div>
+                    <span>Trạng thái</span>
+                    <strong>{payment.status === "PAID" ? "Đã thanh toán" : "Đang chờ chuyển khoản"}</strong>
+                  </div>
+                  <div>
+                    <span>Ngân hàng</span>
+                    <strong>{payment.bankName}</strong>
+                  </div>
+                  <div>
+                    <span>Số tài khoản</span>
+                    <strong>{payment.accountNumber}</strong>
+                    <button type="button" onClick={() => copyText(payment.accountNumber)}>
+                      <Copy size={16} />
+                    </button>
+                  </div>
+                  <div>
+                    <span>Tên tài khoản</span>
+                    <strong>{payment.accountName}</strong>
+                  </div>
+                  <div>
+                    <span>Số tiền</span>
+                    <strong>{formatPaymentAmount(payment)}</strong>
+                    <button type="button" onClick={() => copyText(String(Math.round(Number(payment.amount || 0))))}>
+                      <Copy size={16} />
+                    </button>
+                  </div>
+                  <div>
+                    <span>Nội dung</span>
+                    <strong>{payment.paymentCode}</strong>
+                    <button type="button" onClick={() => copyText(payment.paymentCode)}>
+                      <Copy size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className={styles.paymentActions}>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={() => setShowPayment(false)}
+              >
+                Để sau
+              </button>
+              <button
+                type="button"
+                className={styles.primaryBtn}
+                onClick={loadPayment}
+                disabled={paymentLoading}
+              >
+                Làm mới mã
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

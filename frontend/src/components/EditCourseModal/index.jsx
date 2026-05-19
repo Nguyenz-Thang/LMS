@@ -26,6 +26,7 @@ function EditCourseModal({
     visibility: "PUBLIC",
     level: "BEGINNER",
     estimatedHours: 0,
+    price: 0,
   });
 
   const [thumbnailMode, setThumbnailMode] = useState("url");
@@ -62,6 +63,7 @@ function EditCourseModal({
       visibility: course.visibility || "PUBLIC",
       level: course.level || "BEGINNER",
       estimatedHours: course.estimatedHours ?? 0,
+      price: course.price ?? 0,
     });
     setThumbnailMode("url");
     setPreviewUrl(buildImageUrl(course.thumbnailUrl || ""));
@@ -147,6 +149,9 @@ function EditCourseModal({
         visibility: form.visibility,
         level: form.level,
         estimatedHours: Number(form.estimatedHours) || 0,
+        price: Number(form.price) || 0,
+        currency: "VND",
+        paid: Number(form.price) > 0,
       };
 
       await updateCourse(course.id, payload);
@@ -334,6 +339,19 @@ function EditCourseModal({
               type="number"
               min="0"
               value={form.estimatedHours}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="edit-price">Giá khóa học (VND)</label>
+            <input
+              id="edit-price"
+              name="price"
+              type="number"
+              min="0"
+              step="1000"
+              value={form.price}
               onChange={handleChange}
             />
           </div>

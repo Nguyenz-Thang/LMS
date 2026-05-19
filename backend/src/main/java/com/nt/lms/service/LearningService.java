@@ -2,6 +2,7 @@ package com.nt.lms.service;
 
 import com.nt.lms.dto.request.LessonNoteRequest;
 import com.nt.lms.dto.request.LessonProgressRequest;
+import com.nt.lms.dto.request.LearningStartRequest;
 import com.nt.lms.dto.response.LearningBlockResponse;
 import com.nt.lms.dto.response.LearningCourseResponse;
 import com.nt.lms.dto.response.LearningLessonDetailResponse;
@@ -10,13 +11,11 @@ import com.nt.lms.dto.response.LearningLessonNoteResponse;
 import com.nt.lms.dto.response.LearningLessonResourceResponse;
 import com.nt.lms.dto.response.LearningSectionItemResponse;
 import com.nt.lms.dto.response.LearningStartResponse;
-import com.nt.lms.dto.response.LessonBookmarkResponse;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Enrollment;
 import com.nt.lms.entity.LearningActivityLog;
 import com.nt.lms.entity.Lesson;
 import com.nt.lms.entity.LessonBlock;
-import com.nt.lms.entity.LessonBookmark;
 import com.nt.lms.entity.LessonNote;
 import com.nt.lms.entity.LessonProgress;
 import com.nt.lms.entity.LessonResource;
@@ -32,7 +31,6 @@ import com.nt.lms.repository.CourseRepository;
 import com.nt.lms.repository.EnrollmentRepository;
 import com.nt.lms.repository.LearningActivityLogRepository;
 import com.nt.lms.repository.LessonBlockRepository;
-import com.nt.lms.repository.LessonBookmarkRepository;
 import com.nt.lms.repository.LessonNoteRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
@@ -43,6 +41,7 @@ import com.nt.lms.repository.QuizAttemptRepository;
 import com.nt.lms.repository.QuizRepository;
 import com.nt.lms.repository.SectionRepository;
 import com.nt.lms.repository.UserRepository;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,7 +51,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -74,20 +72,23 @@ public class LearningService {
 	private final LessonBlockRepository lessonBlockRepository;
 	private final LessonResourceRepository lessonResourceRepository;
 	private final LessonNoteRepository lessonNoteRepository;
-	private final LessonBookmarkRepository lessonBookmarkRepository;
 	private final LearningActivityLogRepository learningActivityLogRepository;
 	private final QuizAttemptRepository quizAttemptRepository;
 	private final QuizAttemptAnswerRepository quizAttemptAnswerRepository;
 	private final QuestionRepository questionRepository;
 	private final AssignmentSubmissionRepository assignmentSubmissionRepository;
 
-	public LearningStartResponse startCourse(String courseId) {
+	public LearningStartResponse startCourse(String courseId, LearningStartRequest request) {
 		User currentUser = getCurrentUser();
 		Course course = getCourseOrThrow(courseId);
 		ensureCourseAvailableForLearning(course, currentUser);
 
 		Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(currentUser.getId(), courseId)
 				.orElseGet(() -> {
+					if (requiresPayment(course, currentUser)) {
+						throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, "Khoa hoc nay can xac nhan thanh toan");
+					}
+
 					Enrollment newEnrollment = Enrollment.builder()
 							.user(currentUser)
 							.course(course)
@@ -138,11 +139,6 @@ public class LearningService {
 		Map<String, LessonProgress> progressMap = lessonIds.isEmpty()
 				? new HashMap<>()
 				: getLessonProgressMap(currentUser.getId(), lessonIds);
-		Set<String> bookmarkedLessonIds = lessonIds.isEmpty()
-				? Collections.emptySet()
-				: lessonBookmarkRepository.findByUserIdAndLessonIdIn(currentUser.getId(), lessonIds).stream()
-						.map(bookmark -> bookmark.getLesson().getId())
-				.collect(Collectors.toSet());
 		Map<String, Boolean> sequenceLockedMap = buildSequenceLockedMap(sections, progressMap, enrolled);
 
 		List<LearningSectionItemResponse> sectionResponses = new ArrayList<>();
@@ -174,7 +170,6 @@ public class LearningService {
 						.preview(Boolean.TRUE.equals(lesson.getIsPreview()))
 						.completed(completed)
 						.locked(locked)
-						.bookmarked(bookmarkedLessonIds.contains(lesson.getId()))
 						.lastPositionSec(progress != null ? safeInt(progress.getLastPositionSec()) : 0)
 						.build());
 			}
@@ -232,9 +227,6 @@ public class LearningService {
 				.orElse(null);
 		List<LessonResource> resources = lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lessonId);
 		List<LessonNote> notes = lessonNoteRepository.findByUserIdAndLessonIdOrderByCreatedAtDesc(currentUser.getId(), lessonId);
-		LessonBookmark bookmark = lessonBookmarkRepository.findByUserIdAndLessonId(currentUser.getId(), lessonId)
-				.orElse(null);
-
 		List<Section> sections = sectionRepository.findByCourseIdOrderByOrderIndexAsc(courseId);
 		List<Lesson> flatLessons = new ArrayList<>();
 		for (Section section : sections) {
@@ -257,6 +249,7 @@ public class LearningService {
 		List<LearningBlockResponse> blockResponses = new ArrayList<>(
 				lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lessonId)
 						.stream()
+						.filter(block -> block.getBlockType() != LessonBlockType.UNKNOWN)
 						.map(block -> LearningBlockResponse.builder()
 								.id(block.getId())
 								.blockType(block.getBlockType())
@@ -334,6 +327,7 @@ public class LearningService {
 				.courseId(courseId)
 				.title(lesson.getTitle())
 				.description(lesson.getDescription())
+				.updatedAt(lesson.getUpdatedAt())
 				.content(lesson.getContent())
 				.videoUrl(lesson.getVideoUrl())
 				.thumbnailUrl(lesson.getThumbnailUrl())
@@ -349,7 +343,6 @@ public class LearningService {
 				.blocks(blockResponses)
 				.resources(resources.stream().map(this::toLearningResourceResponse).toList())
 				.notes(notes.stream().map(this::toLearningNoteResponse).toList())
-				.bookmarked(bookmark != null)
 				.build();
 	}
 
@@ -465,36 +458,6 @@ public class LearningService {
 		}
 
 		lessonNoteRepository.delete(note);
-	}
-
-	public LessonBookmarkResponse getBookmarkStatus(String lessonId) {
-		User currentUser = getCurrentUser();
-		Lesson lesson = getAccessibleLesson(lessonId, currentUser);
-
-		return toBookmarkResponse(lesson,
-				lessonBookmarkRepository.findByUserIdAndLessonId(currentUser.getId(), lesson.getId()).orElse(null));
-	}
-
-	public LessonBookmarkResponse bookmarkLesson(String lessonId) {
-		User currentUser = getCurrentUser();
-		Lesson lesson = getAccessibleLesson(lessonId, currentUser);
-
-		LessonBookmark bookmark = lessonBookmarkRepository.findByUserIdAndLessonId(currentUser.getId(), lesson.getId())
-				.orElseGet(() -> lessonBookmarkRepository.save(LessonBookmark.builder()
-						.user(currentUser)
-						.lesson(lesson)
-						.build()));
-
-		logActivity(currentUser, lesson.getSection().getCourse(), lesson, "BOOKMARK_LESSON", lesson.getId());
-		return toBookmarkResponse(lesson, bookmark);
-	}
-
-	public void removeBookmark(String lessonId) {
-		User currentUser = getCurrentUser();
-		Lesson lesson = getAccessibleLesson(lessonId, currentUser);
-
-		lessonBookmarkRepository.findByUserIdAndLessonId(currentUser.getId(), lesson.getId())
-				.ifPresent(lessonBookmarkRepository::delete);
 	}
 
 	private double recalculateCourseProgress(String userId, String courseId) {
@@ -739,12 +702,15 @@ public class LearningService {
 			Map<String, QuizAttemptAnswer> answerMap = quizAttemptAnswerRepository.findByAttemptId(attempt.getId())
 					.stream()
 					.collect(Collectors.toMap(answer -> answer.getQuestion().getId(), answer -> answer, (a, b) -> a));
-			boolean passed = !questions.isEmpty() && questions.stream().allMatch(question -> {
+			boolean allQuestionsCorrect = !questions.isEmpty() && questions.stream().allMatch(question -> {
 				QuizAttemptAnswer answer = answerMap.get(question.getId());
 				return answer != null
 						&& answer.getSelectedOption() != null
 						&& Boolean.TRUE.equals(answer.getIsCorrect());
 			});
+			boolean hasCorrectAnswer = answerMap.values().stream()
+					.anyMatch(answer -> Boolean.TRUE.equals(answer.getIsCorrect()));
+			boolean passed = allQuestionsCorrect || safeDouble(attempt.getScore()) > 0 || hasCorrectAnswer;
 
 			if (!submitted || !passed) {
 				return false;
@@ -773,6 +739,22 @@ public class LearningService {
 		return value == null ? 0.0 : value.doubleValue();
 	}
 
+	private boolean requiresPayment(Course course, User currentUser) {
+		if (!Boolean.TRUE.equals(course.getPaid())) {
+			return false;
+		}
+		BigDecimal price = course.getPrice();
+		if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
+			return false;
+		}
+		boolean isAdmin = currentUser.getRoles() != null
+				&& currentUser.getRoles().stream().anyMatch(role -> "ADMIN".equals(role.getName()));
+		boolean isOwner = course.getInstructor() != null
+				&& currentUser != null
+				&& course.getInstructor().getId().equals(currentUser.getId());
+		return !isAdmin && !isOwner;
+	}
+
 	private LearningLessonResourceResponse toLearningResourceResponse(LessonResource resource) {
 		return LearningLessonResourceResponse.builder()
 				.id(resource.getId())
@@ -791,15 +773,6 @@ public class LearningService {
 				.timeMarkerSec(note.getTimeMarkerSec())
 				.createdAt(note.getCreatedAt())
 				.updatedAt(note.getUpdatedAt())
-				.build();
-	}
-
-	private LessonBookmarkResponse toBookmarkResponse(Lesson lesson, LessonBookmark bookmark) {
-		return LessonBookmarkResponse.builder()
-				.bookmarkId(bookmark != null ? bookmark.getId() : null)
-				.lessonId(lesson.getId())
-				.bookmarked(bookmark != null)
-				.createdAt(bookmark != null ? bookmark.getCreatedAt() : null)
 				.build();
 	}
 

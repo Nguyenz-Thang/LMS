@@ -1,4 +1,4 @@
-import { BookOpen, Clock3, PlayCircle, UserRound, Users } from "lucide-react";
+import { BookOpen, Clock3, PlayCircle, Tag, UserRound, Users } from "lucide-react";
 import styles from "./CourseShowcaseCard.module.scss";
 
 function getImageSrc(value, baseUrl) {
@@ -26,6 +26,12 @@ function formatDuration(totalMinutes) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("vi-VN");
+}
+
+function formatPrice(course) {
+  const price = Number(course?.price || 0);
+  if (!course?.paid || price <= 0) return "Miễn phí";
+  return `${price.toLocaleString("vi-VN")} ${course?.currency || "VND"}`;
 }
 
 export default function CourseShowcaseCard({
@@ -76,13 +82,17 @@ export default function CourseShowcaseCard({
         <p className={styles.description}>{description}</p>
 
         <div className={styles.statsRow}>
+          <span className={styles.priceText}>
+            <Tag size={14} />
+            <span>{formatPrice(course)}</span>
+          </span>
           <span>
             <PlayCircle size={14} />
-            <span>{formatNumber(stats?.totalLessons)} bài</span>
+            <span>{formatNumber(stats?.totalLessons)}</span>
           </span>
           <span>
             <Users size={14} />
-            <span>{formatNumber(course?.enrollmentCount)} người học</span>
+            <span>{formatNumber(course?.enrollmentCount)}</span>
           </span>
           <span>
             <Clock3 size={14} />

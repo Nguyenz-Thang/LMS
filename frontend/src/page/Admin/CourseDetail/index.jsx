@@ -140,6 +140,19 @@ function getLessonIcon(lesson) {
   }
 }
 
+function toPlainText(html = "") {
+  return String(html)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export default function CourseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -539,8 +552,8 @@ export default function CourseDetail() {
                                 </span>
                                 <div>
                                   <strong>{lesson.title}</strong>
-                                  {lesson.description ? (
-                                    <span>{lesson.description}</span>
+                                  {toPlainText(lesson.description) ? (
+                                    <span>{toPlainText(lesson.description)}</span>
                                   ) : null}
                                   {lesson.lessonType === "VIDEO" &&
                                     lesson.videoUrl && (

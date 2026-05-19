@@ -18,6 +18,7 @@ import com.nt.lms.entity.QuizOption;
 import com.nt.lms.entity.User;
 import com.nt.lms.enums.EnrollmentStatus;
 import com.nt.lms.repository.EnrollmentRepository;
+import com.nt.lms.repository.LessonBlockRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
 import com.nt.lms.repository.QuestionRepository;
@@ -58,6 +59,7 @@ public class LearningQuizService {
     private final EnrollmentRepository enrollmentRepository;
     private final LessonProgressRepository lessonProgressRepository;
     private final LessonRepository lessonRepository;
+    private final LessonBlockRepository lessonBlockRepository;
 
     public List<StandaloneQuizListItemResponse> getIndependentQuizzes() {
         User currentUser = getCurrentUser();
@@ -260,12 +262,27 @@ public class LearningQuizService {
         attempt.setStatus(QuizAttemptStatus.SUBMITTED);
         quizAttemptRepository.save(attempt);
 
-        boolean passed = allAnswered && allCorrect;
-        if (passed && attempt.getQuiz().getLesson() != null) {
-            markLessonCompleted(currentUser, attempt.getQuiz().getLesson());
+        boolean passed = (allAnswered && allCorrect) || earnedScore > 0;
+        Lesson lesson = resolveQuizLesson(attempt.getQuiz());
+        if (passed && lesson != null) {
+            markLessonCompleted(currentUser, lesson);
         }
 
         return buildQuizResponse(attempt.getQuiz(), attempt);
+    }
+
+    private Lesson resolveQuizLesson(Quiz quiz) {
+        if (quiz == null) {
+            return null;
+        }
+
+        if (quiz.getLesson() != null) {
+            return quiz.getLesson();
+        }
+
+        return lessonBlockRepository.findFirstByQuiz_Id(quiz.getId())
+                .map(block -> block.getLesson())
+                .orElse(null);
     }
 
     private void saveSingleChoiceAnswer(Question question, QuizAnswerRequest request, QuizAttemptAnswer answer) {

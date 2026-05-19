@@ -1,4 +1,4 @@
-import { Bookmark, CheckCircle2, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import styles from "../Learning.module.scss";
 import {
   formatClockDuration,
@@ -121,13 +121,6 @@ export default function LearningSidebar({
                         {lesson.effectiveLocked ? (
                           <span className={styles.lessonItemLock} aria-hidden="true">
                             <Lock size={14} />
-                          </span>
-                        ) : lesson.bookmarked ? (
-                          <span
-                            className={styles.lessonItemBookmark}
-                            aria-hidden="true"
-                          >
-                            <Bookmark size={14} />
                           </span>
                         ) : null}
                       </button>

@@ -2,6 +2,7 @@ package com.nt.lms.dto.response;
 
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -16,6 +17,7 @@ public class LearningLessonDetailResponse {
 
     private String title;
     private String description;
+    private LocalDateTime updatedAt;
     private String content;
     private String videoUrl;
     private String thumbnailUrl;
@@ -35,5 +37,4 @@ public class LearningLessonDetailResponse {
     private List<LearningBlockResponse> blocks;
     private List<LearningLessonResourceResponse> resources;
     private List<LearningLessonNoteResponse> notes;
-    private Boolean bookmarked;
 }

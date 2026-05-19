@@ -141,12 +141,12 @@ export default function Sidebar() {
           icon: UserCog,
           roles: ["ADMIN"],
         },
-        {
-          label: "Quản lý quyền",
-          to: "/admin/permissions",
-          icon: KeyRound,
-          roles: ["ADMIN"],
-        },
+        // {
+        //   label: "Quản lý quyền",
+        //   to: "/admin/permissions",
+        //   icon: KeyRound,
+        //   roles: ["ADMIN"],
+        // },
       ].filter((item) => {
         if (!item.roles) return true;
         return item.roles.some((role) => hasRole(role));

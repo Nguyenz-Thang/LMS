@@ -1,6 +1,7 @@
 package com.nt.lms.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -31,6 +32,13 @@ public class Course {
 
     @Column(name = "estimated_hours")
     Integer estimatedHours;
+
+    @Column(precision = 12, scale = 2)
+    BigDecimal price;
+
+    String currency;
+
+    Boolean paid;
 
     @ManyToOne
     @JoinColumn(name = "category_id")

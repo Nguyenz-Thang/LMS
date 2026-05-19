@@ -189,10 +189,10 @@ export default function Login() {
               <Link to="/register">Đăng ký</Link>
             </div>
 
-            <div className={styles.demoBox}>
+            {/* <div className={styles.demoBox}>
               <strong>Demo:</strong>
               <span> admin / admin </span>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

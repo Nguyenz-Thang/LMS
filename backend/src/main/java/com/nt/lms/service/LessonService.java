@@ -311,10 +311,7 @@ public class LessonService {
         if (lessonType == LessonType.ASSIGNMENT) {
             assignmentRepository.findByLessonId(lesson.getId())
                     .ifPresent(emailNotificationService::sendNewAssignmentPublished);
-            return;
         }
-
-        emailNotificationService.sendNewLessonPublished(lesson);
     }
 
     private void triggerUpdateNotifications(
@@ -329,10 +326,7 @@ public class LessonService {
         if (currentType == LessonType.ASSIGNMENT || previousType == LessonType.ASSIGNMENT) {
             assignmentRepository.findByLessonId(lesson.getId())
                     .ifPresent(emailNotificationService::sendNewAssignmentPublished);
-            return;
         }
-
-        emailNotificationService.sendNewLessonPublished(lesson);
     }
 
     private void validateCreateRequest(LessonCreationRequest request) {

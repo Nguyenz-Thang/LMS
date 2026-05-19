@@ -1,5 +1,6 @@
 package com.nt.lms.entity;
 
+import com.nt.lms.converter.LessonBlockTypeConverter;
 import com.nt.lms.enums.LessonBlockType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -24,7 +25,7 @@ public class LessonBlock {
     @JoinColumn(name = "lesson_id", nullable = false)
     Lesson lesson;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = LessonBlockTypeConverter.class)
     @Column(name = "block_type", nullable = false)
     LessonBlockType blockType;
 

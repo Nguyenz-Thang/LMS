@@ -3,76 +3,75 @@ import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   BookOpen,
-  Boxes,
+  CheckCircle2,
   ClipboardCheck,
+  Clock3,
   GraduationCap,
-  Layers3,
   MessageSquareText,
   RefreshCw,
-  ShieldCheck,
+  Search,
   Sparkles,
-  Users,
 } from "lucide-react";
-import CourseShowcaseCard from "../../components/CourseShowcaseCard";
-import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
-import { useLearningApi } from "../../api/learningApi";
-import { getAllEnrollments } from "../../api/enrollmentApi";
-import { getCategories } from "../../api/categoryApi";
-import { getAllQuizzes } from "../../api/quizApi";
-import { getUsers } from "../../api/userApi";
+import {
+  getMyEnrollments,
+  getMyProgressDashboard,
+  markEnrollmentAccess,
+} from "../../api/enrollmentApi";
 import styles from "./Home.module.scss";
 
-const OVERVIEW_SIZE = 8;
-
-function buildCourseStats(curriculum) {
-  const sections = curriculum?.sections || [];
-
-  let totalLessons = 0;
-  let totalDurationMinutes = 0;
-
-  sections.forEach((section) => {
-    const lessons = section?.lessons || [];
-    totalLessons += section?.totalLessons || lessons.length || 0;
-    totalDurationMinutes += section?.totalDurationMinutes || 0;
-  });
-
+function normalizeEnrollment(rawEnrollment) {
   return {
-    sectionCount: sections.length,
-    totalLessons,
-    totalDurationMinutes,
+    id: rawEnrollment?.id || "",
+    courseId: rawEnrollment?.courseId || "",
+    courseTitle: rawEnrollment?.courseTitle || "Khóa học không xác định",
+    status: rawEnrollment?.status || "ACTIVE",
+    progressPercent: Number(rawEnrollment?.progressPercent) || 0,
+    enrolledAt: rawEnrollment?.enrolledAt || null,
+    lastAccessedAt: rawEnrollment?.lastAccessedAt || null,
   };
-}
-
-function unwrapList(response) {
-  if (Array.isArray(response)) return response;
-  if (Array.isArray(response?.result)) return response.result;
-  if (Array.isArray(response?.data?.result)) return response.data.result;
-  if (Array.isArray(response?.result?.content)) return response.result.content;
-  return [];
-}
-
-function getCoursePayload(response) {
-  return response?.result || {};
 }
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("vi-VN");
 }
 
+function formatPercent(value) {
+  return `${Math.round(Number(value) || 0)}%`;
+}
+
+function formatDuration(seconds) {
+  const total = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+
+  if (hours <= 0) return `${minutes} phút`;
+  if (minutes <= 0) return `${hours} giờ`;
+  return `${hours} giờ ${minutes} phút`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "Chưa truy cập";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Chưa truy cập";
+
+  return date.toLocaleString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 const Home = () => {
   const navigate = useNavigate();
-  const { listCourses, getCourseCurriculum } = useCourseApi();
-  const { getLearningCourse } = useLearningApi();
 
-  const [courses, setCourses] = useState([]);
-  const [courseStatsMap, setCourseStatsMap] = useState({});
-  const [categories, setCategories] = useState([]);
-  const [totalCourses, setTotalCourses] = useState(0);
-  const [totalEnrollments, setTotalEnrollments] = useState(0);
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [totalQuizzes, setTotalQuizzes] = useState(0);
+  const [enrollments, setEnrollments] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
+  const [keyword, setKeyword] = useState("");
   const [openingCourseId, setOpeningCourseId] = useState("");
 
   const fetchOverview = async () => {
@@ -80,75 +79,25 @@ const Home = () => {
       setLoading(true);
       setErrorText("");
 
-      const [
-        courseResult,
-        categoryResult,
-        enrollmentResult,
-        quizResult,
-        userResult,
-      ] = await Promise.allSettled([
-        listCourses({ page: 0, size: OVERVIEW_SIZE }),
-        getCategories(),
-        getAllEnrollments(),
-        getAllQuizzes(),
-        getUsers(),
+      const [enrollmentRes, dashboardRes] = await Promise.all([
+        getMyEnrollments(),
+        getMyProgressDashboard(),
       ]);
 
-      if (courseResult.status !== "fulfilled") {
-        throw courseResult.reason;
-      }
-
-      const coursePayload = getCoursePayload(courseResult.value);
-      const courseContent = Array.isArray(coursePayload?.content)
-        ? coursePayload.content
+      const enrollmentData = Array.isArray(enrollmentRes?.result)
+        ? enrollmentRes.result
         : [];
 
-      setCourses(courseContent);
-      setTotalCourses(coursePayload?.totalElements ?? courseContent.length);
-      setCategories(
-        categoryResult.status === "fulfilled"
-          ? unwrapList(categoryResult.value)
-          : [],
-      );
-      setTotalEnrollments(
-        enrollmentResult.status === "fulfilled"
-          ? unwrapList(enrollmentResult.value).length
-          : 0,
-      );
-      setTotalQuizzes(
-        quizResult.status === "fulfilled" ? unwrapList(quizResult.value).length : 0,
-      );
-      setTotalUsers(
-        userResult.status === "fulfilled" ? unwrapList(userResult.value).length : 0,
-      );
-
-      const statsEntries = await Promise.all(
-        courseContent.map(async (course) => {
-          try {
-            const curriculumRes = await getCourseCurriculum(course.id);
-            return [course.id, buildCourseStats(curriculumRes?.result || null)];
-          } catch {
-            return [
-              course.id,
-              {
-                sectionCount: 0,
-                totalLessons: 0,
-                totalDurationMinutes: 0,
-              },
-            ];
-          }
-        }),
-      );
-
-      setCourseStatsMap(Object.fromEntries(statsEntries));
+      setEnrollments(enrollmentData.map(normalizeEnrollment));
+      setDashboard(dashboardRes?.result || null);
     } catch (error) {
       setErrorText(
         error?.response?.data?.message ||
           error?.message ||
-          "Không tải được dữ liệu tổng quan.",
+          "Không tải được dữ liệu tổng quan cá nhân.",
       );
-      setCourses([]);
-      setCourseStatsMap({});
+      setEnrollments([]);
+      setDashboard(null);
     } finally {
       setLoading(false);
     }
@@ -158,53 +107,46 @@ const Home = () => {
     fetchOverview();
   }, []);
 
-  const aggregateStats = useMemo(() => {
-    const stats = Object.values(courseStatsMap);
-    return {
-      totalLessons: stats.reduce(
-        (total, item) => total + Number(item?.totalLessons || 0),
-        0,
-      ),
-      totalHours: Math.round(
-        stats.reduce(
-          (total, item) => total + Number(item?.totalDurationMinutes || 0),
+  const summary = dashboard?.summary || {};
+
+  const averageProgress =
+    enrollments.length === 0
+      ? Number(summary.averageProgressPercent) || 0
+      : enrollments.reduce(
+          (total, item) => total + Math.max(0, Math.min(100, item.progressPercent)),
           0,
-        ) / 60,
-      ),
-    };
-  }, [courseStatsMap]);
+        ) / enrollments.length;
 
-  const topCategories = useMemo(() => {
-    const categoryCourseCount = new Map();
+  const filteredEnrollments = useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
 
-    courses.forEach((course) => {
-      const name = course?.categoryName || "Chưa phân loại";
-      categoryCourseCount.set(name, (categoryCourseCount.get(name) || 0) + 1);
+    return enrollments.filter((item) => {
+      if (!normalizedKeyword) return true;
+      return item.courseTitle.toLowerCase().includes(normalizedKeyword);
     });
+  }, [enrollments, keyword]);
 
-    return [...categoryCourseCount.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-  }, [courses]);
+  const recommendedCourse = useMemo(() => {
+    return [...enrollments]
+      .filter((item) => item.status === "ACTIVE")
+      .sort((a, b) => {
+        const aAccess = a.lastAccessedAt
+          ? new Date(a.lastAccessedAt).getTime()
+          : 0;
+        const bAccess = b.lastAccessedAt
+          ? new Date(b.lastAccessedAt).getTime()
+          : 0;
 
-  const handleOpenCourse = async (courseId) => {
+        if (aAccess !== bAccess) return bAccess - aAccess;
+        return b.progressPercent - a.progressPercent;
+      })[0];
+  }, [enrollments]);
+
+  const openCourse = async (courseId) => {
     try {
       setOpeningCourseId(courseId);
-      const res = await getLearningCourse(courseId);
-      const learningData = res?.result || null;
-
-      if (learningData?.enrolled && learningData?.currentLessonId) {
-        navigate(`/learning/${courseId}/${learningData.currentLessonId}`);
-        return;
-      }
-
-      if (learningData?.enrolled) {
-        navigate(`/learning/${courseId}`);
-        return;
-      }
-
-      navigate(`/courses/${courseId}`);
+      await markEnrollmentAccess(courseId);
+      navigate(`/learning/${courseId}`);
     } catch {
       navigate(`/courses/${courseId}`);
     } finally {
@@ -214,22 +156,22 @@ const Home = () => {
 
   const quickLinks = [
     {
-      icon: BookOpen,
-      title: "Khám phá khóa học",
-      description: "Xem toàn bộ khóa học đang mở trong hệ thống.",
-      path: "/courses",
-    },
-    {
       icon: GraduationCap,
       title: "Khóa học của tôi",
-      description: "Quay lại các khóa đã đăng ký.",
+      description: "Xem các khóa học bạn đã đăng ký.",
       path: "/my-courses",
     },
     {
       icon: ClipboardCheck,
       title: "Quiz",
-      description: "Luyện tập và làm bài kiểm tra độc lập.",
+      description: "Làm bài kiểm tra và luyện tập.",
       path: "/quizzes",
+    },
+    {
+      icon: BarChart3,
+      title: "Tiến độ học",
+      description: "Xem chi tiết tiến độ và cảnh báo học tập.",
+      path: "/progress",
     },
     {
       icon: MessageSquareText,
@@ -243,11 +185,11 @@ const Home = () => {
     <div className={styles.container}>
       <section className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>Tổng quan LMS</span>
-          <h1 className={styles.heading}>Không gian học tập trực tuyến của bạn</h1>
+          <span className={styles.eyebrow}>Tổng quan cá nhân</span>
+          <h1 className={styles.heading}>Không gian học tập của bạn</h1>
           <p className={styles.subheading}>
-            Theo dõi nhanh những gì hệ thống đang có: khóa học, danh mục, quiz,
-            học viên và các lối tắt để bắt đầu học ngay.
+            Theo dõi nhanh các khóa đã đăng ký, tiến độ học, thời gian học và
+            kết quả kiểm tra của riêng tài khoản hiện tại.
           </p>
         </div>
 
@@ -261,24 +203,24 @@ const Home = () => {
 
       <section className={styles.statsGrid}>
         <article className={styles.statCard}>
-          <BookOpen size={20} />
-          <span>Khóa học</span>
-          <strong>{formatNumber(totalCourses)}</strong>
+          <GraduationCap size={20} />
+          <span>Khóa đang học</span>
+          <strong>{formatNumber(summary.activeCourses)}</strong>
         </article>
         <article className={styles.statCard}>
-          <Layers3 size={20} />
-          <span>Bài học</span>
-          <strong>{formatNumber(aggregateStats.totalLessons)}</strong>
+          <CheckCircle2 size={20} />
+          <span>Bài đã hoàn thành</span>
+          <strong>{formatNumber(summary.totalCompletedLessons)}</strong>
         </article>
         <article className={styles.statCard}>
-          <Users size={20} />
-          <span>Lượt đăng ký</span>
-          <strong>{formatNumber(totalEnrollments)}</strong>
+          <Clock3 size={20} />
+          <span>Thời gian học</span>
+          <strong>{formatDuration(summary.totalLearningSeconds)}</strong>
         </article>
         <article className={styles.statCard}>
           <ClipboardCheck size={20} />
-          <span>Quiz</span>
-          <strong>{formatNumber(totalQuizzes)}</strong>
+          <span>Lượt làm quiz</span>
+          <strong>{formatNumber(summary.totalIndependentQuizAttempts)}</strong>
         </article>
       </section>
 
@@ -286,24 +228,24 @@ const Home = () => {
         <article className={styles.panel}>
           <div className={styles.sectionHead}>
             <div>
-              <h2>Nền tảng hiện có</h2>
-              <p>Các con số tổng quát để người dùng hiểu nhanh quy mô LMS.</p>
+              <h2>Tiến độ của tôi</h2>
+              <p>Các số liệu được tính từ khóa học bạn đã đăng ký.</p>
             </div>
             <BarChart3 size={20} />
           </div>
 
           <div className={styles.metricList}>
             <div>
-              <span>Danh mục</span>
-              <strong>{formatNumber(categories.length)}</strong>
+              <span>Tổng khóa đã đăng ký</span>
+              <strong>{formatNumber(enrollments.length)}</strong>
             </div>
             <div>
-              <span>Người dùng</span>
-              <strong>{formatNumber(totalUsers)}</strong>
+              <span>Đã hoàn thành khóa</span>
+              <strong>{formatNumber(summary.completedCourses)}</strong>
             </div>
             <div>
-              <span>Giờ học ước tính</span>
-              <strong>{formatNumber(aggregateStats.totalHours)}</strong>
+              <span>Tiến độ trung bình</span>
+              <strong>{formatPercent(averageProgress)}</strong>
             </div>
           </div>
         </article>
@@ -312,7 +254,7 @@ const Home = () => {
           <div className={styles.sectionHead}>
             <div>
               <h2>Truy cập nhanh</h2>
-              <p>Các khu vực chính của hệ thống học tập.</p>
+              <p>Các khu vực hay dùng trong quá trình học.</p>
             </div>
             <Sparkles size={20} />
           </div>
@@ -339,81 +281,77 @@ const Home = () => {
         </article>
       </section>
 
-      <section className={styles.overviewGrid}>
-        <article className={styles.panel}>
-          <div className={styles.sectionHead}>
-            <div>
-              <h2>Danh mục nổi bật</h2>
-              <p>Các nhóm khóa học xuất hiện trong danh sách đang hiển thị.</p>
-            </div>
-            <Boxes size={20} />
+      {recommendedCourse ? (
+        <section className={styles.continuePanel}>
+          <div>
+            <span className={styles.eyebrowLight}>Nên học tiếp</span>
+            <h2>{recommendedCourse.courseTitle}</h2>
+            <p>
+              Gợi ý dựa trên tiến độ hiện tại và lần truy cập gần nhất của bạn.
+            </p>
           </div>
-
-          {topCategories.length === 0 ? (
-            <div className={styles.emptyBox}>Chưa có dữ liệu danh mục.</div>
-          ) : (
-            <div className={styles.categoryList}>
-              {topCategories.map((category) => (
-                <div key={category.name} className={styles.categoryItem}>
-                  <span>{category.name}</span>
-                  <strong>{category.count} khóa</strong>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-
-        <article className={styles.panel}>
-          <div className={styles.sectionHead}>
-            <div>
-              <h2>Vai trò của hệ thống</h2>
-              <p>LMS hỗ trợ học viên, giảng viên và quản trị cùng một nền tảng.</p>
-            </div>
-            <ShieldCheck size={20} />
+          <div className={styles.continueActions}>
+            <strong>{formatPercent(recommendedCourse.progressPercent)}</strong>
+            <button
+              type="button"
+              onClick={() => openCourse(recommendedCourse.courseId)}
+              disabled={openingCourseId === recommendedCourse.courseId}
+            >
+              {openingCourseId === recommendedCourse.courseId
+                ? "Đang mở..."
+                : "Học tiếp"}
+            </button>
           </div>
-
-          <div className={styles.roleGrid}>
-            <div>
-              <strong>Học viên</strong>
-              <span>Học khóa, làm quiz, theo dõi tiến độ và thảo luận.</span>
-            </div>
-            <div>
-              <strong>Giảng viên</strong>
-              <span>Quản lý khóa học, bài học, quiz và bài nộp.</span>
-            </div>
-            <div>
-              <strong>Quản trị</strong>
-              <span>Quản lý người dùng, danh mục, đăng ký và báo cáo.</span>
-            </div>
-          </div>
-        </article>
-      </section>
+        </section>
+      ) : null}
 
       <section className={styles.courseSection}>
         <div className={styles.sectionHead}>
           <div>
-            <span className={styles.eyebrowLight}>Danh sách khóa học</span>
-            <h2>Khóa học nổi bật</h2>
-            <p>Chọn khóa phù hợp để xem chi tiết hoặc vào thẳng màn hình học nếu đã đăng ký.</p>
+            <span className={styles.eyebrowLight}>Khóa học của tôi</span>
+            <h2>Các khóa đã đăng ký</h2>
+            <p>Chỉ hiển thị các khóa thuộc tài khoản đang đăng nhập.</p>
           </div>
+
+          <label className={styles.searchBox}>
+            <Search size={17} />
+            <input
+              type="text"
+              placeholder="Tìm khóa học..."
+              value={keyword}
+              onChange={(event) => setKeyword(event.target.value)}
+            />
+          </label>
         </div>
 
         {loading ? (
-          <div className={styles.emptyBox}>Đang tải danh sách khóa học...</div>
-        ) : courses.length === 0 ? (
-          <div className={styles.emptyBox}>Chưa có khóa học nào để hiển thị.</div>
+          <div className={styles.emptyBox}>Đang tải tổng quan cá nhân...</div>
+        ) : filteredEnrollments.length === 0 ? (
+          <div className={styles.emptyBox}>
+            Bạn chưa có khóa học nào phù hợp để hiển thị.
+          </div>
         ) : (
-          <div className={styles.grid}>
-            {courses.map((course) => (
-              <div key={course.id}>
-                <CourseShowcaseCard
-                  course={course}
-                  stats={courseStatsMap[course.id]}
-                  baseUrl={LMS_BASE_URL}
-                  onClick={() => handleOpenCourse(course.id)}
-                  busy={openingCourseId === course.id}
-                />
-              </div>
+          <div className={styles.myCourseList}>
+            {filteredEnrollments.map((item) => (
+              <article key={item.id || item.courseId} className={styles.myCourseItem}>
+                <div>
+                  <strong>{item.courseTitle}</strong>
+                  <span>
+                    {item.status === "COMPLETED" ? "Đã hoàn thành" : "Đang học"} -{" "}
+                    truy cập gần nhất: {formatDateTime(item.lastAccessedAt)}
+                  </span>
+                </div>
+                <div className={styles.courseProgress}>
+                  <strong>{formatPercent(item.progressPercent)}</strong>
+                  <button
+                    type="button"
+                    onClick={() => openCourse(item.courseId)}
+                    disabled={openingCourseId === item.courseId}
+                  >
+                    {openingCourseId === item.courseId ? "Đang mở..." : "Vào học"}
+                  </button>
+                </div>
+              </article>
             ))}
           </div>
         )}

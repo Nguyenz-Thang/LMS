@@ -3,17 +3,14 @@ package com.nt.lms.service;
 import java.util.List;
 
 import com.nt.lms.dto.request.CreateQuizRequest;
-import com.nt.lms.dto.request.SubmitQuizRequest;
 import com.nt.lms.dto.response.AdminQuizAttemptResponse;
 import com.nt.lms.dto.response.QuizResponse;
-import com.nt.lms.dto.response.QuizResultResponse;
 import com.nt.lms.entity.QuizOption;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Lesson;
 import com.nt.lms.entity.Question;
 import com.nt.lms.entity.Quiz;
 import com.nt.lms.entity.QuizAttempt;
-import com.nt.lms.entity.QuizResult;
 import com.nt.lms.entity.User;
 import com.nt.lms.exception.AppException;
 import com.nt.lms.exception.ErrorCode;
@@ -22,7 +19,6 @@ import com.nt.lms.repository.CourseRepository;
 import com.nt.lms.repository.QuestionRepository;
 import com.nt.lms.repository.QuizAttemptRepository;
 import com.nt.lms.repository.QuizRepository;
-import com.nt.lms.repository.QuizResultRepository;
 import com.nt.lms.repository.UserRepository;
 import com.nt.lms.repository.LessonRepository;
 
@@ -45,7 +41,6 @@ public class QuizService {
     QuestionRepository questionRepository;
     QuizOptionRepository quizOptionRepository;
     QuizAttemptRepository quizAttemptRepository;
-    QuizResultRepository quizResultRepository;
     UserRepository userRepository;
     CourseRepository courseRepository;
     LessonRepository lessonRepository;
@@ -190,56 +185,6 @@ public class QuizService {
         quizRepository.delete(quiz);
         quizRepository.flush();
     }
-
-    // ================= SUBMIT =================
-    public QuizResultResponse submitQuiz(SubmitQuizRequest request) {
-        Quiz quiz = quizRepository.findById(request.getQuizId())
-                .orElseThrow(() -> new AppException(ErrorCode.QUIZ_NOT_EXISTED));
-
-        List<Question> questions = questionRepository.findByQuizId(quiz.getId());
-
-        int correct = 0;
-
-        for (Question q : questions) {
-            String selectedOptionId = request.getAnswers().get(q.getId());
-
-            if (selectedOptionId == null) continue;
-
-            QuizOption option = quizOptionRepository.findById(selectedOptionId)
-                    .orElse(null);
-
-            // 🔥 FIX chuẩn
-            if (option != null
-                    && option.getQuestion().getId().equals(q.getId())
-                    && option.isCorrect()) {
-                correct++;
-            }
-        }
-
-        double score = questions.isEmpty() ? 0 : (double) correct / questions.size() * 10;
-
-        String username = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
-
-        QuizResult result = QuizResult.builder()
-                .quiz(quiz)
-                .user(user)
-                .score(score)
-                .build();
-
-        quizResultRepository.save(result);
-
-        return QuizResultResponse.builder()
-                .quizId(quiz.getId())
-                .score(score)
-                .build();
-    }
-
-
 
     // ================= VALIDATE =================
     private void validateQuizRequest(CreateQuizRequest request) {

@@ -284,6 +284,144 @@
   gap: 2px;
 }
 
+.continuePanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+
+  h2 {
+    margin: 0 0 8px;
+    color: #0f172a;
+    font-size: 23px;
+    font-weight: 900;
+  }
+
+  p {
+    margin: 0;
+    color: #475569;
+    line-height: 1.6;
+  }
+}
+
+.continueActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 0 0 auto;
+
+  strong {
+    color: #1d4ed8;
+    font-size: 28px;
+    font-weight: 900;
+  }
+
+  button {
+    min-height: 40px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 8px;
+    background: #2563eb;
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.searchBox {
+  min-width: 280px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+
+  input {
+    width: 100%;
+    border: none;
+    outline: none;
+    color: #0f172a;
+    font: inherit;
+    background: transparent;
+  }
+}
+
+.myCourseList {
+  display: grid;
+  gap: 10px;
+}
+
+.myCourseItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+
+  > div:first-child {
+    min-width: 0;
+  }
+
+  strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 13px;
+  }
+}
+
+.courseProgress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+
+  strong {
+    margin: 0;
+    color: #1d4ed8;
+    font-size: 18px;
+  }
+
+  button {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 800;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+  }
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -341,7 +479,9 @@ button:focus-visible {
   }
 
   .hero,
-  .sectionHead {
+  .sectionHead,
+  .continuePanel,
+  .myCourseItem {
     flex-direction: column;
     align-items: stretch;
   }
@@ -355,5 +495,14 @@ button:focus-visible {
   .quickGrid,
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .searchBox {
+    min-width: 0;
+  }
+
+  .continueActions,
+  .courseProgress {
+    justify-content: space-between;
   }
 }

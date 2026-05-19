@@ -1,5 +1,6 @@
 package com.nt.lms.dto.request;
 
+import java.math.BigDecimal;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -19,4 +20,7 @@ public class CourseRequest {
     String visibility;      // PUBLIC, PRIVATE, UNLISTED
     String level;           // BEGINNER, INTERMEDIATE, ADVANCED
     Integer estimatedHours;
+    BigDecimal price;
+    String currency;
+    Boolean paid;
 }

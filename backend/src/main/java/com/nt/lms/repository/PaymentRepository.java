@@ -1,0 +1,15 @@
+package com.nt.lms.repository;
+
+import com.nt.lms.entity.Payment;
+import com.nt.lms.enums.PaymentStatus;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface PaymentRepository extends JpaRepository<Payment, String> {
+    Optional<Payment> findByPaymentCode(String paymentCode);
+
+    Optional<Payment> findFirstByUserIdAndCourseIdAndStatusOrderByCreatedAtDesc(
+            String userId, String courseId, PaymentStatus status);
+
+    boolean existsBySepayTransactionId(String sepayTransactionId);
+}

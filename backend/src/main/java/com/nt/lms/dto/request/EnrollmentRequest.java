@@ -9,4 +9,5 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class EnrollmentRequest {
     String courseId;
+    Boolean paymentConfirmed;
 }

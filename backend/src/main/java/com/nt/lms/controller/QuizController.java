@@ -1,11 +1,9 @@
 package com.nt.lms.controller;
 
 import com.nt.lms.dto.request.CreateQuizRequest;
-import com.nt.lms.dto.request.SubmitQuizRequest;
 import com.nt.lms.dto.response.AdminQuizAttemptResponse;
 import com.nt.lms.dto.response.ApiResponse;
 import com.nt.lms.dto.response.QuizResponse;
-import com.nt.lms.dto.response.QuizResultResponse;
 import com.nt.lms.service.QuizService;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -71,13 +69,6 @@ public class QuizController {
         quizService.updateQuizPublishStatus(quizId, false);
         return ApiResponse.<String>builder()
                 .result("Quiz unpublished successfully")
-                .build();
-    }
-
-    @PostMapping("/submit")
-    ApiResponse<QuizResultResponse> submitQuiz(@RequestBody SubmitQuizRequest request) {
-        return ApiResponse.<QuizResultResponse>builder()
-                .result(quizService.submitQuiz(request))
                 .build();
     }
 

@@ -111,6 +111,23 @@
   color: #64748b;
 }
 
+.descriptionEditorWrap {
+  border-radius: 10px;
+
+  :global(.ql-toolbar.ql-snow) {
+    padding: 6px 8px;
+  }
+
+  :global(.ql-container.ql-snow) {
+    min-height: 88px;
+  }
+
+  :global(.ql-editor) {
+    min-height: 88px;
+    line-height: 1.7;
+  }
+}
+
 .noteBox {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

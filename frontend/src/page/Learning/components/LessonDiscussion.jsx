@@ -10,7 +10,6 @@ import {
   List,
   ListOrdered,
   MessageCircle,
-  MoreHorizontal,
   Quote,
   Send,
   ThumbsUp,
@@ -205,7 +204,6 @@ function CommentEditor({
     >
       <div className={styles.commentToolbar}>
         {tools.map(([key, ToolIcon, label]) => {
-          const icon = ToolIcon({ size: compact ? 14 : 16 });
           return (
             <button
               key={key}
@@ -214,7 +212,7 @@ function CommentEditor({
               onClick={() => applyFormat(key)}
               disabled={disabled}
             >
-              {icon}
+              <ToolIcon size={compact ? 14 : 16} />
             </button>
           );
         })}
@@ -244,7 +242,6 @@ export default function LessonDiscussion({ lessonId }) {
   const [replyContent, setReplyContent] = useState("");
   const [expandedReplies, setExpandedReplies] = useState({});
   const [likedMap, setLikedMap] = useState({});
-  const [reportedMap, setReportedMap] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -357,10 +354,6 @@ export default function LessonDiscussion({ lessonId }) {
     setLikedMap((prev) => ({ ...prev, [commentId]: !prev[commentId] }));
   };
 
-  const toggleReport = (commentId) => {
-    setReportedMap((prev) => ({ ...prev, [commentId]: !prev[commentId] }));
-  };
-
   const renderComment = (comment, nested = false) => {
     const childReplies = repliesByParent[comment.id] || [];
     const expanded = Boolean(expandedReplies[comment.id]);
@@ -384,14 +377,6 @@ export default function LessonDiscussion({ lessonId }) {
             </div>
 
             <div className={styles.lessonCommentMenu}>
-              <button
-                type="button"
-                className={reportedMap[comment.id] ? styles.commentReportedBtn : ""}
-                onClick={() => toggleReport(comment.id)}
-                title="Báo cáo bình luận"
-              >
-                <MoreHorizontal size={16} />
-              </button>
               {comment.canDelete ? (
                 <button
                   type="button"
@@ -428,12 +413,6 @@ export default function LessonDiscussion({ lessonId }) {
               </button>
             ) : null}
           </div>
-
-          {reportedMap[comment.id] ? (
-            <div className={styles.commentReportedText}>
-              Đã ghi nhận báo cáo. Admin sẽ xem lại khi có module kiểm duyệt.
-            </div>
-          ) : null}
 
           {!nested && replyingTo === comment.id ? (
             <CommentEditor

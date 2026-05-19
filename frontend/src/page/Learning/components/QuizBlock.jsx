@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import styles from "../Learning.module.scss";
 
@@ -15,7 +15,10 @@ export default function QuizBlock({
   const [startingQuiz, setStartingQuiz] = useState(false);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [quizError, setQuizError] = useState("");
-  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  const [selectedOptionIds, setSelectedOptionIds] = useState([]);
+  const [answered, setAnswered] = useState(false);
+  const [answerCorrect, setAnswerCorrect] = useState(null);
+  const autoStartedQuizRef = useRef("");
 
   useEffect(() => {
     let isMounted = true;
@@ -24,6 +27,10 @@ export default function QuizBlock({
       try {
         setLoadingQuiz(true);
         setQuizError("");
+        setSelectedOptionIds([]);
+        setAnswered(false);
+        setAnswerCorrect(null);
+
         const res = await getLearningQuiz(quizId);
         if (isMounted) setQuizData(res?.result || null);
       } catch (error) {
@@ -44,143 +51,129 @@ export default function QuizBlock({
     };
   }, [quizId, getLearningQuiz]);
 
-  useEffect(() => {
-    setActiveQuestionIndex(0);
-  }, [quizData?.attemptId, quizData?.quizId]);
-
-  const questions = quizData?.questions || [];
-
-  const handleStartQuiz = async () => {
+  const handleStartQuiz = useCallback(async () => {
     try {
       setStartingQuiz(true);
       setQuizError("");
       const res = await startLearningQuiz(quizId);
       setQuizData(res?.result || null);
     } catch (error) {
-      setQuizError(
-        error?.body?.message || error?.message || "Không thể bắt đầu quiz.",
-      );
+      autoStartedQuizRef.current = "";
+      setQuizError(error?.body?.message || error?.message || "Không thể mở quiz.");
     } finally {
       setStartingQuiz(false);
     }
-  };
+  }, [quizId, startLearningQuiz]);
 
-  const handleSaveAnswer = async (payload) => {
-    if (!quizData?.attemptId) return;
-
-    try {
-      const res = await saveQuizAnswer(quizData.attemptId, payload);
-      setQuizData(res?.result || null);
-    } catch (error) {
-      setQuizError(
-        error?.body?.message || error?.message || "Không lưu được đáp án.",
-      );
+  useEffect(() => {
+    if (
+      loadingQuiz ||
+      !quizData ||
+      quizData.attemptId ||
+      startingQuiz ||
+      autoStartedQuizRef.current === quizId
+    ) {
+      return;
     }
+
+    autoStartedQuizRef.current = quizId;
+    handleStartQuiz();
+  }, [handleStartQuiz, loadingQuiz, quizData, quizId, startingQuiz]);
+
+  const question = quizData?.questions?.[0] || null;
+  const correctOptionIds = useMemo(() => {
+    if (!question) return [];
+    if (question.correctOptionId) return [question.correctOptionId];
+    return question.correctOptionIds || [];
+  }, [question]);
+
+  const hasSelected = selectedOptionIds.length > 0;
+  const isMultipleChoice =
+    String(question?.questionType || "").toUpperCase() === "MULTIPLE_CHOICE";
+
+  const isSelectionCorrect = () => {
+    if (!question || !hasSelected) return false;
+    const selected = [...selectedOptionIds].sort();
+    const correct = [...correctOptionIds].sort();
+    return (
+      selected.length === correct.length &&
+      selected.every((optionId, index) => optionId === correct[index])
+    );
   };
 
-  const handleSelectOption = async (questionId, selectedOptionId) => {
-    await handleSaveAnswer({
-      questionId,
-      selectedOptionId,
+  const handleSelectOption = (optionId) => {
+    if (submittingQuiz) return;
+
+    setAnswered(false);
+    setAnswerCorrect(null);
+
+    setSelectedOptionIds((prev) => {
+      if (!isMultipleChoice) {
+        return [optionId];
+      }
+
+      return prev.includes(optionId)
+        ? prev.filter((id) => id !== optionId)
+        : [...prev, optionId];
     });
   };
 
-  const handleToggleMultipleOption = async (questionId, optionId) => {
-    const question = questions.find((item) => item.id === questionId);
-    const currentOptionIds = question?.selectedOptionIds || [];
-    const nextOptionIds = currentOptionIds.includes(optionId)
-      ? currentOptionIds.filter((id) => id !== optionId)
-      : [...currentOptionIds, optionId];
+  const persistUnlockIfNeeded = async () => {
+    if (!quizData?.attemptId || quizData?.attemptStatus !== "IN_PROGRESS") {
+      await onQuizSubmitted?.({ autoNavigate: false });
+      return;
+    }
 
-    await handleSaveAnswer({
-      questionId,
-      selectedOptionIds: nextOptionIds,
-    });
+    const payload = {
+      questionId: question.id,
+      selectedOptionId: isMultipleChoice ? null : selectedOptionIds[0],
+      selectedOptionIds: isMultipleChoice ? selectedOptionIds : [],
+    };
+
+    const savedRes = await saveQuizAnswer(quizData.attemptId, payload);
+    const savedData = savedRes?.result || quizData;
+    setQuizData(savedData);
+
+    const submitRes = await submitLearningQuiz(savedData.attemptId);
+    const submittedData = submitRes?.result || savedData;
+    setQuizData(submittedData);
+
+    await onQuizSubmitted?.({ autoNavigate: false, skipSave: true });
   };
 
-  const handleSubmitQuiz = async () => {
-    if (!quizData?.attemptId) return;
+  const handleAnswer = async () => {
+    if (!hasSelected || !question || submittingQuiz) return;
+
+    const correct = isSelectionCorrect();
+    setAnswered(true);
+    setAnswerCorrect(correct);
+
+    if (!correct) return;
 
     try {
       setSubmittingQuiz(true);
-      const res = await submitLearningQuiz(quizData.attemptId);
-      const nextData = res?.result || null;
-      setQuizData(nextData);
-      await onQuizSubmitted?.({
-        autoNavigate: false,
-      });
+      setQuizError("");
+      await persistUnlockIfNeeded();
     } catch (error) {
-      setQuizError(
-        error?.body?.message || error?.message || "Không nộp được quiz.",
-      );
+      setQuizError(error?.body?.message || error?.message || "Không mở được bài tiếp.");
     } finally {
       setSubmittingQuiz(false);
     }
   };
 
-  if (loadingQuiz) {
-    return <div className={styles.quizState}>Đang tải quiz...</div>;
+  if (loadingQuiz || startingQuiz) {
+    return <div className={styles.quizState}>Đang tải câu hỏi...</div>;
   }
 
   if (quizError) {
     return <div className={styles.quizError}>{quizError}</div>;
   }
 
-  if (!quizData) {
-    return <div className={styles.quizState}>Không có dữ liệu quiz.</div>;
+  if (!quizData?.attemptId || !quizData?.attemptStatus) {
+    return <div className={styles.quizState}>Đang mở quiz...</div>;
   }
 
-  const canAnswer = quizData.attemptStatus === "IN_PROGRESS";
-  const submitted =
-    quizData.attemptStatus === "SUBMITTED" ||
-    quizData.attemptStatus === "GRADED";
-  const totalQuestions = questions.length;
-  const answeredCount = questions.filter((question) =>
-    question.questionType === "MULTIPLE_CHOICE"
-      ? (question.selectedOptionIds || []).length > 0
-      : Boolean(question.selectedOptionId),
-  ).length;
-  const allAnswered = totalQuestions > 0 && answeredCount === totalQuestions;
-  const safeQuestionIndex = Math.min(activeQuestionIndex, totalQuestions - 1);
-  const activeQuestion = questions[safeQuestionIndex] || null;
-  const isLastQuestion = safeQuestionIndex === totalQuestions - 1;
-
-  const submitLabel = submittingQuiz
-    ? "Đang trả lời..."
-    : totalQuestions <= 1
-      ? "Trả lời"
-      : "Hoàn thành";
-
-  if (!quizData.attemptId || !quizData.attemptStatus) {
-    return (
-      <div className={styles.quizStartCard}>
-        <div className={styles.quizHeader}>
-          <div>
-            <h3>{quizData.title}</h3>
-            <p>
-              {quizData.description || "Quiz kiểm tra mức độ hiểu bài của bạn."}
-            </p>
-          </div>
-
-          <div className={styles.quizMeta}>
-            <span>{totalQuestions} câu hỏi</span>
-            <span>Giới hạn: {quizData.maxAttempts ?? 1} lượt</span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className={styles.quizPrimaryBtn}
-          onClick={handleStartQuiz}
-          disabled={startingQuiz}
-        >
-          {startingQuiz ? "Đang bắt đầu..." : "Bắt đầu quiz"}
-        </button>
-      </div>
-    );
-  }
-
-  if (!activeQuestion) {
+  if (!question) {
     return <div className={styles.quizState}>Quiz chưa có câu hỏi.</div>;
   }
 
@@ -190,85 +183,33 @@ export default function QuizBlock({
         <div
           className={styles.quizRichText}
           dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(activeQuestion.questionText || ""),
+            __html: DOMPurify.sanitize(question.questionText || ""),
           }}
         />
-        <p>
-          {totalQuestions > 1
-            ? `Câu ${safeQuestionIndex + 1} / ${totalQuestions}`
-            : "Chọn câu trả lời đúng."}
-        </p>
+        <p>Chọn câu trả lời đúng.</p>
       </div>
 
-      {totalQuestions > 1 ? (
-        <div className={styles.quizStepper}>
-          {questions.map((question, index) => {
-            const answered =
-              question.questionType === "MULTIPLE_CHOICE"
-                ? (question.selectedOptionIds || []).length > 0
-                : Boolean(question.selectedOptionId);
-
-            const itemClasses = [
-              styles.quizStep,
-              index === safeQuestionIndex ? styles.quizStepActive : "",
-              answered ? styles.quizStepDone : "",
-            ]
-              .filter(Boolean)
-              .join(" ");
-
-            return (
-              <button
-                key={question.id}
-                type="button"
-                className={itemClasses}
-                onClick={() => setActiveQuestionIndex(index)}
-              >
-                {index + 1}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-
       <div className={styles.quizOptionsSimple}>
-        {(activeQuestion.options || []).map((option) => {
-          const checked =
-            activeQuestion.questionType === "MULTIPLE_CHOICE"
-              ? (activeQuestion.selectedOptionIds || []).includes(option.id)
-              : activeQuestion.selectedOptionId === option.id;
-          const revealCorrect =
-            submitted &&
-            (activeQuestion.questionType === "MULTIPLE_CHOICE"
-              ? (activeQuestion.correctOptionIds || []).includes(option.id)
-              : activeQuestion.correctOptionId === option.id);
-          const revealWrong = submitted && checked && !revealCorrect;
+        {(question.options || []).map((option) => {
+          const checked = selectedOptionIds.includes(option.id);
           const optionClasses = [
             styles.quizOptionSimple,
             checked ? styles.quizOptionSimpleSelected : "",
-            revealCorrect ? styles.quizOptionSimpleCorrect : "",
-            revealWrong ? styles.quizOptionSimpleWrong : "",
+            answered && checked && answerCorrect ? styles.quizOptionSimpleCorrect : "",
+            answered && checked && answerCorrect === false
+              ? styles.quizOptionSimpleWrong
+              : "",
           ]
             .filter(Boolean)
             .join(" ");
-
-          if (!canAnswer) {
-            return (
-              <div key={option.id} className={optionClasses}>
-                {option.optionText}
-              </div>
-            );
-          }
 
           return (
             <button
               key={option.id}
               type="button"
               className={optionClasses}
-              onClick={() =>
-                activeQuestion.questionType === "MULTIPLE_CHOICE"
-                  ? handleToggleMultipleOption(activeQuestion.id, option.id)
-                  : handleSelectOption(activeQuestion.id, option.id)
-              }
+              onClick={() => handleSelectOption(option.id)}
+              disabled={submittingQuiz}
             >
               {option.optionText}
             </button>
@@ -276,93 +217,39 @@ export default function QuizBlock({
         })}
       </div>
 
-      {canAnswer ? (
-        <div className={styles.quizSingleActions}>
-          {totalQuestions > 1 && !isLastQuestion ? (
-            <button
-              type="button"
-              className={styles.quizGhostBtn}
-              onClick={() => setActiveQuestionIndex((prev) => prev + 1)}
-              disabled={
-                activeQuestion.questionType === "MULTIPLE_CHOICE"
-                  ? (activeQuestion.selectedOptionIds || []).length === 0
-                  : !activeQuestion.selectedOptionId
-              }
-            >
-              Câu tiếp theo
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={styles.quizPrimaryBtn}
-              onClick={handleSubmitQuiz}
-              disabled={submittingQuiz || !allAnswered}
-            >
-              {submitLabel}
-            </button>
-          )}
+      <div className={styles.quizSingleActions}>
+        <button
+          type="button"
+          className={styles.quizPrimaryBtn}
+          onClick={handleAnswer}
+          disabled={!hasSelected || submittingQuiz}
+        >
+          {submittingQuiz ? "ĐANG LƯU TIẾN ĐỘ..." : "TRẢ LỜI"}
+        </button>
+      </div>
+
+      {answered ? (
+        <div className={styles.quizExplanationPanel}>
+          {answerCorrect === false ? (
+            <p className={styles.quizAnswerNote}>
+              Đáp án này chưa đúng. Hãy chọn lại đáp án khác.
+            </p>
+          ) : null}
+
+          {answerCorrect === true ? (
+            <>
+              <h4>Giải thích</h4>
+              {question.explanation ? (
+                <div
+                  className={`${styles.quizExplanationContent} ${styles.quizRichText}`}
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(question.explanation || ""),
+                  }}
+                />
+              ) : null}
+            </>
+          ) : null}
         </div>
-      ) : null}
-
-      {submitted ? (
-        <>
-          <div className={styles.quizSingleActions}>
-            {totalQuestions > 1 ? (
-              <div className={styles.quizPager}>
-                <button
-                  type="button"
-                  className={styles.quizGhostBtn}
-                  onClick={() =>
-                    setActiveQuestionIndex((prev) => Math.max(prev - 1, 0))
-                  }
-                  disabled={safeQuestionIndex === 0}
-                >
-                  Câu trước
-                </button>
-
-                <button
-                  type="button"
-                  className={styles.quizGhostBtn}
-                  onClick={() =>
-                    setActiveQuestionIndex((prev) =>
-                      Math.min(prev + 1, totalQuestions - 1),
-                    )
-                  }
-                  disabled={safeQuestionIndex === totalQuestions - 1}
-                >
-                  Câu tiếp theo
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          <div className={styles.quizExplanationPanel}>
-            <h4>Giải thích</h4>
-            {!activeQuestion.correct ? (
-              <p className={styles.quizAnswerNote}>
-                Đáp án đúng:
-                <strong>
-                  {" "}
-                  {activeQuestion.questionType === "MULTIPLE_CHOICE"
-                    ? (activeQuestion.correctOptionTexts || []).join(", ") ||
-                      "Chưa có"
-                    : activeQuestion.correctOptionText || "Chưa có"}
-                </strong>
-              </p>
-            ) : (
-              <p className={styles.quizAnswerNote}>Bạn đã chọn đáp án đúng.</p>
-            )}
-
-            {activeQuestion.explanation ? (
-              <div
-                className={`${styles.quizExplanationContent} ${styles.quizRichText}`}
-                dangerouslySetInnerHTML={{
-                  __html: DOMPurify.sanitize(activeQuestion.explanation || ""),
-                }}
-              />
-            ) : null}
-          </div>
-        </>
       ) : null}
     </div>
   );

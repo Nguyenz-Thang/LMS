@@ -26,6 +26,17 @@ const READING_EDITOR_FORMATS = [
   "image",
 ];
 
+const DESCRIPTION_EDITOR_FORMATS = [
+  "bold",
+  "italic",
+  "underline",
+  "strike",
+  "list",
+  "bullet",
+  "link",
+  "clean",
+];
+
 function stripHtml(html = "") {
   return html
     .replace(/<[^>]+>/g, "")
@@ -166,6 +177,18 @@ function AddLessonModal({
     [],
   );
 
+  const descriptionEditorModules = useMemo(
+    () => ({
+      toolbar: [
+        ["bold", "italic", "underline", "strike"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["link"],
+        ["clean"],
+      ],
+    }),
+    [],
+  );
+
   useEffect(() => {
     if (!isOpen) return;
     setForm(initialForm);
@@ -192,6 +215,13 @@ function AddLessonModal({
     setForm((prev) => ({
       ...prev,
       content: value,
+    }));
+  };
+
+  const handleDescriptionChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      description: value,
     }));
   };
 
@@ -295,14 +325,21 @@ function AddLessonModal({
 
           <div className={styles.formGroup}>
             <label htmlFor="description">Mô tả ngắn</label>
-            <textarea
-              id="description"
-              name="description"
-              rows="3"
-              value={form.description}
-              onChange={handleChange}
-              placeholder="Nhập mô tả ngắn..."
-            />
+            <div className={`${styles.editorWrap} ${styles.descriptionEditorWrap}`}>
+              <ReactQuill
+                id="description"
+                theme="snow"
+                value={form.description}
+                onChange={handleDescriptionChange}
+                modules={descriptionEditorModules}
+                formats={DESCRIPTION_EDITOR_FORMATS}
+                placeholder="Nhập mô tả ngắn..."
+                className={styles.descriptionEditor}
+              />
+            </div>
+            <p className={styles.editorHint}>
+              Có thể in đậm, nghiêng, gạch chân, danh sách và link.
+            </p>
           </div>
 
           <div className={styles.formGroup}>

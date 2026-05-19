@@ -4,8 +4,11 @@ import com.nt.lms.entity.LessonBlock;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface LessonBlockRepository extends JpaRepository<LessonBlock, String> {
 
     List<LessonBlock> findByLessonIdOrderByOrderIndexAsc(String lessonId);
+
+    Optional<LessonBlock> findFirstByQuiz_Id(String quizId);
 }

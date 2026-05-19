@@ -17,6 +17,5 @@ public class LearningLessonItemResponse {
     private Boolean preview;
     private Boolean completed;
     private Boolean locked;
-    private Boolean bookmarked;
     private Integer lastPositionSec;
 }

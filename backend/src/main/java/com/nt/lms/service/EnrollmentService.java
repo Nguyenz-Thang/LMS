@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -86,6 +87,10 @@ public class EnrollmentService {
 
         if (enrollmentRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
             throw new AppException(ErrorCode.ALREADY_ENROLLED);
+        }
+
+        if (requiresPayment(course)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
         Enrollment enrollment = Enrollment.builder()
@@ -228,6 +233,14 @@ public class EnrollmentService {
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    }
+
+    private boolean requiresPayment(Course course) {
+        if (!Boolean.TRUE.equals(course.getPaid())) {
+            return false;
+        }
+        BigDecimal price = course.getPrice();
+        return price != null && price.compareTo(BigDecimal.ZERO) > 0;
     }
 
     private List<ProgressTimelinePointResponse> buildDailyCompletionSeries(

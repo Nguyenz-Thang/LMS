@@ -38,3 +38,12 @@ lms:
     enabled: ${LMS_MAIL_ENABLED:false}
     from: ${MAIL_FROM:no-reply@lms.local}
     weekly-progress-cron: ${LMS_WEEKLY_PROGRESS_CRON:0 0 7 * * MON}
+  payment:
+    sepay:
+      bank-code: ${SEPAY_BANK_CODE:TPB}
+      bank-name: ${SEPAY_BANK_NAME:TPBank}
+      account-number: ${SEPAY_ACCOUNT_NUMBER:88826062004}
+      account-name: ${SEPAY_ACCOUNT_NAME:NGUYEN TAT THANG}
+      payment-prefix: ${SEPAY_PAYMENT_PREFIX:LMS}
+      webhook-api-key: ${SEPAY_WEBHOOK_API_KEY:}
+      webhook-secret: ${SEPAY_WEBHOOK_SECRET:}

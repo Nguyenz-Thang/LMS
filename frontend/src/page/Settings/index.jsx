@@ -9,11 +9,6 @@ const SETTING_ITEMS = [
     description: "Nhận email khi khóa học có bài tập mới được giao.",
   },
   {
-    key: "newLessonEmail",
-    title: "Bài học mới trong khóa",
-    description: "Nhận email khi giảng viên xuất bản bài học mới.",
-  },
-  {
     key: "weeklyProgressEmail",
     title: "Báo cáo học tập hằng tuần",
     description: "Nhận email tóm tắt tiến độ học tập của bạn mỗi tuần.",
@@ -22,14 +17,11 @@ const SETTING_ITEMS = [
 
 export default function Settings() {
   const [settings, setSettings] = useState({
-    newLessonEmail: true,
     newAssignmentEmail: true,
     weeklyProgressEmail: true,
   });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState("");
-  const [sendingTest, setSendingTest] = useState(false);
-  const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
@@ -64,7 +56,6 @@ export default function Settings() {
 
     setSettings(nextState);
     setSavingKey(key);
-    setMessage("");
     setErrorText("");
 
     try {
@@ -76,7 +67,6 @@ export default function Settings() {
         ...prev,
         ...(res?.data?.result || {}),
       }));
-      setMessage("Đã cập nhật cài đặt email.");
     } catch (error) {
       setSettings((prev) => ({
         ...prev,
@@ -91,45 +81,19 @@ export default function Settings() {
     }
   };
 
-  const sendTestEmail = async () => {
-    try {
-      setSendingTest(true);
-      setMessage("");
-      setErrorText("");
-      const res = await api.post("/notification-settings/me/test-email");
-      setMessage(res?.data?.result || "Đã gửi email test.");
-    } catch (error) {
-      setErrorText(
-        error?.response?.data?.message || "Không gửi được email test.",
-      );
-    } finally {
-      setSendingTest(false);
-    }
-  };
-
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
-        <div>
+        <div className={styles.heroContent}>
+          <span className={styles.eyebrow}>Cài đặt tài khoản</span>
           <h1>Thông báo qua email</h1>
           <p>
-            Quản lý các email học tập mà hệ thống gửi đến bạn. Tôi chỉ giữ các
-            mục phù hợp với LMS của đồ án: bài tập mới, bài học mới và báo cáo
-            tiến độ tuần.
+            Chọn những thông báo học tập bạn muốn nhận trong quá trình tham gia
+            khóa học.
           </p>
         </div>
-
-        <button
-          type="button"
-          className={styles.testBtn}
-          onClick={sendTestEmail}
-          disabled={sendingTest || loading}
-        >
-          {sendingTest ? "Đang gửi email test..." : "Gửi email test"}
-        </button>
       </div>
 
-      {message ? <div className={styles.successBox}>{message}</div> : null}
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
       <section className={styles.section}>
@@ -146,28 +110,24 @@ export default function Settings() {
                 <p>{item.description}</p>
               </div>
 
-              <button
-                type="button"
-                className={`${styles.toggle} ${settings[item.key] ? styles.toggleActive : ""}`}
-                onClick={() => toggleSetting(item.key)}
-                disabled={loading || savingKey === item.key}
-                aria-pressed={settings[item.key]}
-                aria-label={item.title}
-              >
-                <span className={styles.toggleKnob} />
-              </button>
+              <div className={styles.settingAction}>
+                <span className={styles.statusText}>
+                  {settings[item.key] ? "Đang bật" : "Đã tắt"}
+                </span>
+                <button
+                  type="button"
+                  className={`${styles.toggle} ${settings[item.key] ? styles.toggleActive : ""}`}
+                  onClick={() => toggleSetting(item.key)}
+                  disabled={loading || savingKey === item.key}
+                  aria-pressed={settings[item.key]}
+                  aria-label={item.title}
+                >
+                  <span className={styles.toggleKnob} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
-      </section>
-
-      <section className={styles.noteCard}>
-        <h3>Cách test nhanh</h3>
-        <p>
-          Sau khi cấu hình SMTP và restart backend, chỉ cần bấm nút
-          `Gửi email test`. Hệ thống sẽ gửi một email mẫu vào đúng địa chỉ email
-          của tài khoản hiện tại.
-        </p>
       </section>
     </div>
   );

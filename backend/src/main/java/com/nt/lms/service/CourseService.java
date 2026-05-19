@@ -25,6 +25,7 @@ import com.nt.lms.repository.LessonRepository;
 import com.nt.lms.repository.QuizRepository;
 import com.nt.lms.repository.SectionRepository;
 import com.nt.lms.repository.UserRepository;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -70,6 +71,9 @@ public class CourseService {
                 .visibility(isAdmin ? defaultVisibility(request.getVisibility()) : "PRIVATE")
                 .level(request.getLevel() == null ? "BEGINNER" : request.getLevel())
                 .estimatedHours(request.getEstimatedHours() == null ? 0 : request.getEstimatedHours())
+                .price(normalizePrice(request.getPrice()))
+                .currency(defaultCurrency(request.getCurrency()))
+                .paid(isPaidCourse(request.getPaid(), request.getPrice()))
                 .build();
 
         return mapToResponse(courseRepository.save(course));
@@ -223,6 +227,19 @@ public class CourseService {
             course.setEstimatedHours(request.getEstimatedHours());
         }
 
+        if (request.getPrice() != null) {
+            course.setPrice(normalizePrice(request.getPrice()));
+            course.setPaid(isPaidCourse(request.getPaid(), request.getPrice()));
+        }
+
+        if (request.getCurrency() != null) {
+            course.setCurrency(defaultCurrency(request.getCurrency()));
+        }
+
+        if (request.getPaid() != null) {
+            course.setPaid(Boolean.TRUE.equals(request.getPaid()) && isPositive(course.getPrice()));
+        }
+
         if (isAdmin) {
             if (request.getStatus() != null) {
                 course.setStatus(request.getStatus());
@@ -295,6 +312,9 @@ public class CourseService {
                 .visibility(course.getVisibility())
                 .level(course.getLevel())
                 .estimatedHours(course.getEstimatedHours())
+                .price(course.getPrice())
+                .currency(course.getCurrency() == null ? "VND" : course.getCurrency())
+                .paid(Boolean.TRUE.equals(course.getPaid()))
                 .enrollmentCount(enrollmentRepository.countByCourseId(course.getId()))
                 .build();
     }
@@ -406,6 +426,28 @@ public class CourseService {
 
     private String defaultVisibility(String visibility) {
         return visibility == null || visibility.isBlank() ? "PUBLIC" : visibility.trim();
+    }
+
+    private BigDecimal normalizePrice(BigDecimal price) {
+        if (price == null || price.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        return price;
+    }
+
+    private boolean isPaidCourse(Boolean paid, BigDecimal price) {
+        if (paid == null) {
+            return isPositive(price);
+        }
+        return Boolean.TRUE.equals(paid) && isPositive(price);
+    }
+
+    private boolean isPositive(BigDecimal price) {
+        return price != null && price.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    private String defaultCurrency(String currency) {
+        return currency == null || currency.isBlank() ? "VND" : currency.trim().toUpperCase();
     }
 
     private String safeText(String value) {

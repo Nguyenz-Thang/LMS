@@ -35,6 +35,22 @@ function stripHtml(html = "") {
     .trim();
 }
 
+function getCleanLessonTitle(title = "") {
+  return title.replace(/^\s*(Bài\s*đọc|Video|Quiz|Bài\s*tập)\s*:\s*/i, "").trim();
+}
+
+function formatUpdatedAt(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return `Cập nhật ${date.toLocaleDateString("vi-VN", {
+    month: "long",
+    year: "numeric",
+  })}`;
+}
+
 export default function LearningContent({
   loadingLesson,
   lessonData,
@@ -44,7 +60,6 @@ export default function LearningContent({
   learningApi,
   onLearningStateChange,
   onLessonCompleted,
-  onBookmarkChanged,
 }) {
   const readingCompletionRef = useRef(null);
   const noteQuillRef = useRef(null);
@@ -52,18 +67,15 @@ export default function LearningContent({
   const youtubePlayerRef = useRef(null);
   const videoCompletionTriggeredRef = useRef(false);
   const [notes, setNotes] = useState([]);
-  const [bookmarked, setBookmarked] = useState(false);
   const [noteContent, setNoteContent] = useState("");
   const [editingNoteId, setEditingNoteId] = useState("");
   const [noteError, setNoteError] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
-  const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [mediaError, setMediaError] = useState(false);
 
   useEffect(() => {
     setNotes(Array.isArray(lessonData?.notes) ? lessonData.notes : []);
-    setBookmarked(Boolean(lessonData?.bookmarked));
     videoCompletionTriggeredRef.current = false;
     setNoteContent("");
     setEditingNoteId("");
@@ -72,11 +84,27 @@ export default function LearningContent({
     setMediaError(false);
   }, [lessonData]);
 
+  const hasRequiredInteractiveBlock = useMemo(
+    () =>
+      (lessonData?.blocks || []).some(
+        (block) =>
+          block.blockType === "QUIZ" || block.blockType === "ASSIGNMENT",
+      ),
+    [lessonData?.blocks],
+  );
+
+  const hasQuizBlock = useMemo(
+    () => (lessonData?.blocks || []).some((block) => block.blockType === "QUIZ"),
+    [lessonData?.blocks],
+  );
+  const isReadingLesson = Boolean(lessonData?.content) && !lessonData?.videoUrl;
+
   useEffect(() => {
     if (
       !lessonData?.lessonId ||
       lessonData?.completed ||
       lessonData?.videoUrl ||
+      hasRequiredInteractiveBlock ||
       !lessonData?.content ||
       !contentAreaRef?.current ||
       !readingCompletionRef?.current
@@ -106,12 +134,24 @@ export default function LearningContent({
     lessonData?.content,
     lessonData?.lessonId,
     lessonData?.videoUrl,
+    hasRequiredInteractiveBlock,
     onLessonCompleted,
   ]);
 
-  const lessonResources = useMemo(
-    () => (Array.isArray(lessonData?.resources) ? lessonData.resources : []),
-    [lessonData],
+  const visibleBlocks = useMemo(
+    () =>
+      (lessonData?.blocks || []).filter((block) => {
+        if (block.blockType === "TEXT" || block.blockType === "FILE") {
+          return false;
+        }
+
+        if (block.blockType === "VIDEO" && lessonData?.videoUrl) {
+          return false;
+        }
+
+        return true;
+      }),
+    [lessonData?.blocks, lessonData?.videoUrl],
   );
 
   const noteEditorModules = useMemo(
@@ -188,7 +228,6 @@ export default function LearningContent({
         return;
       }
 
-      youtubePlayerRef.current?.destroy?.();
       youtubePlayerRef.current = new window.YT.Player(youtubeFrameRef.current, {
         events: {
           onStateChange: async (event) => {
@@ -234,7 +273,6 @@ export default function LearningContent({
     return () => {
       cancelled = true;
       if (pollId) window.clearInterval(pollId);
-      youtubePlayerRef.current?.destroy?.();
       youtubePlayerRef.current = null;
     };
   }, [
@@ -404,34 +442,6 @@ export default function LearningContent({
     }
   };
 
-  const handleToggleBookmark = async () => {
-    if (!lessonData?.lessonId) return;
-
-    try {
-      setBookmarkBusy(true);
-      const res = bookmarked
-        ? await learningApi.removeLessonBookmark(lessonData.lessonId)
-        : await learningApi.addLessonBookmark(lessonData.lessonId);
-
-      if (res?.result?.bookmarked !== undefined) {
-        const nextBookmarked = Boolean(res.result.bookmarked);
-        setBookmarked(nextBookmarked);
-        onBookmarkChanged?.(nextBookmarked);
-      } else {
-        setBookmarked((prev) => {
-          const nextBookmarked = !prev;
-          onBookmarkChanged?.(nextBookmarked);
-          return nextBookmarked;
-        });
-      }
-    } catch (error) {
-      setNoteError(
-        error?.body?.message || error?.message || "Không cập nhật bookmark.",
-      );
-    } finally {
-      setBookmarkBusy(false);
-    }
-  };
 
   if (loadingLesson) {
     return <div className={styles.lessonState}>Đang tải bài học...</div>;
@@ -441,16 +451,34 @@ export default function LearningContent({
     return <div className={styles.lessonState}>Chưa có bài học để hiển thị.</div>;
   }
 
+  const displayTitle = getCleanLessonTitle(lessonData.title || "");
+  const updatedText = formatUpdatedAt(lessonData.updatedAt);
+
   return (
     <>
-      {lessonData.videoUrl || (lessonData.thumbnailUrl && !mediaError) ? (
+      {lessonData.videoUrl ? (
         <div className={styles.mediaBox}>{renderMainMedia()}</div>
       ) : null}
 
-      <div className={styles.lessonHeader}>
+      <div
+        className={`${styles.lessonHeader} ${
+          hasQuizBlock ? styles.quizLessonHeader : ""
+        } ${isReadingLesson ? styles.readingLessonHeader : ""}`}
+      >
         <div className={styles.lessonHeaderTop}>
           <div className={styles.lessonTitleBlock}>
-            <h2>{lessonData.title}</h2>
+            <h2>{displayTitle}</h2>
+            {updatedText ? (
+              <p className={styles.lessonUpdatedAt}>{updatedText}</p>
+            ) : null}
+            {stripHtml(lessonData.description || "") ? (
+              <div
+                className={styles.lessonDescription}
+                dangerouslySetInnerHTML={{
+                  __html: DOMPurify.sanitize(lessonData.description || ""),
+                }}
+              />
+            ) : null}
             <p>{lessonData.description || "Chưa có mô tả bài học."}</p>
           </div>
           <div className={styles.lessonQuickActions}>
@@ -461,53 +489,11 @@ export default function LearningContent({
             >
               + Thêm ghi chú
             </button>
-            <button
-              type="button"
-              className={bookmarked ? styles.bookmarkBtnActive : styles.bookmarkBtn}
-              onClick={handleToggleBookmark}
-              disabled={bookmarkBusy}
-            >
-              {bookmarkBusy
-                ? "Đang lưu..."
-                : bookmarked
-                  ? "Đã đánh dấu"
-                  : "Đánh dấu"}
-            </button>
           </div>
         </div>
-        {bookmarked ? (
-          <div className={styles.lessonStatusNote}>Đã đánh dấu để xem lại sau</div>
-        ) : null}
       </div>
 
-      {lessonResources.length > 0 ? (
-        <div className={styles.resourceBox}>
-          <div className={styles.panelHead}>
-            <h3>Tài liệu đính kèm</h3>
-            <span>{lessonResources.length} tệp</span>
-          </div>
-
-          <div className={styles.resourceList}>
-            {lessonResources.map((resource) => (
-              <a
-                key={resource.id}
-                href={toAssetUrl(resource.fileUrl)}
-                target="_blank"
-                rel="noreferrer"
-                className={styles.resourceItem}
-              >
-                <strong>{resource.fileName || "Tài liệu"}</strong>
-                <span>
-                  {resource.fileType || "File"}
-                  {resource.fileSize ? ` • ${resource.fileSize} bytes` : ""}
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {lessonData.content ? (
+      {lessonData.content && !hasQuizBlock ? (
         <div className={styles.textBlock}>
           <h3>Nội dung bài học</h3>
           <div
@@ -519,16 +505,25 @@ export default function LearningContent({
         </div>
       ) : null}
 
-      {(lessonData.blocks || []).length > 0 ? (
+      {visibleBlocks.length > 0 ? (
         <div className={styles.blocks}>
-          {(lessonData.blocks || []).map((block) => (
-            <div key={block.id} className={styles.blockItem}>
-              <div className={styles.blockHead}>
+          {visibleBlocks.map((block) => (
+            <div
+              key={block.id}
+              className={`${styles.blockItem} ${
+                block.blockType === "QUIZ" || block.blockType === "ASSIGNMENT"
+                  ? styles.interactiveBlock
+                  : ""
+              } ${block.blockType === "QUIZ" ? styles.quizBlockItem : ""}`}
+            >
+              {block.blockType !== "QUIZ" && block.blockType !== "ASSIGNMENT" ? (
+                <div className={styles.blockHead}>
                 <span className={styles.blockType}>
                   {getBlockTitle(block.blockType)}
                 </span>
                 {block.title ? <strong>{block.title}</strong> : null}
-              </div>
+                </div>
+              ) : null}
 
               {block.blockType === "TEXT" && block.content ? (
                 <div className={styles.blockContent}>{block.content}</div>
@@ -580,7 +575,7 @@ export default function LearningContent({
                   startLearningQuiz={learningApi.startLearningQuiz}
                   saveQuizAnswer={learningApi.saveQuizAnswer}
                   submitLearningQuiz={learningApi.submitLearningQuiz}
-                  onQuizSubmitted={onLearningStateChange}
+                  onQuizSubmitted={onLessonCompleted}
                 />
               ) : null}
 
@@ -605,7 +600,7 @@ export default function LearningContent({
         </div>
       ) : null}
 
-      {!lessonData.videoUrl && lessonData.content ? (
+      {!lessonData.videoUrl && lessonData.content && !hasRequiredInteractiveBlock ? (
         <div ref={readingCompletionRef} className={styles.readingCompletionTrigger} />
       ) : null}
 

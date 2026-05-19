@@ -45,10 +45,18 @@ export function useLearningApi() {
   );
 
   const startLearning = useCallback(
-    async (courseId) =>
+    async (courseId, payload = null) =>
       toJson(
         await authedFetch(`${LEARNING_BASE}/courses/${courseId}/start`, {
           method: "POST",
+          ...(payload
+            ? {
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+              }
+            : {}),
         }),
       ),
     [authedFetch],
@@ -130,34 +138,6 @@ export function useLearningApi() {
             method: "DELETE",
           },
         ),
-      ),
-    [authedFetch],
-  );
-
-  const getLessonBookmark = useCallback(
-    async (lessonId) =>
-      toJson(
-        await authedFetch(`${LEARNING_BASE}/lessons/${lessonId}/bookmark`),
-      ),
-    [authedFetch],
-  );
-
-  const addLessonBookmark = useCallback(
-    async (lessonId) =>
-      toJson(
-        await authedFetch(`${LEARNING_BASE}/lessons/${lessonId}/bookmark`, {
-          method: "POST",
-        }),
-      ),
-    [authedFetch],
-  );
-
-  const removeLessonBookmark = useCallback(
-    async (lessonId) =>
-      toJson(
-        await authedFetch(`${LEARNING_BASE}/lessons/${lessonId}/bookmark`, {
-          method: "DELETE",
-        }),
       ),
     [authedFetch],
   );
@@ -355,9 +335,6 @@ export function useLearningApi() {
     createLessonNote,
     updateLessonNote,
     deleteLessonNote,
-    getLessonBookmark,
-    addLessonBookmark,
-    removeLessonBookmark,
     getIndependentQuizzes,
     getLearningQuiz,
     startLearningQuiz,

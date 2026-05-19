@@ -156,8 +156,8 @@ export default function AssignmentBlock({
 
         <div className={styles.assignmentMeta}>
           <span>Loại: {assignmentData.assignmentType || "Bài tập"}</span>
-          <span>Điểm tối đa: {assignmentData.maxScore ?? 0}</span>
-          <span>Hạn nộp: {assignmentData.dueAt || "Không giới hạn"}</span>
+          {/* <span>Điểm tối đa: {assignmentData.maxScore ?? 0}</span>
+          <span>Hạn nộp: {assignmentData.dueAt || "Không giới hạn"}</span> */}
         </div>
       </div>
 

@@ -2,12 +2,12 @@ package com.nt.lms.controller;
 
 import com.nt.lms.dto.request.LessonNoteRequest;
 import com.nt.lms.dto.request.LessonProgressRequest;
+import com.nt.lms.dto.request.LearningStartRequest;
 import com.nt.lms.dto.response.ApiResponse;
 import com.nt.lms.dto.response.LearningCourseResponse;
 import com.nt.lms.dto.response.LearningLessonDetailResponse;
 import com.nt.lms.dto.response.LearningLessonNoteResponse;
 import com.nt.lms.dto.response.LearningStartResponse;
-import com.nt.lms.dto.response.LessonBookmarkResponse;
 import com.nt.lms.service.LearningService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,9 +28,11 @@ public class LearningController {
 	private final LearningService learningService;
 
 	@PostMapping("/courses/{courseId}/start")
-	public ApiResponse<LearningStartResponse> startCourse(@PathVariable String courseId) {
+	public ApiResponse<LearningStartResponse> startCourse(
+			@PathVariable String courseId,
+			@RequestBody(required = false) LearningStartRequest request) {
 		return ApiResponse.<LearningStartResponse>builder()
-				.result(learningService.startCourse(courseId))
+				.result(learningService.startCourse(courseId, request))
 				.build();
 	}
 
@@ -94,25 +96,4 @@ public class LearningController {
 				.build();
 	}
 
-	@GetMapping("/lessons/{lessonId}/bookmark")
-	public ApiResponse<LessonBookmarkResponse> getBookmarkStatus(@PathVariable String lessonId) {
-		return ApiResponse.<LessonBookmarkResponse>builder()
-				.result(learningService.getBookmarkStatus(lessonId))
-				.build();
-	}
-
-	@PostMapping("/lessons/{lessonId}/bookmark")
-	public ApiResponse<LessonBookmarkResponse> bookmarkLesson(@PathVariable String lessonId) {
-		return ApiResponse.<LessonBookmarkResponse>builder()
-				.result(learningService.bookmarkLesson(lessonId))
-				.build();
-	}
-
-	@DeleteMapping("/lessons/{lessonId}/bookmark")
-	public ApiResponse<String> removeBookmark(@PathVariable String lessonId) {
-		learningService.removeBookmark(lessonId);
-		return ApiResponse.<String>builder()
-				.result("Bo bookmark thanh cong")
-				.build();
-	}
 }

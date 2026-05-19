@@ -20,6 +20,7 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
     visibility: "PUBLIC",
     level: "BEGINNER",
     estimatedHours: 0,
+    price: 0,
   });
 
   const [thumbnailMode, setThumbnailMode] = useState("url");
@@ -66,6 +67,7 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
       visibility: "PUBLIC",
       level: "BEGINNER",
       estimatedHours: 0,
+      price: 0,
     });
     setThumbnailMode("url");
     setPreviewUrl("");
@@ -137,6 +139,9 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
         visibility: form.visibility,
         level: form.level,
         estimatedHours: Number(form.estimatedHours) || 0,
+        price: Number(form.price) || 0,
+        currency: "VND",
+        paid: Number(form.price) > 0,
       };
 
       await createCourse(payload);
@@ -318,6 +323,19 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
               type="number"
               min="0"
               value={form.estimatedHours}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="price">Giá khóa học (VND)</label>
+            <input
+              id="price"
+              name="price"
+              type="number"
+              min="0"
+              step="1000"
+              value={form.price}
               onChange={handleChange}
             />
           </div>

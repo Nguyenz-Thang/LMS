@@ -1,5 +1,6 @@
 package com.nt.lms.dto.response;
 
+import java.math.BigDecimal;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -25,5 +26,8 @@ public class CourseResponse {
     String visibility;
     String level;
     Integer estimatedHours;
+    BigDecimal price;
+    String currency;
+    Boolean paid;
     Long enrollmentCount;
 }

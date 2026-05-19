@@ -287,10 +287,10 @@ public class DiscussionService {
                 predicates.add(builder.isNull(root.get("lesson")));
             }
             if (StringUtils.hasText(keyword)) {
-                String pattern = "%" + keyword.trim().toLowerCase() + "%";
+                String pattern = "%" + keyword.trim().toLowerCase(java.util.Locale.ROOT) + "%";
                 predicates.add(builder.or(
-                        builder.like(builder.lower(root.get("title")), pattern),
-                        builder.like(builder.lower(root.get("content")), pattern)));
+                        builder.like(builder.lower(root.get("title").as(String.class)), pattern),
+                        builder.like(builder.lower(root.get("content").as(String.class)), pattern)));
             }
 
             return builder.and(predicates.toArray(new Predicate[0]));

@@ -40,7 +40,6 @@ export default function Learning() {
           return {
             ...lesson,
             locked,
-            bookmarked: Boolean(lesson.bookmarked),
           };
         }),
       })),
@@ -66,7 +65,10 @@ export default function Learning() {
     [courseData],
   );
   const targetLessonId =
-    lessonId || normalizedCourseData?.currentLessonId || null;
+    lessonId ||
+    lessonData?.lessonId ||
+    normalizedCourseData?.currentLessonId ||
+    null;
 
   useEffect(() => {
     fetchLearningCourse();
@@ -80,40 +82,6 @@ export default function Learning() {
 
     fetchLessonDetail(targetLessonId);
   }, [targetLessonId]);
-
-  const syncBookmarkState = async (targetLessonId) => {
-    if (!targetLessonId) return;
-
-    try {
-      const res = await learningApi.getLessonBookmark(targetLessonId);
-      const nextBookmarked = Boolean(res?.result?.bookmarked);
-
-      setLessonData((prev) =>
-        prev && prev.lessonId === targetLessonId
-          ? { ...prev, bookmarked: nextBookmarked }
-          : prev,
-      );
-
-      setCourseData((prev) => {
-        if (!prev?.sections) return prev;
-
-        let changed = false;
-        const sections = prev.sections.map((section) => ({
-          ...section,
-          lessons: (section.lessons || []).map((lesson) => {
-            if (lesson.id !== targetLessonId) return lesson;
-            if (Boolean(lesson.bookmarked) === nextBookmarked) return lesson;
-            changed = true;
-            return { ...lesson, bookmarked: nextBookmarked };
-          }),
-        }));
-
-        return changed ? { ...prev, sections } : prev;
-      });
-    } catch {
-      // Keep current UI state if bookmark sync fails.
-    }
-  };
 
   const fetchLearningCourse = async () => {
     try {
@@ -144,6 +112,10 @@ export default function Learning() {
       });
       setOpenSections(initialOpenState);
     } catch (error) {
+      // eslint-disable-next-line no-undef
+      if (!autoNavigate) {
+        throw error;
+      }
       setErrorText(
         error?.body?.message ||
           error?.message ||
@@ -240,7 +212,6 @@ export default function Learning() {
       }
 
       setLessonData(data);
-      await syncBookmarkState(targetLessonId);
 
       await learningApi.saveLessonProgress(targetLessonId, {
         lastPositionSec: data?.lastPositionSec || 0,
@@ -257,7 +228,8 @@ export default function Learning() {
             setCourseData(latestData);
 
             const fallbackLessonId =
-              latestData.currentLessonId || findFirstAccessibleLessonId(latestData);
+              latestData.currentLessonId ||
+              findFirstAccessibleLessonId(latestData);
 
             if (fallbackLessonId && fallbackLessonId !== targetLessonId) {
               navigate(`/learning/${courseId}/${fallbackLessonId}`, {
@@ -336,21 +308,26 @@ export default function Learning() {
     navigate("/my-courses", { replace: true });
   };
 
-  const completeCurrentLesson = async ({ autoNavigate = true } = {}) => {
+  const completeCurrentLesson = async ({
+    autoNavigate = false,
+    skipSave = false,
+  } = {}) => {
     if (!lessonData || lessonData.completed) return;
 
     try {
       setSavingProgress(true);
 
-      await learningApi.saveLessonProgress(lessonData.lessonId, {
-        watchedSeconds: lessonData.durationMinutes
-          ? lessonData.durationMinutes * 60
-          : 0,
-        lastPositionSec: lessonData.durationMinutes
-          ? lessonData.durationMinutes * 60
-          : 0,
-        completed: true,
-      });
+      if (!skipSave) {
+        await learningApi.saveLessonProgress(lessonData.lessonId, {
+          watchedSeconds: lessonData.durationMinutes
+            ? lessonData.durationMinutes * 60
+            : 0,
+          lastPositionSec: lessonData.durationMinutes
+            ? lessonData.durationMinutes * 60
+            : 0,
+          completed: true,
+        });
+      }
 
       markLessonCompletedLocally(lessonData.lessonId);
 
@@ -381,7 +358,8 @@ export default function Learning() {
     if (savingProgress) return "Đang lưu...";
     if (!lessonData.completed) return "Hoàn thành để mở bài tiếp";
     if (lessonData.completed && lessonData.nextLessonId) return "Bài tiếp theo";
-    if (lessonData.completed && !lessonData.nextLessonId) return "Đã hoàn thành";
+    if (lessonData.completed && !lessonData.nextLessonId)
+      return "Đã hoàn thành";
     return "Bài tiếp theo";
   };
 
@@ -459,43 +437,25 @@ export default function Learning() {
 
       <div className={styles.mainGrid}>
         <div ref={contentAreaRef} className={styles.contentArea}>
-          <LearningContent
-            loadingLesson={loadingLesson}
-            lessonData={lessonData}
-            videoRef={videoRef}
-            contentAreaRef={contentAreaRef}
-            saveLessonProgress={learningApi.saveLessonProgress}
-            learningApi={learningApi}
-            onLessonCompleted={completeCurrentLesson}
-            onBookmarkChanged={(nextBookmarked) => {
-              setLessonData((prev) =>
-                prev ? { ...prev, bookmarked: nextBookmarked } : prev,
-              );
-              setCourseData((prev) => {
-                if (!prev?.sections) return prev;
-
-                return {
-                  ...prev,
-                  sections: prev.sections.map((section) => ({
-                    ...section,
-                    lessons: (section.lessons || []).map((lesson) =>
-                      lesson.id === currentLessonId
-                        ? { ...lesson, bookmarked: nextBookmarked }
-                        : lesson,
-                    ),
-                  })),
-                };
-              });
-            }}
-            onLearningStateChange={async ({ autoNavigate = false } = {}) => {
-              if (lessonData?.lessonId) {
-                markLessonCompletedLocally(lessonData.lessonId);
-              }
-              if (autoNavigate && lessonData?.nextLessonId) {
-                navigate(`/learning/${courseId}/${lessonData.nextLessonId}`);
-              }
-            }}
-          />
+          <div className={styles.contentShell}>
+            <LearningContent
+              loadingLesson={loadingLesson}
+              lessonData={lessonData}
+              videoRef={videoRef}
+              contentAreaRef={contentAreaRef}
+              saveLessonProgress={learningApi.saveLessonProgress}
+              learningApi={learningApi}
+              onLessonCompleted={completeCurrentLesson}
+              onLearningStateChange={async ({ autoNavigate = false } = {}) => {
+                if (lessonData?.lessonId) {
+                  markLessonCompletedLocally(lessonData.lessonId);
+                }
+                if (autoNavigate && lessonData?.nextLessonId) {
+                  navigate(`/learning/${courseId}/${lessonData.nextLessonId}`);
+                }
+              }}
+            />
+          </div>
         </div>
 
         <LearningSidebar
