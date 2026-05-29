@@ -3,8 +3,8 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 import styles from "./Login.module.scss";
-import logo from "../../assets/img/utt.png";
-import heroImage from "../../assets/img/utt.png";
+import logo from "../../assets/img/logo.png";
+import heroImage from "../../assets/img/logo.png";
 
 const API_BASE_URL = "http://localhost:8080/lms";
 

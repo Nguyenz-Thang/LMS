@@ -6,6 +6,7 @@ import Register from "../../page/Register";
 import Login from "../../page/Login";
 import MainContent from "../../page/MainContent";
 import DefaultLayout from "../../layouts/DefaultLayout";
+import AdminLayout from "../../layouts/AdminLayout";
 import { AuthContext } from "../../context/AuthContext";
 import NotFound from "../../page/NotFound";
 import Profile from "../../page/Profile";
@@ -21,6 +22,7 @@ import EnrollmentManagement from "../../page/Enrollments";
 import RoleManagement from "../../page/Roles";
 import UserManagement from "../../page/Users";
 import Reports from "../../page/Admin/Reports";
+import RevenueManagement from "../../page/Admin/Revenue";
 import AssignmentSubmissions from "../../page/Admin/AssignmentSubmissions";
 import MyCourses from "../../page/My-courses";
 import Courses from "../../page/Courses";
@@ -112,7 +114,7 @@ function AppRoutes() {
         <Route
           element={<ProtectedRoute allowedRoles={["ADMIN", "INSTRUCTOR"]} />}
         >
-          <Route element={<DefaultLayout />}>
+          <Route element={<AdminLayout />}>
             <Route element={<MainContent />}>
               <Route path="/admin/courses" element={<CoursesManagement />} />
               <Route path="/admin/categories" element={<Category />} />
@@ -137,6 +139,7 @@ function AppRoutes() {
               <Route path="/admin/roles" element={<RoleManagement />} />
               <Route path="/admin/users" element={<UserManagement />} />
               <Route path="/admin/reports" element={<Reports />} />
+              <Route path="/admin/revenue" element={<RevenueManagement />} />
               <Route
                 path="/admin/assignments/:assignmentId/submissions"
                 element={<AssignmentSubmissions />}

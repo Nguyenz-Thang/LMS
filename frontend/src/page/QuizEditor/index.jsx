@@ -430,8 +430,9 @@ export default function QuizEditor() {
     maxAttempts: form.lessonId
       ? 1
       : Math.max(1, Number(form.maxAttempts) || 1),
-    timeLimitMinutes:
-      Math.max(0, Number(form.timeLimitMinutes) || 0) > 0
+    timeLimitMinutes: form.lessonId
+      ? null
+      : Math.max(0, Number(form.timeLimitMinutes) || 0) > 0
         ? Math.max(0, Number(form.timeLimitMinutes) || 0)
         : null,
     questions: form.questions.map((question, index) => ({
@@ -557,6 +558,7 @@ export default function QuizEditor() {
             </div>
           )}
 
+          {!form.lessonId ? (
           <div className={styles.formGroup}>
             <label htmlFor="timeLimitMinutes">Thời gian làm bài (phút)</label>
             <input
@@ -569,6 +571,7 @@ export default function QuizEditor() {
               placeholder="0 = không giới hạn"
             />
           </div>
+          ) : null}
         </div>
 
         <div className={styles.questionSection}>

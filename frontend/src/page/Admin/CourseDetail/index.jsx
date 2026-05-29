@@ -19,7 +19,6 @@ import {
   Pencil,
   Plus,
   Trash2,
-  Wand2,
 } from "lucide-react";
 import styles from "./CourseDetail.module.scss";
 import AddSectionModal from "../../../components/AddSectionModal";
@@ -585,11 +584,6 @@ export default function CourseDetail() {
 
                             <td>
                               <div className={styles.lessonStatusGroup}>
-                                {lesson.isPreview ? (
-                                  <span className={styles.previewBadge}>
-                                    Xem trước
-                                  </span>
-                                ) : null}
                                 {!lesson.isPublished ? (
                                   <span className={styles.draftBadge}>Nháp</span>
                                 ) : (
@@ -634,22 +628,6 @@ export default function CourseDetail() {
                                       <FileCheck2 size={15} />
                                     </button>
                                   )}
-
-                                {lesson.lessonType !== "QUIZ" ? (
-                                  <button
-                                    type="button"
-                                    className={styles.smallBtn}
-                                    onClick={() =>
-                                      navigate(
-                                        `/admin/quizzes/new?courseId=${id}&lessonId=${lesson.id}`,
-                                      )
-                                    }
-                                    title="Tạo bài kiểm tra bằng AI"
-                                    aria-label="Tạo bài kiểm tra bằng AI"
-                                  >
-                                    <Wand2 size={15} />
-                                  </button>
-                                ) : null}
 
                                 <button
                                   type="button"

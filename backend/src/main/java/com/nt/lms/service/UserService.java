@@ -4,9 +4,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.nt.lms.dto.request.ChangePasswordRequest;
 import com.nt.lms.dto.request.RegisterRequest;
 import com.nt.lms.dto.request.UserCreationRequest;
 import com.nt.lms.dto.request.UserUpdateRequest;
+import com.nt.lms.dto.response.PageResponse;
 import com.nt.lms.dto.response.UserResponse;
 import com.nt.lms.entity.Role;
 import com.nt.lms.entity.User;
@@ -104,6 +106,39 @@ public class UserService {
                 .toList();
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+    public PageResponse<UserResponse> searchUsers(String keyword, String role, int page, int size) {
+        String normalizedKeyword = keyword == null ? "" : keyword.trim().toLowerCase();
+        String normalizedRole = role == null ? "" : role.trim().toUpperCase();
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 50);
+
+        List<UserResponse> filtered = userRepository.findAll()
+                .stream()
+                .filter(user -> normalizedRole.isBlank()
+                        || (user.getRoles() != null && user.getRoles().stream()
+                                .anyMatch(item -> normalizedRole.equalsIgnoreCase(item.getName()))))
+                .filter(user -> normalizedKeyword.isBlank()
+                        || safeText(user.getUsername()).contains(normalizedKeyword)
+                        || safeText(user.getFullName()).contains(normalizedKeyword)
+                        || safeText(user.getEmail()).contains(normalizedKeyword)
+                        || safeText(user.getId()).contains(normalizedKeyword))
+                .map(userMapper::toUserResponse)
+                .toList();
+
+        int start = Math.min(safePage * safeSize, filtered.size());
+        int end = Math.min(start + safeSize, filtered.size());
+        List<UserResponse> content = filtered.subList(start, end);
+
+        return PageResponse.<UserResponse>builder()
+                .content(content)
+                .page(safePage)
+                .size(safeSize)
+                .totalElements((long) filtered.size())
+                .totalPages((int) Math.ceil((double) filtered.size() / safeSize))
+                .build();
+    }
+
     @PostAuthorize("returnObject.username == authentication.name or hasRole('ADMIN')")
     public UserResponse getUser(String id) {
         log.info("In method get user by Id");
@@ -140,6 +175,33 @@ public class UserService {
         return userMapper.toUserResponse(userRepository.save(user));
     }
 
+    public void changeMyPassword(ChangePasswordRequest request) {
+        if (request == null
+                || request.getCurrentPassword() == null || request.getCurrentPassword().isBlank()
+                || request.getNewPassword() == null || request.getNewPassword().isBlank()
+                || request.getConfirmPassword() == null || request.getConfirmPassword().isBlank()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        String username = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new AppException(ErrorCode.CURRENT_PASSWORD_INVALID);
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+    }
+
     public UserResponse updateUser(String userId, UserUpdateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
@@ -163,5 +225,9 @@ public class UserService {
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         }
         userRepository.deleteById(userId);
+    }
+
+    private String safeText(String value) {
+        return value == null ? "" : value.toLowerCase();
     }
 }

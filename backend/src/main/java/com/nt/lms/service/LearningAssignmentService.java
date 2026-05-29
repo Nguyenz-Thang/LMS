@@ -44,6 +44,7 @@ public class LearningAssignmentService {
     private final EnrollmentRepository enrollmentRepository;
     private final LessonProgressRepository lessonProgressRepository;
     private final LessonRepository lessonRepository;
+    private final AppNotificationService appNotificationService;
 
     public LearningAssignmentResponse getAssignmentDetail(String assignmentId) {
         User currentUser = getCurrentUser();
@@ -95,6 +96,10 @@ public class LearningAssignmentService {
 
         if (Boolean.TRUE.equals(request.getSubmitNow()) && assignment.getLesson() != null) {
             markLessonCompleted(currentUser, assignment.getLesson());
+        }
+
+        if (Boolean.TRUE.equals(request.getSubmitNow())) {
+            appNotificationService.notifyAssignmentSubmitted(saved);
         }
 
         return mapResponse(assignment, saved);
@@ -272,7 +277,7 @@ public class LearningAssignmentService {
     private User getCurrentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "KhÃ´ng xÃ¡c Ä‘á»‹nh Ä‘Æ°á»£c ngÆ°á»i dÃ¹ng"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không xác định được người dùng"));
     }
 
     private String formatDateTime(LocalDateTime value) {

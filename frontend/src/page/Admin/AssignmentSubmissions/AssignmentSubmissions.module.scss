@@ -167,24 +167,22 @@
 .statusGraded {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 9px;
-  border-radius: 6px;
+  gap: 4px;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .statusSubmitted {
-  background: #fffbeb;
   color: #b45309;
-  border: 1px solid #fde68a;
 }
 
 .statusGraded {
-  background: #ecfdf5;
   color: #047857;
-  border: 1px solid #bbf7d0;
 }
 
 .metaRow {

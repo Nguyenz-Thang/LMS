@@ -7,15 +7,12 @@ import com.nt.lms.dto.request.AiLessonAssistantRequest;
 import com.nt.lms.dto.response.AiLessonAssistantResponse;
 import com.nt.lms.dto.response.AiQuizDraftResponse;
 import com.nt.lms.entity.Lesson;
-import com.nt.lms.entity.LessonBlock;
 import com.nt.lms.entity.LessonResource;
 import com.nt.lms.entity.Assignment;
 import com.nt.lms.entity.Question;
 import com.nt.lms.entity.Quiz;
 import com.nt.lms.entity.QuizOption;
 import com.nt.lms.entity.User;
-import com.nt.lms.enums.LessonBlockType;
-import com.nt.lms.repository.LessonBlockRepository;
 import com.nt.lms.repository.LessonRepository;
 import com.nt.lms.repository.LessonResourceRepository;
 import com.nt.lms.repository.AssignmentRepository;
@@ -47,7 +44,6 @@ public class AiLearningService {
 
 	private final ObjectMapper objectMapper;
 	private final LessonRepository lessonRepository;
-	private final LessonBlockRepository lessonBlockRepository;
 	private final LessonResourceRepository lessonResourceRepository;
 	private final QuizRepository quizRepository;
 	private final QuestionRepository questionRepository;
@@ -183,6 +179,12 @@ public class AiLearningService {
 						"Bạn là chatbot AI hỗ trợ học tập thông minh trong hệ thống LMS. "
 								+ "Luôn đọc lịch sử hội thoại trước khi trả lời. Nếu câu hỏi mới dùng đại từ hoặc cụm mơ hồ như 'trong này', 'cái này', 'này', hãy hiểu nó theo câu hỏi gần nhất của người học. "
 								+ "Hãy cá nhân hóa câu trả lời dựa trên tiến độ, khóa học, bài học và lịch sử hội thoại nếu có. "
+								+ "Nếu ngữ cảnh có mục 'Khóa học gợi ý theo nhu cầu hiện tại', khi người học hỏi nên học khóa nào, gợi ý khóa học, lộ trình hoặc xin link học, bắt buộc dùng các khóa học và link thật trong mục đó; không được nói rằng bạn không thể cung cấp link nếu link đã có trong ngữ cảnh. "
+								+ "Với câu hỏi tư vấn khóa học, trả lời thật gọn: mở đầu 1 câu ngắn, sau đó gợi ý tối đa 2 khóa phù hợp nhất. Mỗi khóa chỉ gồm 4 dòng: tên khóa, Link học, Bạn sẽ học được gì tối đa 2 ý ngắn, Lý do phù hợp 1 câu. Không lặp lại cùng một nội dung ở nhiều khóa. Cuối câu trả lời thêm 1 câu ngắn về thứ tự học. "
+								+ "Không bịa khóa học hoặc link ngoài danh sách được cung cấp trong ngữ cảnh. Nếu danh sách khóa học gợi ý rỗng, hãy nói rõ hệ thống chưa có khóa phù hợp và hỏi thêm nhu cầu. "
+								+ "Định dạng câu trả lời gọn: không dùng markdown **, không dùng bullet lồng nhau, không tách riêng dòng chỉ có dấu chấm hoặc dấu gạch đầu dòng. Không viết '(link: ...)', hãy viết 'Link học: ...'. "
+								+ "Chỉ trả lời các câu hỏi liên quan đến khóa học, bài học, tiến độ học tập và nội dung học trong hệ thống. "
+								+ "Không tạo quiz, không lưu quiz, không sinh đề kiểm tra mới; nếu người học yêu cầu tạo quiz hoặc đề kiểm tra, hãy nói rõ chatbot hiện chỉ hỗ trợ hỏi đáp về khóa học và bài học. "
 								+ "Nếu thiếu dữ liệu để xác định chính xác bài học cụ thể, nói rõ giới hạn đó và đề xuất nơi người học có thể xem danh sách bài chưa hoàn thành. "
 								+ "Trường answer phải chứa câu trả lời đầy đủ để hiển thị trực tiếp cho người học; không được đặt nội dung chính vào suggestedQuestions. "
 								+ "Trường suggestedQuestions chỉ dùng cho các câu hỏi tiếp theo ngắn gọn, không dùng để chứa đáp án hoặc danh sách bài tập. "
@@ -204,7 +206,7 @@ public class AiLearningService {
 		}
 
 		String answer = buildDisplayAnswer(
-				payload.path("answer").asText(""),
+				normalizeAssistantAnswer(payload.path("answer").asText("")),
 				suggestedQuestions);
 
 		return AiLessonAssistantResponse.builder()
@@ -256,6 +258,17 @@ public class AiLearningService {
 			return builder.toString();
 		}
 		return trimmedAnswer;
+	}
+
+	private String normalizeAssistantAnswer(String answer) {
+		if (!StringUtils.hasText(answer)) {
+			return "";
+		}
+		String normalized = answer.trim()
+				.replaceAll("\\s+(?=(?:Link|Link học|Bạn sẽ học được gì|Lý do phù hợp):)", "\n")
+				.replaceAll("(?<=[.!?])\\s+(?=\\d+\\.\\s)", "\n\n")
+				.replaceAll("\\n{3,}", "\n\n");
+		return limitText(normalized, ASSISTANT_OUTPUT_TOKEN_LIMIT);
 	}
 
 	private Map<String, Object> createLessonAssistantSchema() {
@@ -633,33 +646,8 @@ public class AiLearningService {
 		builder.append("Mô tả: ").append(safeText(lesson.getDescription())).append("\n");
 		builder.append("Nội dung chính: ").append(safeText(toPlainText(lesson.getContent()))).append("\n");
 
-		List<LessonBlock> blocks = lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
-		if (!blocks.isEmpty()) {
-			builder.append("Các block nội dung:\n");
-			for (LessonBlock block : blocks) {
-				builder.append("- [")
-						.append(block.getBlockType() == null ? "UNKNOWN" : block.getBlockType().name())
-						.append("] ")
-						.append(safeText(block.getTitle()))
-						.append(": ");
-				if (block.getBlockType() == LessonBlockType.TEXT) {
-					builder.append(safeText(toPlainText(block.getContent())));
-				} else if (block.getBlockType() == LessonBlockType.FILE) {
-					builder.append(safeText(block.getMediaUrl()));
-				} else if (block.getBlockType() == LessonBlockType.VIDEO) {
-					builder.append("Video URL: ").append(safeText(block.getMediaUrl()));
-					if (StringUtils.hasText(block.getContent())) {
-						builder.append(" | Mô tả/transcript: ").append(safeText(toPlainText(block.getContent())));
-					}
-				} else if (block.getBlockType() == LessonBlockType.QUIZ) {
-					appendQuizContext(builder, block.getQuiz());
-				} else if (block.getBlockType() == LessonBlockType.ASSIGNMENT) {
-					appendAssignmentContext(builder, assignmentRepository.findFirstByLessonId(lesson.getId()).orElse(null));
-				} else {
-					builder.append(safeText(block.getContent()));
-				}
-				builder.append("\n");
-			}
+		if (StringUtils.hasText(lesson.getVideoUrl())) {
+			builder.append("Video URL: ").append(safeText(lesson.getVideoUrl())).append("\n");
 		}
 
 		quizRepository.findFirstByLessonId(lesson.getId())

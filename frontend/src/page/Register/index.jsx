@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import styles from "./Register.module.scss";
-import logo from "../../assets/img/utt.png";
-import heroImage from "../../assets/img/utt.png";
+import logo from "../../assets/img/logo.png";
+import heroImage from "../../assets/img/logo.png";
 
 const API_BASE_URL = "http://localhost:8080/lms";
 

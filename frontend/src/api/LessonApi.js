@@ -79,6 +79,39 @@ export function useLessonApi() {
     [authedFetch],
   );
 
+  const getLessonResources = useCallback(
+    async (lessonId) =>
+      toJson(await authedFetch(`${BASE}/${lessonId}/resources`)),
+    [authedFetch],
+  );
+
+  const uploadLessonResources = useCallback(
+    async (lessonId, files) => {
+      const formData = new FormData();
+      Array.from(files || []).forEach((file) => {
+        formData.append("files", file);
+      });
+
+      return toJson(
+        await authedFetch(`${BASE}/${lessonId}/resources`, {
+          method: "POST",
+          body: formData,
+        }),
+      );
+    },
+    [authedFetch],
+  );
+
+  const deleteLessonResource = useCallback(
+    async (lessonId, resourceId) =>
+      toJson(
+        await authedFetch(`${BASE}/${lessonId}/resources/${resourceId}`, {
+          method: "DELETE",
+        }),
+      ),
+    [authedFetch],
+  );
+
   const getLessonById = useCallback(
     async (lessonId) => toJson(await authedFetch(`${BASE}/${lessonId}`)),
     [authedFetch],
@@ -88,6 +121,9 @@ export function useLessonApi() {
     createLesson,
     updateLesson,
     deleteLesson,
+    getLessonResources,
+    uploadLessonResources,
+    deleteLessonResource,
     getLessonById,
   };
 }

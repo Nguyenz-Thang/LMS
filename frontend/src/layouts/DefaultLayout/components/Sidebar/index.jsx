@@ -1,41 +1,27 @@
+import { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
-  LayoutDashboard,
+  Bot,
   BookOpen,
-  GraduationCap,
-  Clock3,
-  User,
-  FolderKanban,
-  Users,
-  UserCog,
-  KeyRound,
-  ShieldCheck,
-  ChartColumn,
-  Settings,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ChevronUp,
   ClipboardCheck,
-  Trophy,
-  Library,
+  Clock3,
+  GraduationCap,
+  LayoutDashboard,
   MessageSquare,
-  Bot,
+  Trophy,
+  User,
 } from "lucide-react";
-import { useMemo, useState, useContext } from "react";
-import { AuthContext } from "../../../../context/AuthContext";
 import styles from "./Sidebar.module.scss";
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [openMenus, setOpenMenus] = useState({
     learning: true,
-    courseManagement: true,
-    userManagement: false,
-    system: false,
   });
-
-  const { hasRole } = useContext(AuthContext);
 
   const toggleMenu = (key) => {
     if (collapsed) return;
@@ -84,96 +70,6 @@ export default function Sidebar() {
       },
     ],
     [],
-  );
-
-  const courseManagementItems = useMemo(
-    () =>
-      [
-        {
-          label: "Quản lý khóa học",
-          to: "/admin/courses",
-          icon: FolderKanban,
-          roles: ["ADMIN", "INSTRUCTOR"],
-        },
-        {
-          label: "Loại / danh mục khóa học",
-          to: "/admin/categories",
-          icon: Library,
-          roles: ["ADMIN", "INSTRUCTOR"],
-        },
-        {
-          label: "Quản lý quiz",
-          to: "/admin/quizzes",
-          icon: ClipboardCheck,
-          roles: ["ADMIN", "INSTRUCTOR"],
-        },
-        // {
-        //   label: "Quản lý lesson",
-        //   to: "/admin/lessons",
-        //   icon: Layers3,
-        //   roles: ["ADMIN", "INSTRUCTOR"],
-        // },
-        {
-          label: "Quản lý đăng ký học",
-          to: "/admin/enrollments",
-          icon: ShieldCheck,
-          roles: ["ADMIN", "INSTRUCTOR"],
-        },
-      ].filter((item) => {
-        if (!item.roles) return true;
-        return item.roles.some((role) => hasRole(role));
-      }),
-    [hasRole],
-  );
-
-  const userManagementItems = useMemo(
-    () =>
-      [
-        {
-          label: "Quản lý người dùng",
-          to: "/admin/users",
-          icon: Users,
-          roles: ["ADMIN"],
-        },
-        {
-          label: "Quản lý vai trò",
-          to: "/admin/roles",
-          icon: UserCog,
-          roles: ["ADMIN"],
-        },
-        // {
-        //   label: "Quản lý quyền",
-        //   to: "/admin/permissions",
-        //   icon: KeyRound,
-        //   roles: ["ADMIN"],
-        // },
-      ].filter((item) => {
-        if (!item.roles) return true;
-        return item.roles.some((role) => hasRole(role));
-      }),
-    [hasRole],
-  );
-
-  const systemItems = useMemo(
-    () =>
-      [
-        {
-          label: "Báo cáo - thống kê",
-          to: "/admin/reports",
-          icon: ChartColumn,
-          roles: ["ADMIN", "INSTRUCTOR"],
-        },
-        {
-          label: "Cài đặt hệ thống",
-          to: "/admin/settings",
-          icon: Settings,
-          roles: ["ADMIN"],
-        },
-      ].filter((item) => {
-        if (!item.roles) return true;
-        return item.roles.some((role) => hasRole(role));
-      }),
-    [hasRole],
   );
 
   const renderNavItem = (item) => {
@@ -267,17 +163,6 @@ export default function Sidebar() {
         </div>
 
         {renderGroup("learning", "Học tập", learningItems)}
-        {renderGroup(
-          "courseManagement",
-          "Quản lý khóa học",
-          courseManagementItems,
-        )}
-        {renderGroup(
-          "userManagement",
-          "Quản lý người dùng",
-          userManagementItems,
-        )}
-        {renderGroup("system", "Hệ thống", systemItems)}
       </div>
     </aside>
   );

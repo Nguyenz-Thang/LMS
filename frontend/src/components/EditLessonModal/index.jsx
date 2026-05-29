@@ -47,7 +47,12 @@ function stripHtml(html = "") {
 
 function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   const navigate = useNavigate();
-  const { updateLesson } = useLessonApi();
+  const {
+    updateLesson,
+    getLessonResources,
+    uploadLessonResources,
+    deleteLessonResource,
+  } = useLessonApi();
   const quillRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -55,9 +60,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
     description: "",
     content: "",
     videoUrl: "",
-    thumbnailUrl: "",
     durationMinutes: 0,
-    isPreview: false,
     isPublished: true,
     orderIndex: 1,
     lessonType: "VIDEO",
@@ -69,6 +72,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   });
 
   const [loading, setLoading] = useState(false);
+  const [resourceFiles, setResourceFiles] = useState([]);
+  const [resources, setResources] = useState([]);
   const [errorText, setErrorText] = useState("");
   function resolveUploadedImageUrl(data) {
     const raw =
@@ -121,7 +126,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
         const imageUrl = resolveUploadedImageUrl(data);
 
         if (!imageUrl) {
-          console.log("UPLOAD_IMAGE_RESPONSE =", data);
           throw new Error("Không lấy được URL ảnh");
         }
 
@@ -186,9 +190,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       description: lesson.description || "",
       content: lesson.content || "",
       videoUrl: lesson.videoUrl || "",
-      thumbnailUrl: lesson.thumbnailUrl || "",
       durationMinutes: lesson.durationMinutes ?? 0,
-      isPreview: !!lesson.isPreview,
+      isPreview: false,
       isPublished: lesson.isPublished ?? true,
       orderIndex: lesson.orderIndex || 1,
       lessonType: lesson.lessonType || "VIDEO",
@@ -200,7 +203,20 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
     });
 
     setErrorText("");
-  }, [isOpen, lesson]);
+    setResourceFiles([]);
+
+    const fetchResources = async () => {
+      try {
+        const res = await getLessonResources(lesson.id);
+        setResources(res?.result || []);
+      } catch (error) {
+        setResources([]);
+        setErrorText(error?.body?.message || error?.message || "Không tải được file đính kèm.");
+      }
+    };
+
+    fetchResources();
+  }, [getLessonResources, isOpen, lesson]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -232,11 +248,9 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
           nextForm.content = "";
           nextForm.videoUrl = "";
           nextForm.durationMinutes = 0;
-          nextForm.thumbnailUrl = "";
           nextForm.assignmentTitle = "";
           nextForm.assignmentDescription = "";
           nextForm.assignmentType = "ESSAY";
-          nextForm.isPreview = false;
         }
 
         if (nextType === "READING") {
@@ -283,6 +297,32 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
     }));
   };
 
+  const handleResourceFilesChange = (e) => {
+    setResourceFiles(Array.from(e.target.files || []));
+  };
+
+  const handleDeleteResource = async (resourceId) => {
+    if (!lesson?.id || loading) return;
+
+    try {
+      setLoading(true);
+      setErrorText("");
+      await deleteLessonResource(lesson.id, resourceId);
+      const res = await getLessonResources(lesson.id);
+      setResources(res?.result || []);
+    } catch (error) {
+      setErrorText(error?.body?.message || error?.message || "Không xóa được file đính kèm.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resolveResourceUrl = (url = "") => {
+    if (!url) return "#";
+    if (url.startsWith("http")) return url;
+    return `http://localhost:8080/lms${url.startsWith("/") ? "" : "/"}${url}`;
+  };
+
   const handleClose = () => {
     if (loading) return;
     setErrorText("");
@@ -326,7 +366,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       videoUrl: "",
       thumbnailUrl: "",
       durationMinutes: 0,
-      isPreview: form.lessonType === "QUIZ" ? false : form.isPreview,
+      isPreview: false,
       isPublished: form.isPublished,
       orderIndex: Number(form.orderIndex),
       sectionId: section.id,
@@ -343,7 +383,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
         return {
           ...basePayload,
           videoUrl: form.videoUrl.trim(),
-          thumbnailUrl: form.thumbnailUrl.trim(),
           durationMinutes: Number(form.durationMinutes) || 0,
         };
 
@@ -351,7 +390,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
         return {
           ...basePayload,
           content: form.content,
-          thumbnailUrl: form.thumbnailUrl.trim(),
         };
 
       case "QUIZ":
@@ -365,7 +403,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
         return {
           ...basePayload,
           content: form.content.trim(),
-          thumbnailUrl: form.thumbnailUrl.trim(),
           assignmentTitle: form.assignmentTitle.trim(),
           assignmentDescription: form.assignmentDescription.trim(),
           assignmentType: form.assignmentType || "ESSAY",
@@ -391,6 +428,10 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
       const payload = buildPayload();
       await updateLesson(lesson.id, payload);
+
+      if (resourceFiles.length > 0) {
+        await uploadLessonResources(lesson.id, resourceFiles);
+      }
 
       onClose();
       onUpdated?.();
@@ -458,35 +499,19 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
                 className={styles.descriptionEditor}
               />
             </div>
-            <p className={styles.editorHint}>
-              Có thể in đậm, nghiêng, gạch chân, danh sách và link.
-            </p>
           </div>
 
           {form.lessonType === "VIDEO" && (
             <>
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label htmlFor="videoUrl">Video URL</label>
-                  <input
-                    id="videoUrl"
-                    name="videoUrl"
-                    placeholder="https://..."
-                    value={form.videoUrl}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label htmlFor="thumbnailUrl">Thumbnail URL</label>
-                  <input
-                    id="thumbnailUrl"
-                    name="thumbnailUrl"
-                    placeholder="https://..."
-                    value={form.thumbnailUrl}
-                    onChange={handleChange}
-                  />
-                </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="videoUrl">Video URL</label>
+                <input
+                  id="videoUrl"
+                  name="videoUrl"
+                  placeholder="https://..."
+                  value={form.videoUrl}
+                  onChange={handleChange}
+                />
               </div>
 
               <div className={styles.formRow}>
@@ -536,17 +561,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
                 <p className={styles.editorHint}>
                   Có thể dùng in đậm, nghiêng, tiêu đề, danh sách, link, ảnh...
                 </p>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="thumbnailUrl">Thumbnail URL</label>
-                <input
-                  id="thumbnailUrl"
-                  name="thumbnailUrl"
-                  placeholder="https://..."
-                  value={form.thumbnailUrl}
-                  onChange={handleChange}
-                />
               </div>
 
               <div className={styles.formGroup}>
@@ -678,17 +692,6 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
               </div>
 
               <div className={styles.formGroup}>
-                <label htmlFor="thumbnailUrl">Thumbnail URL</label>
-                <input
-                  id="thumbnailUrl"
-                  name="thumbnailUrl"
-                  placeholder="https://..."
-                  value={form.thumbnailUrl}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className={styles.formGroup}>
                 <label htmlFor="orderIndex">Thứ tự bài học</label>
                 <input
                   id="orderIndex"
@@ -702,18 +705,48 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
             </>
           )}
 
-          <div className={styles.checkRow}>
-            <label className={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                name="isPreview"
-                checked={form.lessonType === "QUIZ" ? false : form.isPreview}
-                onChange={handleChange}
-                disabled={form.lessonType === "QUIZ"}
-              />
-              <span>Cho phép học thử</span>
-            </label>
+          <div className={styles.formGroup}>
+            <label htmlFor="lessonResources">File đính kèm</label>
+            {resources.length > 0 ? (
+              <ul className={styles.resourceList}>
+                {resources.map((resource) => (
+                  <li className={styles.resourceItem} key={resource.id}>
+                    <a
+                      href={resolveResourceUrl(resource.fileUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={styles.resourceLink}
+                    >
+                      {resource.fileName}
+                    </a>
+                    <button
+                      type="button"
+                      className={styles.deleteResourceBtn}
+                      onClick={() => handleDeleteResource(resource.id)}
+                      disabled={loading}
+                    >
+                      Xóa
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <input
+              id="lessonResources"
+              type="file"
+              multiple
+              onChange={handleResourceFilesChange}
+            />
+            {resourceFiles.length > 0 ? (
+              <ul className={styles.resourceList}>
+                {resourceFiles.map((file) => (
+                  <li key={`${file.name}-${file.size}`}>{file.name}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
+          <div className={styles.checkRow}>
             <label className={styles.checkboxRow}>
               <input
                 type="checkbox"

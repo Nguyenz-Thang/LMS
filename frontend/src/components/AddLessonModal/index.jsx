@@ -51,7 +51,7 @@ function AddLessonModal({
   section,
   nextOrderIndex = 1,
 }) {
-  const { createLesson } = useLessonApi();
+  const { createLesson, uploadLessonResources } = useLessonApi();
   const quillRef = useRef(null);
 
   const initialForm = useMemo(
@@ -61,9 +61,7 @@ function AddLessonModal({
       lessonType: "VIDEO",
       content: "",
       videoUrl: "",
-      thumbnailUrl: "",
       durationMinutes: 0,
-      isPreview: false,
       isPublished: true,
       orderIndex: nextOrderIndex,
 
@@ -78,6 +76,7 @@ function AddLessonModal({
   );
 
   const [form, setForm] = useState(initialForm);
+  const [resourceFiles, setResourceFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
   function resolveUploadedImageUrl(data) {
@@ -132,7 +131,6 @@ function AddLessonModal({
         const imageUrl = resolveUploadedImageUrl(data);
 
         if (!imageUrl) {
-          console.log("UPLOAD_IMAGE_RESPONSE =", data);
           throw new Error("Không lấy được URL ảnh");
         }
 
@@ -192,6 +190,7 @@ function AddLessonModal({
   useEffect(() => {
     if (!isOpen) return;
     setForm(initialForm);
+    setResourceFiles([]);
     setErrorText("");
   }, [isOpen, initialForm]);
 
@@ -223,6 +222,10 @@ function AddLessonModal({
       ...prev,
       description: value,
     }));
+  };
+
+  const handleResourceFilesChange = (e) => {
+    setResourceFiles(Array.from(e.target.files || []));
   };
 
   const handleClose = () => {
@@ -269,9 +272,9 @@ function AddLessonModal({
         lessonType: form.lessonType,
         content: form.lessonType === "READING" ? form.content : "",
         videoUrl: form.lessonType === "VIDEO" ? form.videoUrl.trim() : "",
-        thumbnailUrl: form.thumbnailUrl.trim(),
+        thumbnailUrl: "",
         durationMinutes: Number(form.durationMinutes) || 0,
-        isPreview: form.isPreview,
+        isPreview: false,
         isPublished: form.isPublished,
         orderIndex: Number(form.orderIndex),
         sectionId: section.id,
@@ -290,7 +293,12 @@ function AddLessonModal({
           form.lessonType === "ASSIGNMENT" ? form.assignmentType : "",
       };
 
-      await createLesson(payload);
+      const res = await createLesson(payload);
+      const createdLessonId = res?.result?.id;
+
+      if (createdLessonId && resourceFiles.length > 0) {
+        await uploadLessonResources(createdLessonId, resourceFiles);
+      }
 
       onClose();
       onCreated?.();
@@ -337,9 +345,6 @@ function AddLessonModal({
                 className={styles.descriptionEditor}
               />
             </div>
-            <p className={styles.editorHint}>
-              Có thể in đậm, nghiêng, gạch chân, danh sách và link.
-            </p>
           </div>
 
           <div className={styles.formGroup}>
@@ -462,17 +467,6 @@ function AddLessonModal({
 
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
-              <label htmlFor="thumbnailUrl">Thumbnail URL</label>
-              <input
-                id="thumbnailUrl"
-                name="thumbnailUrl"
-                value={form.thumbnailUrl}
-                onChange={handleChange}
-                placeholder="https://..."
-              />
-            </div>
-
-            <div className={styles.formGroup}>
               <label htmlFor="durationMinutes">Thời lượng (phút)</label>
               <input
                 id="durationMinutes"
@@ -499,17 +493,24 @@ function AddLessonModal({
             </div>
           </div>
 
-          <div className={styles.checkRow}>
-            <label className={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                name="isPreview"
-                checked={form.isPreview}
-                onChange={handleChange}
-              />
-              <span>Cho phép học thử</span>
-            </label>
+          <div className={styles.formGroup}>
+            <label htmlFor="lessonResources">File đính kèm</label>
+            <input
+              id="lessonResources"
+              type="file"
+              multiple
+              onChange={handleResourceFilesChange}
+            />
+            {resourceFiles.length > 0 ? (
+              <ul className={styles.resourceList}>
+                {resourceFiles.map((file) => (
+                  <li key={`${file.name}-${file.size}`}>{file.name}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
 
+          <div className={styles.checkRow}>
             <label className={styles.checkboxRow}>
               <input
                 type="checkbox"

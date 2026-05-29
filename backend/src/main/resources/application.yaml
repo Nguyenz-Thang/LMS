@@ -39,6 +39,7 @@ lms:
     from: ${MAIL_FROM:no-reply@lms.local}
     weekly-progress-cron: ${LMS_WEEKLY_PROGRESS_CRON:0 0 7 * * MON}
   payment:
+    pending-expire-minutes: ${LMS_PAYMENT_PENDING_EXPIRE_MINUTES:30}
     sepay:
       bank-code: ${SEPAY_BANK_CODE:TPB}
       bank-name: ${SEPAY_BANK_NAME:TPBank}

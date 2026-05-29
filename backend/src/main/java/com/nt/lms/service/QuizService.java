@@ -64,7 +64,7 @@ public class QuizService {
                 .course(course)
                 .lesson(lesson)
                 .maxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null))
-                .timeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes()))
+                .timeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes(), lesson != null))
                 .isPublished(false)
                 .quizScope(lesson != null ? "LESSON" : "INDEPENDENT")
                 .createdSource("MANUAL")
@@ -152,7 +152,7 @@ public class QuizService {
         quiz.setCourse(course);
         quiz.setLesson(lesson);
         quiz.setMaxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null));
-        quiz.setTimeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes()));
+        quiz.setTimeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes(), lesson != null));
         quiz.setQuizScope(lesson != null ? "LESSON" : "INDEPENDENT");
         if (quiz.getCreatedSource() == null || quiz.getCreatedSource().isBlank()) {
             quiz.setCreatedSource("MANUAL");
@@ -407,7 +407,11 @@ public class QuizService {
         return requestedMaxAttempts;
     }
 
-    private Integer resolveTimeLimitMinutes(Integer requestedTimeLimitMinutes) {
+    private Integer resolveTimeLimitMinutes(Integer requestedTimeLimitMinutes, boolean lessonLinked) {
+        if (lessonLinked) {
+            return null;
+        }
+
         if (requestedTimeLimitMinutes == null || requestedTimeLimitMinutes <= 0) {
             return null;
         }

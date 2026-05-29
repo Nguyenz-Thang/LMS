@@ -17,6 +17,8 @@
   align-items: center;
   gap: 12px;
   min-width: 280px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .logo {
@@ -63,11 +65,31 @@
   justify-content: flex-end;
 }
 
-.link {
-  text-decoration: none;
+.greeting {
   color: #111827;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.adminLink {
+  height: 36px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.adminLink:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
 }
 
 .iconButton {
@@ -317,6 +339,11 @@
   border-color: #dbeafe;
 }
 
+.notificationRead {
+  opacity: 0.72;
+  background: #ffffff;
+}
+
 .notificationEmpty {
   padding: 16px 12px;
   border-radius: 14px;
@@ -339,6 +366,11 @@
 
   &:hover {
     background: #dbeafe;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
   }
 }
 
@@ -365,5 +397,10 @@
   .notificationDropdown {
     right: -46px;
     width: min(340px, calc(100vw - 24px));
+  }
+
+  .adminLink {
+    padding: 0 10px;
+    font-size: 13px;
   }
 }

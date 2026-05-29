@@ -3,8 +3,10 @@ package com.nt.lms.controller;
 import java.util.List;
 
 import com.nt.lms.dto.response.ApiResponse;
+import com.nt.lms.dto.request.ChangePasswordRequest;
 import com.nt.lms.dto.request.UserCreationRequest;
 import com.nt.lms.dto.request.UserUpdateRequest;
+import com.nt.lms.dto.response.PageResponse;
 import com.nt.lms.dto.response.UserResponse;
 import com.nt.lms.service.UserService;
 import jakarta.validation.Valid;
@@ -47,6 +49,19 @@ public class UserController {
                 .build();
     }
 
+    @GetMapping("/search")
+    @PreAuthorize("hasRole('ADMIN')")
+    ApiResponse<PageResponse<UserResponse>> searchUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String role,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ApiResponse.<PageResponse<UserResponse>>builder()
+                .result(userService.searchUsers(keyword, role, page, size))
+                .build();
+    }
+
     @GetMapping("/{userId}")
     @PreAuthorize("hasRole('ADMIN')")
     ApiResponse<UserResponse> getUser(@PathVariable("userId") String userId) {
@@ -74,6 +89,14 @@ public class UserController {
     ApiResponse<UserResponse> updateMyInfo(@RequestBody UserUpdateRequest request) {
         return ApiResponse.<UserResponse>builder()
                 .result(userService.updateMyInfo(request))
+                .build();
+    }
+
+    @PutMapping("/myInfo/password")
+    ApiResponse<Void> changeMyPassword(@RequestBody @Valid ChangePasswordRequest request) {
+        userService.changeMyPassword(request);
+        return ApiResponse.<Void>builder()
+                .message("Password changed successfully")
                 .build();
     }
 

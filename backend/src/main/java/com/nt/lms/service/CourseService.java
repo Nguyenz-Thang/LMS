@@ -53,6 +53,7 @@ public class CourseService {
     LessonRepository lessonRepository;
     QuizRepository quizRepository;
     AssignmentRepository assignmentRepository;
+    AppNotificationService appNotificationService;
 
     public CourseResponse createCourse(CourseRequest request) {
         User currentUser = getCurrentUser();
@@ -76,7 +77,11 @@ public class CourseService {
                 .paid(isPaidCourse(request.getPaid(), request.getPrice()))
                 .build();
 
-        return mapToResponse(courseRepository.save(course));
+        Course savedCourse = courseRepository.save(course);
+        if (!isAdmin) {
+            appNotificationService.notifyCoursePendingApproval(savedCourse);
+        }
+        return mapToResponse(savedCourse);
     }
 
     public List<CourseResponse> getCourses() {

@@ -197,6 +197,14 @@
   gap: 16px;
 }
 
+.weeklyGrid {
+  grid-template-columns: 1fr;
+
+  > .panelCard:first-child {
+    display: none;
+  }
+}
+
 .panelCard {
   min-width: 0;
   padding: 18px;

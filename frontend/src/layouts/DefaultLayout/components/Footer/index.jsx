@@ -1,6 +1,6 @@
-import { Youtube, Facebook, Music2, Volume2 } from "lucide-react";
+import { Youtube, Facebook, Music2 } from "lucide-react";
 import styles from "./Footer.module.scss";
-import logo from "../../../../assets/img/utt.png";
+import logo from "../../../../assets/img/logo.png";
 
 export default function Footer() {
   return (
@@ -9,9 +9,14 @@ export default function Footer() {
         <div className={styles.top}>
           <div className={styles.colBrand}>
             <div className={styles.brand}>
-              <img src={logo} alt="F8 Logo" className={styles.logo} />
+              <img src={logo} alt="LMS Logo" className={styles.logo} />
               <h3>LMS</h3>
             </div>
+
+            <p className={styles.description}>
+              Nền tảng quản lý học tập trực tuyến hỗ trợ khóa học, bài học,
+              quiz, bài tập, thanh toán và theo dõi tiến độ.
+            </p>
 
             <ul className={styles.infoList}>
               <li>
@@ -25,51 +30,47 @@ export default function Footer() {
                 Liệt, Thành phố Hà Nội
               </li>
             </ul>
-
-            {/* <div className={styles.badges}>
-              <div className={styles.badge}></div>
-              <div className={styles.badgeBlue}></div>
-            </div> */}
           </div>
 
           <div className={styles.col}>
             <h4>VỀ LMS</h4>
-            <a href="/">Giới thiệu</a>
-            <a href="/">Liên hệ</a>
-            <a href="/">Điều khoản &amp; Quy định</a>
-            <a href="/">Chính sách bảo mật</a>
+            <a href="/home">Giới thiệu hệ thống</a>
+            <a href="/courses">Khóa học</a>
+            <a href="/my-courses">Lộ trình học tập</a>
+            <a href="/discussions">Câu hỏi thường gặp</a>
+            <a href="/profile">Liên hệ</a>
           </div>
 
           <div className={styles.col}>
             <h4>HỖ TRỢ</h4>
-            <a href="/">Chính sách thanh toán</a>
+            <a href="/courses">Hướng dẫn đăng ký khóa học</a>
+            <a href="/my-courses">Hướng dẫn thanh toán</a>
+            <a href="/settings">Cài đặt thông báo</a>
+            <a href="/settings">Chính sách bảo mật</a>
           </div>
 
           <div className={styles.col}>
             <h4>CÔNG CỤ</h4>
-            <a href="/">Tạo</a>
+            <a href="/my-courses">Khóa học của tôi</a>
+            <a href="/quizzes">Quiz</a>
+            <a href="/quiz-results">Kết quả quiz</a>
+            <a href="/progress">Tiến độ học tập</a>
+            <a href="/chatbot">Chatbot AI</a>
           </div>
 
           <div className={styles.colCompany}>
-            <h4>CÔNG TY CỔ PHẦN CÔNG NGHỆ GIÁO DỤC</h4>
-            {/* <p>
-              Địa chỉ: Tầng 4, Tòa nhà Anh Minh, số 36 Hoàng Cầu, Thành phố Hà
-              Nội
-            </p>
-            <p>
-              Mã số doanh nghiệp: 0109922901 do Chi cục Thuế Quận Đống Đa, Cục
-              Thuế TP. Hà Nội cấp ngày 04/03/2022
-            </p> */}
+            <h4>QUẢN LÝ HỌC TẬP</h4>
+            <a href="/admin/courses">Quản lý khóa học</a>
+            <a href="/admin/categories">Quản lý danh mục</a>
+            <a href="/admin/users">Quản lý học viên</a>
+            <a href="/admin/enrollments">Quản lý đăng ký học</a>
+            <a href="/admin/reports">Báo cáo - thống kê</a>
           </div>
         </div>
 
         <div className={styles.bottom}>
-          {/* <button className={styles.soundBtn} type="button" aria-label="Sound">
-            <Volume2 size={20} />
-          </button> */}
-
           <p className={styles.copy}>
-            © 2004 - 2026 LMS. Hệ thống quản lý học tập hàng đầu Việt Nam.
+            © 2026 LMS. Đồ án hệ thống quản lý học tập trực tuyến.
           </p>
 
           <div className={styles.socials}>

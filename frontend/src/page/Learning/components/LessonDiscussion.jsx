@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
   Bold,
@@ -203,7 +203,7 @@ function CommentEditor({
       onSubmit={onSubmit}
     >
       <div className={styles.commentToolbar}>
-        {tools.map(([key, ToolIcon, label]) => {
+        {tools.map(([key, icon, label]) => {
           return (
             <button
               key={key}
@@ -212,7 +212,7 @@ function CommentEditor({
               onClick={() => applyFormat(key)}
               disabled={disabled}
             >
-              <ToolIcon size={compact ? 14 : 16} />
+              {createElement(icon, { size: compact ? 14 : 16 })}
             </button>
           );
         })}

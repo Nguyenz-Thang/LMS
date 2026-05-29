@@ -20,9 +20,16 @@ export default function Settings() {
     newAssignmentEmail: true,
     weeklyProgressEmail: true,
   });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [successText, setSuccessText] = useState("");
 
   useEffect(() => {
     fetchSettings();
@@ -32,6 +39,7 @@ export default function Settings() {
     try {
       setLoading(true);
       setErrorText("");
+      setSuccessText("");
       const res = await api.get("/notification-settings/me");
       setSettings((prev) => ({
         ...prev,
@@ -57,6 +65,7 @@ export default function Settings() {
     setSettings(nextState);
     setSavingKey(key);
     setErrorText("");
+    setSuccessText("");
 
     try {
       const res = await api.put("/notification-settings/me", {
@@ -81,6 +90,52 @@ export default function Settings() {
     }
   };
 
+  const updatePasswordField = (event) => {
+    const { name, value } = event.target;
+    setPasswordForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const changePassword = async (event) => {
+    event.preventDefault();
+    setErrorText("");
+    setSuccessText("");
+
+    if (!passwordForm.currentPassword.trim()) {
+      setErrorText("Vui lòng nhập mật khẩu hiện tại.");
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setErrorText("Mật khẩu mới phải có ít nhất 6 ký tự.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setErrorText("Mật khẩu mới và nhập lại mật khẩu không khớp.");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      await api.put("/users/myInfo/password", passwordForm);
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setSuccessText("Đã đổi mật khẩu thành công.");
+    } catch (error) {
+      setErrorText(
+        error?.response?.data?.message || "Không đổi được mật khẩu.",
+      );
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.hero}>
@@ -95,6 +150,7 @@ export default function Settings() {
       </div>
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
+      {successText ? <div className={styles.successBox}>{successText}</div> : null}
 
       <section className={styles.section}>
         <div className={styles.sectionHead}>
@@ -128,6 +184,67 @@ export default function Settings() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h2>Đổi mật khẩu</h2>
+          <span>Cập nhật mật khẩu đăng nhập của tài khoản</span>
+        </div>
+
+        <form className={styles.passwordCard} onSubmit={changePassword}>
+          <div className={styles.formGrid}>
+            <label className={styles.field}>
+              <span>Mật khẩu hiện tại</span>
+              <input
+                name="currentPassword"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={updatePasswordField}
+                autoComplete="current-password"
+                placeholder="Nhập mật khẩu hiện tại"
+              />
+            </label>
+
+            <label className={styles.field}>
+              <span>Mật khẩu mới</span>
+              <input
+                name="newPassword"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={updatePasswordField}
+                autoComplete="new-password"
+                placeholder="Tối thiểu 6 ký tự"
+              />
+            </label>
+
+            <label className={styles.field}>
+              <span>Nhập lại mật khẩu mới</span>
+              <input
+                name="confirmPassword"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={updatePasswordField}
+                autoComplete="new-password"
+                placeholder="Nhập lại mật khẩu mới"
+              />
+            </label>
+          </div>
+
+          <div className={styles.formActions}>
+            <button
+              type="submit"
+              disabled={
+                changingPassword ||
+                !passwordForm.currentPassword ||
+                !passwordForm.newPassword ||
+                !passwordForm.confirmPassword
+              }
+            >
+              {changingPassword ? "Đang cập nhật..." : "Đổi mật khẩu"}
+            </button>
+          </div>
+        </form>
       </section>
     </div>
   );

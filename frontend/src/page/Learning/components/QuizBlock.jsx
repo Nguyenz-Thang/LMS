@@ -2,6 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import styles from "../Learning.module.scss";
 
+function isMultipleChoice(question) {
+  return String(question?.questionType || "").toUpperCase() === "MULTIPLE_CHOICE";
+}
+
+function getQuestionSelectedIds(question) {
+  if (!question) return [];
+  if (isMultipleChoice(question)) return question.selectedOptionIds || [];
+  return question.selectedOptionId ? [question.selectedOptionId] : [];
+}
+
+function formatScore(score, totalScore) {
+  return `${Math.round(Number(score) || 0)}/${Math.round(Number(totalScore) || 0)}`;
+}
+
+function buildSelections(questions = []) {
+  return questions.reduce((acc, question) => {
+    acc[question.id] = getQuestionSelectedIds(question);
+    return acc;
+  }, {});
+}
+
 export default function QuizBlock({
   quizId,
   getLearningQuiz,
@@ -13,50 +34,45 @@ export default function QuizBlock({
   const [quizData, setQuizData] = useState(null);
   const [loadingQuiz, setLoadingQuiz] = useState(true);
   const [startingQuiz, setStartingQuiz] = useState(false);
-  const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [savingQuiz, setSavingQuiz] = useState(false);
   const [quizError, setQuizError] = useState("");
-  const [selectedOptionIds, setSelectedOptionIds] = useState([]);
-  const [answered, setAnswered] = useState(false);
-  const [answerCorrect, setAnswerCorrect] = useState(null);
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  const [selectedByQuestion, setSelectedByQuestion] = useState({});
   const autoStartedQuizRef = useRef("");
 
+  const loadQuiz = useCallback(async () => {
+    try {
+      setLoadingQuiz(true);
+      setQuizError("");
+      setActiveQuestionIndex(0);
+
+      const res = await getLearningQuiz(quizId);
+      const data = res?.result || null;
+      setQuizData(data);
+      setSelectedByQuestion(buildSelections(data?.questions || []));
+    } catch (error) {
+      setQuizError(
+        error?.body?.message || error?.message || "Không tải được quiz.",
+      );
+    } finally {
+      setLoadingQuiz(false);
+    }
+  }, [getLearningQuiz, quizId]);
+
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchQuiz = async () => {
-      try {
-        setLoadingQuiz(true);
-        setQuizError("");
-        setSelectedOptionIds([]);
-        setAnswered(false);
-        setAnswerCorrect(null);
-
-        const res = await getLearningQuiz(quizId);
-        if (isMounted) setQuizData(res?.result || null);
-      } catch (error) {
-        if (isMounted) {
-          setQuizError(
-            error?.body?.message || error?.message || "Không tải được quiz.",
-          );
-        }
-      } finally {
-        if (isMounted) setLoadingQuiz(false);
-      }
-    };
-
-    fetchQuiz();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [quizId, getLearningQuiz]);
+    loadQuiz();
+  }, [loadQuiz]);
 
   const handleStartQuiz = useCallback(async () => {
     try {
       setStartingQuiz(true);
       setQuizError("");
+      setActiveQuestionIndex(0);
+
       const res = await startLearningQuiz(quizId);
-      setQuizData(res?.result || null);
+      const data = res?.result || null;
+      setQuizData(data);
+      setSelectedByQuestion(buildSelections(data?.questions || []));
     } catch (error) {
       autoStartedQuizRef.current = "";
       setQuizError(error?.body?.message || error?.message || "Không thể mở quiz.");
@@ -80,84 +96,79 @@ export default function QuizBlock({
     handleStartQuiz();
   }, [handleStartQuiz, loadingQuiz, quizData, quizId, startingQuiz]);
 
-  const question = quizData?.questions?.[0] || null;
-  const correctOptionIds = useMemo(() => {
-    if (!question) return [];
-    if (question.correctOptionId) return [question.correctOptionId];
-    return question.correctOptionIds || [];
-  }, [question]);
+  const questions = useMemo(() => quizData?.questions || [], [quizData]);
+  const totalQuestions = questions.length;
+  const safeQuestionIndex = Math.min(
+    Math.max(activeQuestionIndex, 0),
+    Math.max(totalQuestions - 1, 0),
+  );
+  const activeQuestion = questions[safeQuestionIndex] || null;
+  const submitted =
+    quizData?.attemptStatus === "SUBMITTED" || quizData?.attemptStatus === "GRADED";
+  const canAnswer = quizData?.attemptStatus === "IN_PROGRESS";
+  const answeredCount = questions.filter(
+    (question) => (selectedByQuestion[question.id] || []).length > 0,
+  ).length;
+  const allAnswered = totalQuestions > 0 && answeredCount === totalQuestions;
 
-  const hasSelected = selectedOptionIds.length > 0;
-  const isMultipleChoice =
-    String(question?.questionType || "").toUpperCase() === "MULTIPLE_CHOICE";
+  const handleSelectOption = (question, optionId) => {
+    if (!canAnswer || savingQuiz) return;
 
-  const isSelectionCorrect = () => {
-    if (!question || !hasSelected) return false;
-    const selected = [...selectedOptionIds].sort();
-    const correct = [...correctOptionIds].sort();
-    return (
-      selected.length === correct.length &&
-      selected.every((optionId, index) => optionId === correct[index])
-    );
-  };
+    setSelectedByQuestion((prev) => {
+      const currentIds = prev[question.id] || [];
+      const nextIds = isMultipleChoice(question)
+        ? currentIds.includes(optionId)
+          ? currentIds.filter((id) => id !== optionId)
+          : [...currentIds, optionId]
+        : [optionId];
 
-  const handleSelectOption = (optionId) => {
-    if (submittingQuiz) return;
-
-    setAnswered(false);
-    setAnswerCorrect(null);
-
-    setSelectedOptionIds((prev) => {
-      if (!isMultipleChoice) {
-        return [optionId];
-      }
-
-      return prev.includes(optionId)
-        ? prev.filter((id) => id !== optionId)
-        : [...prev, optionId];
+      return {
+        ...prev,
+        [question.id]: nextIds,
+      };
     });
   };
 
-  const persistUnlockIfNeeded = async () => {
-    if (!quizData?.attemptId || quizData?.attemptStatus !== "IN_PROGRESS") {
-      await onQuizSubmitted?.({ autoNavigate: false });
-      return;
+  const saveAllAnswers = async () => {
+    let latestData = quizData;
+
+    for (const question of questions) {
+      const selectedIds = selectedByQuestion[question.id] || [];
+      if (selectedIds.length === 0) continue;
+
+      const payload = {
+        questionId: question.id,
+        selectedOptionId: isMultipleChoice(question) ? null : selectedIds[0],
+        selectedOptionIds: isMultipleChoice(question) ? selectedIds : [],
+      };
+
+      const savedRes = await saveQuizAnswer(quizData.attemptId, payload);
+      latestData = savedRes?.result || latestData;
     }
 
-    const payload = {
-      questionId: question.id,
-      selectedOptionId: isMultipleChoice ? null : selectedOptionIds[0],
-      selectedOptionIds: isMultipleChoice ? selectedOptionIds : [],
-    };
-
-    const savedRes = await saveQuizAnswer(quizData.attemptId, payload);
-    const savedData = savedRes?.result || quizData;
-    setQuizData(savedData);
-
-    const submitRes = await submitLearningQuiz(savedData.attemptId);
-    const submittedData = submitRes?.result || savedData;
-    setQuizData(submittedData);
-
-    await onQuizSubmitted?.({ autoNavigate: false, skipSave: true });
+    return latestData;
   };
 
-  const handleAnswer = async () => {
-    if (!hasSelected || !question || submittingQuiz) return;
-
-    const correct = isSelectionCorrect();
-    setAnswered(true);
-    setAnswerCorrect(correct);
-
-    if (!correct) return;
+  const handleSubmit = async () => {
+    if (!canAnswer || !quizData?.attemptId || !allAnswered || savingQuiz) return;
 
     try {
-      setSubmittingQuiz(true);
+      setSavingQuiz(true);
       setQuizError("");
-      await persistUnlockIfNeeded();
+
+      await saveAllAnswers();
+      const submitRes = await submitLearningQuiz(quizData.attemptId);
+      const submittedData = submitRes?.result || quizData;
+      setQuizData(submittedData);
+      setSelectedByQuestion(buildSelections(submittedData.questions || []));
+
+      if (submittedData.passed) {
+        await onQuizSubmitted?.({ autoNavigate: false, skipSave: true });
+      }
     } catch (error) {
-      setQuizError(error?.body?.message || error?.message || "Không mở được bài tiếp.");
+      setQuizError(error?.body?.message || error?.message || "Không nộp được quiz.");
     } finally {
-      setSubmittingQuiz(false);
+      setSavingQuiz(false);
     }
   };
 
@@ -169,47 +180,90 @@ export default function QuizBlock({
     return <div className={styles.quizError}>{quizError}</div>;
   }
 
-  if (!quizData?.attemptId || !quizData?.attemptStatus) {
+  if (!quizData?.attemptId && !quizData?.attemptStatus) {
     return <div className={styles.quizState}>Đang mở quiz...</div>;
   }
 
-  if (!question) {
+  if (!activeQuestion) {
     return <div className={styles.quizState}>Quiz chưa có câu hỏi.</div>;
   }
 
   return (
     <div className={styles.quizSingle}>
       <div className={styles.quizSingleHead}>
-        <div
-          className={styles.quizRichText}
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(question.questionText || ""),
-          }}
-        />
-        <p>Chọn câu trả lời đúng.</p>
+        <div>
+          <h3>{quizData.title || "Quiz"}</h3>
+          <p>
+            Câu {safeQuestionIndex + 1} / {totalQuestions}
+            {submitted
+              ? ` - Kết quả: ${formatScore(quizData.score, quizData.totalScore)}`
+              : ` - Đã trả lời ${answeredCount}/${totalQuestions}`}
+          </p>
+        </div>
+
+        <div className={styles.quizStepper}>
+          {questions.map((question, index) => {
+            const selected = (selectedByQuestion[question.id] || []).length > 0;
+            const stepClass = [
+              styles.quizStep,
+              index === safeQuestionIndex ? styles.quizStepActive : "",
+              selected ? styles.quizStepDone : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            return (
+              <button
+                key={question.id}
+                type="button"
+                className={stepClass}
+                onClick={() => setActiveQuestionIndex(index)}
+              >
+                {index + 1}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      <div
+        className={styles.quizRichText}
+        dangerouslySetInnerHTML={{
+          __html: DOMPurify.sanitize(activeQuestion.questionText || ""),
+        }}
+      />
+
       <div className={styles.quizOptionsSimple}>
-        {(question.options || []).map((option) => {
-          const checked = selectedOptionIds.includes(option.id);
+        {(activeQuestion.options || []).map((option) => {
+          const selectedIds = selectedByQuestion[activeQuestion.id] || [];
+          const checked = selectedIds.includes(option.id);
+          const isCorrectOption = isMultipleChoice(activeQuestion)
+            ? (activeQuestion.correctOptionIds || []).includes(option.id)
+            : activeQuestion.correctOptionId === option.id;
           const optionClasses = [
             styles.quizOptionSimple,
             checked ? styles.quizOptionSimpleSelected : "",
-            answered && checked && answerCorrect ? styles.quizOptionSimpleCorrect : "",
-            answered && checked && answerCorrect === false
-              ? styles.quizOptionSimpleWrong
-              : "",
+            submitted && isCorrectOption ? styles.quizOptionSimpleCorrect : "",
+            submitted && checked && !isCorrectOption ? styles.quizOptionSimpleWrong : "",
           ]
             .filter(Boolean)
             .join(" ");
+
+          if (submitted) {
+            return (
+              <div key={option.id} className={optionClasses}>
+                {option.optionText}
+              </div>
+            );
+          }
 
           return (
             <button
               key={option.id}
               type="button"
               className={optionClasses}
-              onClick={() => handleSelectOption(option.id)}
-              disabled={submittingQuiz}
+              onClick={() => handleSelectOption(activeQuestion, option.id)}
+              disabled={!canAnswer || savingQuiz}
             >
               {option.optionText}
             </button>
@@ -217,40 +271,79 @@ export default function QuizBlock({
         })}
       </div>
 
-      <div className={styles.quizSingleActions}>
-        <button
-          type="button"
-          className={styles.quizPrimaryBtn}
-          onClick={handleAnswer}
-          disabled={!hasSelected || submittingQuiz}
-        >
-          {submittingQuiz ? "ĐANG LƯU TIẾN ĐỘ..." : "TRẢ LỜI"}
-        </button>
-      </div>
-
-      {answered ? (
+      {submitted ? (
         <div className={styles.quizExplanationPanel}>
-          {answerCorrect === false ? (
+          <p className={styles.quizAnswerNote}>
+            {activeQuestion.correct
+              ? "Bạn đã chọn đáp án đúng."
+              : "Đáp án của câu này chưa đúng."}
+          </p>
+
+          {!activeQuestion.correct ? (
             <p className={styles.quizAnswerNote}>
-              Đáp án này chưa đúng. Hãy chọn lại đáp án khác.
+              Đáp án đúng:{" "}
+              <strong>
+                {isMultipleChoice(activeQuestion)
+                  ? (activeQuestion.correctOptionTexts || []).join(", ") || "Chưa có"
+                  : activeQuestion.correctOptionText || "Chưa có"}
+              </strong>
             </p>
           ) : null}
 
-          {answerCorrect === true ? (
+          {activeQuestion.explanation ? (
             <>
               <h4>Giải thích</h4>
-              {question.explanation ? (
-                <div
-                  className={`${styles.quizExplanationContent} ${styles.quizRichText}`}
-                  dangerouslySetInnerHTML={{
-                    __html: DOMPurify.sanitize(question.explanation || ""),
-                  }}
-                />
-              ) : null}
+              <div
+                className={`${styles.quizExplanationContent} ${styles.quizRichText}`}
+                dangerouslySetInnerHTML={{
+                  __html: DOMPurify.sanitize(activeQuestion.explanation || ""),
+                }}
+              />
             </>
           ) : null}
         </div>
+      ) : !allAnswered ? (
+        <p className={styles.quizAnswerNote}>
+          Hãy trả lời đủ tất cả câu hỏi trước khi nộp bài.
+        </p>
       ) : null}
+
+      <div className={styles.quizSingleActions}>
+        <button
+          type="button"
+          className={styles.quizGhostBtn}
+          onClick={() => setActiveQuestionIndex((prev) => Math.max(prev - 1, 0))}
+          disabled={safeQuestionIndex === 0 || savingQuiz}
+        >
+          Câu trước
+        </button>
+
+        {safeQuestionIndex < totalQuestions - 1 ? (
+          <button
+            type="button"
+            className={styles.quizGhostBtn}
+            onClick={() =>
+              setActiveQuestionIndex((prev) =>
+                Math.min(prev + 1, totalQuestions - 1),
+              )
+            }
+            disabled={savingQuiz}
+          >
+            Câu tiếp theo
+          </button>
+        ) : null}
+
+        {canAnswer ? (
+          <button
+            type="button"
+            className={styles.quizPrimaryBtn}
+            onClick={handleSubmit}
+            disabled={!allAnswered || savingQuiz}
+          >
+            {savingQuiz ? "Đang nộp..." : "Nộp bài"}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

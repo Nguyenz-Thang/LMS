@@ -44,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +61,7 @@ public class EnrollmentService {
     LessonRepository lessonRepository;
     SectionRepository sectionRepository;
     QuizAttemptRepository quizAttemptRepository;
+    AppNotificationService appNotificationService;
 
     @Transactional(readOnly = true)
     public List<EnrollmentResponse> getAllEnrollments() {
@@ -75,12 +77,8 @@ public class EnrollmentService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        String username = SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getName();
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User user = resolveEnrollmentUser(request, authentication);
 
         Course course = courseRepository.findById(request.getCourseId().trim())
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
@@ -89,7 +87,7 @@ public class EnrollmentService {
             throw new AppException(ErrorCode.ALREADY_ENROLLED);
         }
 
-        if (requiresPayment(course)) {
+        if (requiresPayment(course) && !Boolean.TRUE.equals(request.getPaymentConfirmed())) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
@@ -103,7 +101,31 @@ public class EnrollmentService {
                 .build();
 
         enrollment = enrollmentRepository.save(enrollment);
+        appNotificationService.notifyCourseEnrollment(enrollment, Boolean.TRUE.equals(request.getPaymentConfirmed()));
         return enrollmentMapper.toEnrollmentResponse(enrollment);
+    }
+
+    private User resolveEnrollmentUser(EnrollmentRequest request, Authentication authentication) {
+        if (request.getUserId() != null && !request.getUserId().isBlank()) {
+            boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                    .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority())
+                            || "ADMIN".equals(authority.getAuthority()));
+
+            if (!isAdmin) {
+                throw new AppException(ErrorCode.UNAUTHORIZED);
+            }
+
+            return userRepository.findById(request.getUserId().trim())
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        }
+
+        String username = authentication != null ? authentication.getName() : null;
+        if (username == null || username.isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
     }
 
     @Transactional(readOnly = true)

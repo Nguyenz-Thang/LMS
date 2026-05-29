@@ -35,7 +35,7 @@ export function useLearningApi() {
       if (res.status === 401) {
         logout?.();
         throw new Error(
-          "PhiÃªn Ä‘Äƒng nháº­p Ä‘Ã£ háº¿t háº¡n hoáº·c báº¡n khÃ´ng cÃ³ quyá»n.",
+          "Phiên đăng nhập đã hết hạn hoặc bạn không có quyền.",
         );
       }
 

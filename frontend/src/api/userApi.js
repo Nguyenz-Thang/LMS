@@ -5,6 +5,11 @@ export async function getUsers() {
   return res?.data;
 }
 
+export async function searchUsers(params = {}) {
+  const res = await api.get("/users/search", { params });
+  return res?.data;
+}
+
 export async function getUser(userId) {
   const res = await api.get(`/users/${userId}`);
   return res?.data;

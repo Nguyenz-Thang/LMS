@@ -15,22 +15,21 @@ import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Enrollment;
 import com.nt.lms.entity.LearningActivityLog;
 import com.nt.lms.entity.Lesson;
-import com.nt.lms.entity.LessonBlock;
 import com.nt.lms.entity.LessonNote;
 import com.nt.lms.entity.LessonProgress;
 import com.nt.lms.entity.LessonResource;
 import com.nt.lms.entity.Question;
 import com.nt.lms.entity.QuizAttemptAnswer;
+import com.nt.lms.entity.Assignment;
+import com.nt.lms.entity.Quiz;
 import com.nt.lms.entity.Section;
 import com.nt.lms.entity.User;
 import com.nt.lms.enums.EnrollmentStatus;
-import com.nt.lms.enums.LessonBlockType;
 import com.nt.lms.repository.AssignmentRepository;
 import com.nt.lms.repository.AssignmentSubmissionRepository;
 import com.nt.lms.repository.CourseRepository;
 import com.nt.lms.repository.EnrollmentRepository;
 import com.nt.lms.repository.LearningActivityLogRepository;
-import com.nt.lms.repository.LessonBlockRepository;
 import com.nt.lms.repository.LessonNoteRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
@@ -69,7 +68,6 @@ public class LearningService {
 	private final LessonRepository lessonRepository;
 	private final EnrollmentRepository enrollmentRepository;
 	private final LessonProgressRepository lessonProgressRepository;
-	private final LessonBlockRepository lessonBlockRepository;
 	private final LessonResourceRepository lessonResourceRepository;
 	private final LessonNoteRepository lessonNoteRepository;
 	private final LearningActivityLogRepository learningActivityLogRepository;
@@ -246,79 +244,7 @@ public class LearningService {
 				? flatLessons.get(currentIndex + 1).getId()
 				: null;
 
-		List<LearningBlockResponse> blockResponses = new ArrayList<>(
-				lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lessonId)
-						.stream()
-						.filter(block -> block.getBlockType() != LessonBlockType.UNKNOWN)
-						.map(block -> LearningBlockResponse.builder()
-								.id(block.getId())
-								.blockType(block.getBlockType())
-								.title(block.getTitle())
-								.content(block.getContent())
-								.mediaUrl(block.getMediaUrl())
-								.quizId(block.getQuiz() != null ? block.getQuiz().getId() : null)
-								.assignmentId(null)
-								.orderIndex(safeInt(block.getOrderIndex()))
-								.build())
-						.toList());
-
-		quizRepository.findFirstByLessonId(lessonId).ifPresent(quiz -> {
-			boolean existsQuizBlock = blockResponses.stream()
-					.anyMatch(b -> b.getBlockType() == LessonBlockType.QUIZ);
-
-			if (!existsQuizBlock) {
-				blockResponses.add(LearningBlockResponse.builder()
-						.id("quiz-" + quiz.getId())
-						.blockType(LessonBlockType.QUIZ)
-						.title(quiz.getTitle())
-						.content(quiz.getDescription())
-						.mediaUrl(null)
-						.quizId(quiz.getId())
-						.assignmentId(null)
-						.orderIndex(9998)
-						.build());
-			}
-		});
-
-		assignmentRepository.findFirstByLessonId(lessonId).ifPresent(assignment -> {
-			boolean existsAssignmentBlock = blockResponses.stream()
-					.anyMatch(b -> b.getBlockType() == LessonBlockType.ASSIGNMENT);
-
-			if (!existsAssignmentBlock) {
-				blockResponses.add(LearningBlockResponse.builder()
-						.id("assignment-" + assignment.getId())
-						.blockType(LessonBlockType.ASSIGNMENT)
-						.title(assignment.getTitle())
-						.content(assignment.getDescription())
-						.mediaUrl(null)
-						.quizId(null)
-						.assignmentId(assignment.getId())
-						.orderIndex(9999)
-						.build());
-			}
-		});
-
-		int fileOrderIndex = 5000;
-		for (LessonResource resource : resources) {
-			boolean existsFileBlock = blockResponses.stream()
-					.anyMatch(block -> block.getBlockType() == LessonBlockType.FILE
-							&& Objects.equals(block.getMediaUrl(), resource.getFileUrl()));
-
-			if (!existsFileBlock) {
-				blockResponses.add(LearningBlockResponse.builder()
-						.id("resource-" + resource.getId())
-						.blockType(LessonBlockType.FILE)
-						.title(resource.getFileName())
-						.content(resource.getFileType())
-						.mediaUrl(resource.getFileUrl())
-						.quizId(null)
-						.assignmentId(null)
-						.orderIndex(fileOrderIndex++)
-						.build());
-			}
-		}
-
-		blockResponses.sort(Comparator.comparing(LearningBlockResponse::getOrderIndex));
+		List<LearningBlockResponse> blockResponses = buildLearningBlocks(lesson, resources);
 		logActivity(currentUser, course, lesson, "START_LESSON", lesson.getId());
 
 		return LearningLessonDetailResponse.builder()
@@ -540,18 +466,6 @@ public class LearningService {
 			return "READING";
 		}
 
-		List<LessonBlock> blocks = lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
-
-		boolean hasQuiz = blocks.stream().anyMatch(b -> b.getBlockType() == LessonBlockType.QUIZ);
-		boolean hasAssignment = blocks.stream().anyMatch(b -> b.getBlockType() == LessonBlockType.ASSIGNMENT);
-		boolean hasVideo = blocks.stream().anyMatch(b -> b.getBlockType() == LessonBlockType.VIDEO);
-		boolean hasFile = blocks.stream().anyMatch(b -> b.getBlockType() == LessonBlockType.FILE);
-
-		if (hasQuiz) return "QUIZ";
-		if (hasAssignment) return "ASSIGNMENT";
-		if (hasVideo) return "VIDEO";
-		if (hasFile) return "FILE";
-
 		return "LESSON";
 	}
 
@@ -678,13 +592,6 @@ public class LearningService {
 				.map(quiz -> quiz.getId())
 				.ifPresent(requiredQuizIds::add);
 
-		lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId()).stream()
-				.map(LessonBlock::getQuiz)
-				.filter(Objects::nonNull)
-				.map(quiz -> quiz.getId())
-				.filter(quizId -> !requiredQuizIds.contains(quizId))
-				.forEach(requiredQuizIds::add);
-
 		for (String quizId : requiredQuizIds) {
 			var latestAttempt = quizRepository.findById(quizId)
 					.flatMap(quiz -> quizAttemptRepository.findTopByQuizIdAndUserIdOrderByAttemptNoDesc(quizId, userId)
@@ -702,15 +609,14 @@ public class LearningService {
 			Map<String, QuizAttemptAnswer> answerMap = quizAttemptAnswerRepository.findByAttemptId(attempt.getId())
 					.stream()
 					.collect(Collectors.toMap(answer -> answer.getQuestion().getId(), answer -> answer, (a, b) -> a));
-			boolean allQuestionsCorrect = !questions.isEmpty() && questions.stream().allMatch(question -> {
+			boolean allQuestionsAnswered = !questions.isEmpty() && questions.stream().allMatch(question -> {
 				QuizAttemptAnswer answer = answerMap.get(question.getId());
-				return answer != null
-						&& answer.getSelectedOption() != null
-						&& Boolean.TRUE.equals(answer.getIsCorrect());
+				return answer != null && (
+						answer.getSelectedOption() != null
+								|| (answer.getAnswerText() != null && !answer.getAnswerText().isBlank())
+				);
 			});
-			boolean hasCorrectAnswer = answerMap.values().stream()
-					.anyMatch(answer -> Boolean.TRUE.equals(answer.getIsCorrect()));
-			boolean passed = allQuestionsCorrect || safeDouble(attempt.getScore()) > 0 || hasCorrectAnswer;
+			boolean passed = allQuestionsAnswered;
 
 			if (!submitted || !passed) {
 				return false;
@@ -737,6 +643,74 @@ public class LearningService {
 
 	private double safeDouble(Number value) {
 		return value == null ? 0.0 : value.doubleValue();
+	}
+
+	private List<LearningBlockResponse> buildLearningBlocks(Lesson lesson, List<LessonResource> resources) {
+		List<LearningBlockResponse> blocks = new ArrayList<>();
+
+		if (lesson.getVideoUrl() != null && !lesson.getVideoUrl().isBlank()) {
+			blocks.add(LearningBlockResponse.builder()
+					.id("video-" + lesson.getId())
+					.blockType("VIDEO")
+					.title(lesson.getTitle())
+					.content(lesson.getDescription())
+					.mediaUrl(lesson.getVideoUrl())
+					.orderIndex(1000)
+					.build());
+		}
+
+		if (lesson.getContent() != null && !lesson.getContent().isBlank()) {
+			blocks.add(LearningBlockResponse.builder()
+					.id("text-" + lesson.getId())
+					.blockType("TEXT")
+					.title(lesson.getTitle())
+					.content(lesson.getContent())
+					.orderIndex(2000)
+					.build());
+		}
+
+		int fileOrderIndex = 5000;
+		for (LessonResource resource : resources) {
+			blocks.add(LearningBlockResponse.builder()
+					.id("resource-" + resource.getId())
+					.blockType("FILE")
+					.title(resource.getFileName())
+					.content(resource.getFileType())
+					.mediaUrl(resource.getFileUrl())
+					.orderIndex(fileOrderIndex++)
+					.build());
+		}
+
+		quizRepository.findFirstByLessonId(lesson.getId())
+				.ifPresent(quiz -> blocks.add(toQuizBlock(quiz)));
+
+		assignmentRepository.findFirstByLessonId(lesson.getId())
+				.ifPresent(assignment -> blocks.add(toAssignmentBlock(assignment)));
+
+		blocks.sort(Comparator.comparing(LearningBlockResponse::getOrderIndex));
+		return blocks;
+	}
+
+	private LearningBlockResponse toQuizBlock(Quiz quiz) {
+		return LearningBlockResponse.builder()
+				.id("quiz-" + quiz.getId())
+				.blockType("QUIZ")
+				.title(quiz.getTitle())
+				.content(quiz.getDescription())
+				.quizId(quiz.getId())
+				.orderIndex(9998)
+				.build();
+	}
+
+	private LearningBlockResponse toAssignmentBlock(Assignment assignment) {
+		return LearningBlockResponse.builder()
+				.id("assignment-" + assignment.getId())
+				.blockType("ASSIGNMENT")
+				.title(assignment.getTitle())
+				.content(assignment.getDescription())
+				.assignmentId(assignment.getId())
+				.orderIndex(9999)
+				.build();
 	}
 
 	private boolean requiresPayment(Course course, User currentUser) {

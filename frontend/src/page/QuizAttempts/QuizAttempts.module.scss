@@ -207,11 +207,30 @@
   }
 }
 
+.statusBadge {
+  min-height: auto;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+
+  svg {
+    display: none;
+  }
+}
+
 .numberCell,
 .scoreCell,
 .correctCell,
-.wrongCell,
-.statusBadge {
+.wrongCell {
   min-height: 28px;
   border-radius: 6px;
   border: 1px solid #dbe3ef;
@@ -230,8 +249,6 @@
 .correctCell,
 .statusSubmitted,
 .statusGraded {
-  background: #ecfdf5;
-  border-color: #bbf7d0;
   color: #047857;
 }
 
@@ -242,8 +259,6 @@
 }
 
 .statusProgress {
-  background: #fffbeb;
-  border-color: #fde68a;
   color: #b45309;
 }
 

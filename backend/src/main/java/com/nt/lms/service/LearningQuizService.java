@@ -18,7 +18,6 @@ import com.nt.lms.entity.QuizOption;
 import com.nt.lms.entity.User;
 import com.nt.lms.enums.EnrollmentStatus;
 import com.nt.lms.repository.EnrollmentRepository;
-import com.nt.lms.repository.LessonBlockRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
 import com.nt.lms.repository.QuestionRepository;
@@ -59,7 +58,6 @@ public class LearningQuizService {
     private final EnrollmentRepository enrollmentRepository;
     private final LessonProgressRepository lessonProgressRepository;
     private final LessonRepository lessonRepository;
-    private final LessonBlockRepository lessonBlockRepository;
 
     public List<StandaloneQuizListItemResponse> getIndependentQuizzes() {
         User currentUser = getCurrentUser();
@@ -239,20 +237,16 @@ public class LearningQuizService {
         double totalScore = questions.size();
         double earnedScore = 0.0;
         boolean allAnswered = !questions.isEmpty();
-        boolean allCorrect = !questions.isEmpty();
 
         for (Question question : questions) {
             QuizAttemptAnswer answer = answerMap.get(question.getId());
             if (!hasAnsweredQuestion(question, answer)) {
                 allAnswered = false;
-                allCorrect = false;
                 continue;
             }
 
             if (Boolean.TRUE.equals(answer.getIsCorrect())) {
                 earnedScore += 1.0;
-            } else {
-                allCorrect = false;
             }
         }
 
@@ -262,7 +256,7 @@ public class LearningQuizService {
         attempt.setStatus(QuizAttemptStatus.SUBMITTED);
         quizAttemptRepository.save(attempt);
 
-        boolean passed = (allAnswered && allCorrect) || earnedScore > 0;
+        boolean passed = allAnswered;
         Lesson lesson = resolveQuizLesson(attempt.getQuiz());
         if (passed && lesson != null) {
             markLessonCompleted(currentUser, lesson);
@@ -280,9 +274,7 @@ public class LearningQuizService {
             return quiz.getLesson();
         }
 
-        return lessonBlockRepository.findFirstByQuiz_Id(quiz.getId())
-                .map(block -> block.getLesson())
-                .orElse(null);
+        return null;
     }
 
     private void saveSingleChoiceAnswer(Question question, QuizAnswerRequest request, QuizAttemptAnswer answer) {
@@ -429,13 +421,12 @@ public class LearningQuizService {
                     .build());
         }
 
-        boolean passed = attempt != null
-                && attempt.getStatus() != QuizAttemptStatus.IN_PROGRESS
-                && questions.stream().allMatch(question -> {
-                    QuizAttemptAnswer answer = answerMap.get(question.getId());
-                    return hasAnsweredQuestion(question, answer)
-                            && Boolean.TRUE.equals(answer.getIsCorrect());
-                });
+        boolean passed = false;
+        if (attempt != null && attempt.getStatus() != QuizAttemptStatus.IN_PROGRESS) {
+            boolean allAnswered = !questions.isEmpty()
+                    && questions.stream().allMatch(question -> hasAnsweredQuestion(question, answerMap.get(question.getId())));
+            passed = allAnswered;
+        }
 
         return LearningQuizResponse.builder()
                 .quizId(quiz.getId())
@@ -570,7 +561,7 @@ public class LearningQuizService {
     private User getCurrentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "KhÃ´ng xÃ¡c Ä‘á»‹nh Ä‘Æ°á»£c ngÆ°á»i dÃ¹ng"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không xác định được người dùng"));
     }
 
     private boolean isMultipleChoice(Question question) {

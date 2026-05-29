@@ -5,13 +5,16 @@ import java.util.List;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.nt.lms.dto.request.LessonCreationRequest;
 import com.nt.lms.dto.request.LessonUpdateRequest;
+import com.nt.lms.dto.response.LearningLessonResourceResponse;
 import com.nt.lms.dto.response.LessonResponse;
 import com.nt.lms.entity.Assignment;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Lesson;
+import com.nt.lms.entity.LessonResource;
 import com.nt.lms.entity.Quiz;
 import com.nt.lms.entity.Section;
 import com.nt.lms.entity.User;
@@ -20,6 +23,7 @@ import com.nt.lms.exception.AppException;
 import com.nt.lms.exception.ErrorCode;
 import com.nt.lms.repository.AssignmentRepository;
 import com.nt.lms.repository.LessonRepository;
+import com.nt.lms.repository.LessonResourceRepository;
 import com.nt.lms.repository.QuizRepository;
 import com.nt.lms.repository.SectionRepository;
 import com.nt.lms.repository.UserRepository;
@@ -37,8 +41,10 @@ public class LessonService {
     SectionRepository sectionRepository;
     QuizRepository quizRepository;
     AssignmentRepository assignmentRepository;
+    LessonResourceRepository lessonResourceRepository;
     UserRepository userRepository;
     EmailNotificationService emailNotificationService;
+    FileStorageService fileStorageService;
 
     public LessonResponse createLesson(LessonCreationRequest request) {
         validateCreateRequest(request);
@@ -147,7 +153,66 @@ public class LessonService {
         assignmentRepository.findByLessonId(lessonId)
                 .ifPresent(assignmentRepository::delete);
 
+        lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lessonId)
+                .forEach(resource -> {
+                    lessonResourceRepository.delete(resource);
+                    fileStorageService.deleteByPublicUrl(resource.getFileUrl());
+                });
+
         lessonRepository.delete(lesson);
+    }
+
+    public List<LearningLessonResourceResponse> getLessonResources(String lessonId) {
+        if (!lessonRepository.existsById(lessonId)) {
+            throw new AppException(ErrorCode.LESSON_NOT_EXISTED);
+        }
+
+        return lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lessonId)
+                .stream()
+                .map(this::toResourceResponse)
+                .toList();
+    }
+
+    public List<LearningLessonResourceResponse> uploadLessonResources(String lessonId, MultipartFile[] files) {
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
+
+        if (files == null || files.length == 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        String uploadDirectory = "uploads/lesson-resources/" + lessonId;
+
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                continue;
+            }
+
+            String savedName = fileStorageService.store(file, uploadDirectory);
+            String originalName = file.getOriginalFilename();
+
+            lessonResourceRepository.save(LessonResource.builder()
+                    .lesson(lesson)
+                    .fileName(isBlank(originalName) ? savedName : originalName)
+                    .fileUrl("/uploads/lesson-resources/" + lessonId + "/" + savedName)
+                    .fileType(file.getContentType())
+                    .fileSize(file.getSize())
+                    .build());
+        }
+
+        return getLessonResources(lessonId);
+    }
+
+    public void deleteLessonResource(String lessonId, String resourceId) {
+        LessonResource resource = lessonResourceRepository.findById(resourceId)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST));
+
+        if (resource.getLesson() == null || !lessonId.equals(resource.getLesson().getId())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        lessonResourceRepository.delete(resource);
+        fileStorageService.deleteByPublicUrl(resource.getFileUrl());
     }
 
     private LessonResponse toLessonResponse(Lesson lesson) {
@@ -174,6 +239,17 @@ public class LessonService {
                 .lessonType(resolveLessonType(lesson))
                 .quizId(quizId)
                 .assignmentId(assignmentId)
+                .build();
+    }
+
+    private LearningLessonResourceResponse toResourceResponse(LessonResource resource) {
+        return LearningLessonResourceResponse.builder()
+                .id(resource.getId())
+                .fileName(resource.getFileName())
+                .fileUrl(resource.getFileUrl())
+                .fileType(resource.getFileType())
+                .fileSize(resource.getFileSize())
+                .createdAt(resource.getCreatedAt())
                 .build();
     }
 
@@ -224,6 +300,7 @@ public class LessonService {
         quiz.setCourse(course);
         quiz.setLesson(lesson);
         quiz.setQuizScope("LESSON");
+        quiz.setTimeLimitMinutes(null);
         if (quiz.getPassingScore() == null) {
             quiz.setPassingScore(BigDecimal.valueOf(50));
         }

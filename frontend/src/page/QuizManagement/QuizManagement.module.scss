@@ -216,12 +216,13 @@
 .statusDraft {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 9px;
-  border-radius: 6px;
-  border: 1px solid transparent;
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: auto;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -229,15 +230,11 @@
 
 .typeIndependent,
 .statusDraft {
-  background: #f8fafc;
-  border-color: #cbd5e1;
   color: #475569;
 }
 
 .typeCourse {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
+  color: #334155;
 }
 
 .attemptCell {
@@ -257,8 +254,6 @@
 }
 
 .statusPublished {
-  background: #ecfdf5;
-  border-color: #bbf7d0;
   color: #047857;
 }
 

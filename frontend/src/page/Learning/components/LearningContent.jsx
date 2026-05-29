@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+import { Download } from "lucide-react";
 import styles from "../Learning.module.scss";
 import { LMS_BASE_URL } from "../../../api/learningApi";
 import {
@@ -49,6 +50,14 @@ function formatUpdatedAt(value) {
     month: "long",
     year: "numeric",
   })}`;
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!size) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export default function LearningContent({
@@ -347,6 +356,10 @@ export default function LearningContent({
     }
 
     if (lessonData.thumbnailUrl) {
+      if (mediaError) {
+        return null;
+      }
+
       return (
         <img
           src={toAssetUrl(lessonData.thumbnailUrl)}
@@ -442,6 +455,30 @@ export default function LearningContent({
     }
   };
 
+  const handleDownloadResource = async (resource) => {
+    const fileUrl = toAssetUrl(resource.fileUrl);
+    const fileName = resource.fileName || "tai-lieu";
+
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error("Download failed");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(fileUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
 
   if (loadingLesson) {
     return <div className={styles.lessonState}>Đang tải bài học...</div>;
@@ -453,6 +490,17 @@ export default function LearningContent({
 
   const displayTitle = getCleanLessonTitle(lessonData.title || "");
   const updatedText = formatUpdatedAt(lessonData.updatedAt);
+  const resourceItems =
+    Array.isArray(lessonData.resources) && lessonData.resources.length > 0
+      ? lessonData.resources
+      : (lessonData.blocks || [])
+          .filter((block) => block.blockType === "FILE" && block.mediaUrl)
+          .map((block) => ({
+            id: block.id,
+            fileName: block.title,
+            fileUrl: block.mediaUrl,
+            fileType: block.content,
+          }));
 
   return (
     <>
@@ -503,6 +551,41 @@ export default function LearningContent({
             }}
           />
         </div>
+      ) : null}
+
+      {resourceItems.length > 0 ? (
+        <section className={styles.resourceBox}>
+          <div className={styles.panelHead}>
+            <h3>Tài liệu đính kèm</h3>
+            <span>{resourceItems.length} file</span>
+          </div>
+          <div className={styles.resourceList}>
+            {resourceItems.map((resource) => (
+              <div
+                key={resource.id || resource.fileUrl}
+                className={styles.resourceItem}
+              >
+                <div>
+                  <strong>{resource.fileName || "Tài liệu"}</strong>
+                  <span>
+                    {[resource.fileType, formatFileSize(resource.fileSize)]
+                      .filter(Boolean)
+                      .join(" · ") || "File đính kèm"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={styles.downloadResourceBtn}
+                  aria-label={`Tải về ${resource.fileName || "tài liệu"}`}
+                  title="Tải về"
+                  onClick={() => handleDownloadResource(resource)}
+                >
+                  <Download size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {visibleBlocks.length > 0 ? (

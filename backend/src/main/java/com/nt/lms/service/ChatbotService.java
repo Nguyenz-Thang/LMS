@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nt.lms.dto.request.AiLessonAssistantRequest;
 import com.nt.lms.dto.request.ChatbotConversationRequest;
 import com.nt.lms.dto.request.ChatbotMessageRequest;
-import com.nt.lms.dto.response.AiQuizDraftResponse;
 import com.nt.lms.dto.response.AiLessonAssistantResponse;
 import com.nt.lms.dto.response.ChatbotConversationResponse;
 import com.nt.lms.dto.response.ChatbotMessageResponse;
@@ -12,34 +11,38 @@ import com.nt.lms.entity.ChatbotConversation;
 import com.nt.lms.entity.ChatbotMessage;
 import com.nt.lms.entity.Assignment;
 import com.nt.lms.entity.Course;
+import com.nt.lms.entity.Enrollment;
 import com.nt.lms.entity.Lesson;
-import com.nt.lms.entity.LessonBlock;
 import com.nt.lms.entity.LessonProgress;
 import com.nt.lms.entity.LessonResource;
 import com.nt.lms.entity.Question;
-import com.nt.lms.entity.User;
 import com.nt.lms.entity.Quiz;
 import com.nt.lms.entity.QuizOption;
+import com.nt.lms.entity.User;
 import com.nt.lms.enums.ChatbotContextType;
 import com.nt.lms.enums.ChatbotSenderType;
 import com.nt.lms.repository.ChatbotConversationRepository;
 import com.nt.lms.repository.ChatbotMessageRepository;
 import com.nt.lms.repository.AssignmentRepository;
 import com.nt.lms.repository.CourseRepository;
+import com.nt.lms.repository.EnrollmentRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
-import com.nt.lms.repository.LessonBlockRepository;
 import com.nt.lms.repository.LessonResourceRepository;
 import com.nt.lms.repository.QuestionRepository;
 import com.nt.lms.repository.QuizOptionRepository;
 import com.nt.lms.repository.QuizRepository;
+import com.nt.lms.repository.SectionRepository;
 import com.nt.lms.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,18 +61,20 @@ public class ChatbotService {
 	private final ChatbotMessageRepository messageRepository;
 	private final UserRepository userRepository;
 	private final CourseRepository courseRepository;
+	private final EnrollmentRepository enrollmentRepository;
 	private final LessonRepository lessonRepository;
-	private final LessonBlockRepository lessonBlockRepository;
 	private final LessonResourceRepository lessonResourceRepository;
 	private final AssignmentRepository assignmentRepository;
 	private final LessonProgressRepository lessonProgressRepository;
 	private final QuizRepository quizRepository;
 	private final QuestionRepository questionRepository;
 	private final QuizOptionRepository quizOptionRepository;
+	private final SectionRepository sectionRepository;
 	private final AiLearningService aiLearningService;
 	private final ObjectMapper objectMapper;
 
 	private static final int CONTEXT_TEXT_LIMIT = 1200;
+	private static final int RECOMMENDED_COURSE_LIMIT = 3;
 
 	@Value("${lms.frontend-base-url:http://localhost:5173}")
 	private String frontendBaseUrl;
@@ -150,21 +155,17 @@ public class ChatbotService {
 				.messageText(question)
 				.build());
 
-		String personalizedContext = buildPersonalizedContext(user, conversation);
+		String personalizedContext = buildPersonalizedContext(user, conversation, question);
 		AiLessonAssistantResponse aiResponse;
 		try {
-			if (isQuizCreationRequest(question)) {
-				aiResponse = createQuizFromChatbot(question, personalizedContext, user);
-			} else {
-				aiResponse = aiLearningService.answerSmartChat(
-						question,
-						buildHistory(conversation.getId(), userMessage.getId()),
-						personalizedContext,
-						conversation.getLesson() != null ? conversation.getLesson().getId() : null);
-			}
+			aiResponse = aiLearningService.answerSmartChat(
+					question,
+					buildHistory(conversation.getId(), userMessage.getId()),
+					personalizedContext,
+					conversation.getLesson() != null ? conversation.getLesson().getId() : null);
 		} catch (ResponseStatusException exception) {
 			log.warn("Chatbot AI fallback activated: conversationId={}, reason={}", conversationId, exception.getReason());
-			aiResponse = buildFallbackResponse(question, personalizedContext, conversation, exception);
+			aiResponse = buildFallbackResponse(question, personalizedContext, conversation, user, exception);
 		}
 
 		ChatbotMessage aiMessage = messageRepository.save(ChatbotMessage.builder()
@@ -190,144 +191,6 @@ public class ChatbotService {
 		return response;
 	}
 
-	@Transactional
-	protected AiLessonAssistantResponse createQuizFromChatbot(String prompt, String personalizedContext, User user) {
-		AiQuizDraftResponse draft = aiLearningService.generateStandaloneQuizDraft(prompt, personalizedContext);
-		Quiz quiz = saveGeneratedIndependentQuiz(draft, user);
-		String quizUrl = frontendBaseUrl.replaceAll("/+$", "") + "/quizzes/" + quiz.getId() + "/take";
-		int questionCount = draft.getQuestions() == null ? 0 : draft.getQuestions().size();
-		String answer = "Mình đã tạo và lưu bài quiz tự động cho bạn.\n\n"
-				+ "Tên quiz: " + quiz.getTitle() + "\n"
-				+ "Số câu hỏi: " + questionCount + "\n"
-				+ "Link làm bài: " + quizUrl;
-
-		return AiLessonAssistantResponse.builder()
-				.answer(answer)
-				.suggestedQuestions(List.of())
-				.model(draft.getModel())
-				.build();
-	}
-
-	private Quiz saveGeneratedIndependentQuiz(AiQuizDraftResponse draft, User user) {
-		if (draft.getQuestions() == null || draft.getQuestions().isEmpty()) {
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI không tạo được câu hỏi hợp lệ");
-		}
-
-		Quiz quiz = Quiz.builder()
-				.title(safeGeneratedTitle(draft.getTitle()))
-				.description(StringUtils.hasText(draft.getDescription())
-						? draft.getDescription().trim()
-						: "Quiz được tạo tự động từ chatbot AI")
-				.maxAttempts(3)
-				.isPublished(true)
-				.quizScope("INDEPENDENT")
-				.createdSource("AI_CHATBOT")
-				.createdBy(user)
-				.build();
-		quiz = quizRepository.saveAndFlush(quiz);
-
-		int questionIndex = 0;
-		for (AiQuizDraftResponse.QuestionDraft questionDraft : draft.getQuestions()) {
-			if (!StringUtils.hasText(questionDraft.getContent())) {
-				continue;
-			}
-			String questionType = normalizeQuestionType(questionDraft.getQuestionType());
-			List<AiQuizDraftResponse.AnswerDraft> answers = normalizeAnswers(questionDraft.getAnswers(), questionType);
-			if (answers.size() < 2) {
-				continue;
-			}
-
-			Question question = Question.builder()
-					.quiz(quiz)
-					.content(questionDraft.getContent().trim())
-					.explanation(StringUtils.hasText(questionDraft.getExplanation()) ? questionDraft.getExplanation().trim() : null)
-					.questionType(questionType)
-					.points(questionDraft.getPoints() == null || questionDraft.getPoints() <= 0 ? 1 : questionDraft.getPoints())
-					.orderIndex(questionDraft.getOrderIndex() == null ? questionIndex : questionDraft.getOrderIndex())
-					.createdSource("AI_CHATBOT")
-					.createdAt(LocalDateTime.now())
-					.build();
-			question = questionRepository.saveAndFlush(question);
-
-			int optionIndex = 0;
-			for (AiQuizDraftResponse.AnswerDraft answerDraft : answers) {
-				quizOptionRepository.save(QuizOption.builder()
-						.question(question)
-						.optionText(answerDraft.getContent().trim())
-						.isCorrect(Boolean.TRUE.equals(answerDraft.getIsCorrect()))
-						.orderIndex(optionIndex++)
-						.build());
-			}
-			questionIndex++;
-		}
-
-		if (questionIndex == 0) {
-			quizRepository.delete(quiz);
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI không tạo được câu hỏi hợp lệ");
-		}
-
-		quizOptionRepository.flush();
-		return quiz;
-	}
-
-	private boolean isQuizCreationRequest(String message) {
-		if (!StringUtils.hasText(message)) return false;
-		String lower = message.toLowerCase();
-		boolean createIntent = lower.contains("tạo") || lower.contains("tao") || lower.contains("sinh") || lower.contains("lập");
-		boolean quizIntent = lower.contains("quiz")
-				|| lower.contains("bài kiểm tra")
-				|| lower.contains("bai kiem tra")
-				|| lower.contains("bộ câu hỏi")
-				|| lower.contains("bo cau hoi")
-				|| lower.contains("câu hỏi")
-				|| lower.contains("cau hoi");
-		return createIntent && quizIntent;
-	}
-
-	private String safeGeneratedTitle(String title) {
-		if (!StringUtils.hasText(title)) return "Quiz ôn tập AI";
-		String trimmed = title.trim();
-		return trimmed.length() > 120 ? trimmed.substring(0, 120) : trimmed;
-	}
-
-	private String normalizeQuestionType(String questionType) {
-		if ("MULTIPLE_CHOICE".equals(questionType) || "TRUE_FALSE".equals(questionType)) {
-			return questionType;
-		}
-		return "SINGLE_CHOICE";
-	}
-
-	private List<AiQuizDraftResponse.AnswerDraft> normalizeAnswers(
-			List<AiQuizDraftResponse.AnswerDraft> answers,
-			String questionType) {
-		List<AiQuizDraftResponse.AnswerDraft> validAnswers = answers == null
-				? new ArrayList<>()
-				: answers.stream()
-						.filter(answer -> answer != null && StringUtils.hasText(answer.getContent()))
-						.toList();
-		if (validAnswers.size() < 2) {
-			return validAnswers;
-		}
-
-		long correctCount = validAnswers.stream().filter(answer -> Boolean.TRUE.equals(answer.getIsCorrect())).count();
-		if ("MULTIPLE_CHOICE".equals(questionType)) {
-			if (correctCount == 0) {
-				validAnswers.get(0).setIsCorrect(true);
-			}
-			return validAnswers;
-		}
-
-		if (correctCount != 1) {
-			for (int index = 0; index < validAnswers.size(); index++) {
-				validAnswers.get(index).setIsCorrect(index == 0);
-			}
-		}
-		if ("TRUE_FALSE".equals(questionType) && validAnswers.size() > 2) {
-			return validAnswers.subList(0, 2);
-		}
-		return validAnswers;
-	}
-
 	private List<AiLessonAssistantRequest.ChatHistoryItem> buildHistory(String conversationId, Long newestUserMessageId) {
 		List<ChatbotMessage> recent = new ArrayList<>(messageRepository.findTop16ByConversationIdOrderByIdDesc(conversationId));
 		Collections.reverse(recent);
@@ -341,7 +204,7 @@ public class ChatbotService {
 				.toList();
 	}
 
-	private String buildPersonalizedContext(User user, ChatbotConversation conversation) {
+	private String buildPersonalizedContext(User user, ChatbotConversation conversation, String question) {
 		StringBuilder builder = new StringBuilder();
 		builder.append("Người học: ").append(safeText(user.getFullName(), user.getUsername())).append("\n");
 		builder.append("Loại ngữ cảnh: ").append(conversation.getContextType()).append("\n");
@@ -352,28 +215,8 @@ public class ChatbotService {
 			builder.append("Bài học hiện tại: ").append(safeTitle(lesson.getTitle())).append("\n");
 			builder.append("Mô tả bài học: ").append(limit(toPlainText(lesson.getDescription()), CONTEXT_TEXT_LIMIT)).append("\n");
 			builder.append("Nội dung bài học: ").append(limit(toPlainText(lesson.getContent()), CONTEXT_TEXT_LIMIT)).append("\n");
-			List<LessonBlock> lessonBlocks = lessonBlockRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
-			if (!lessonBlocks.isEmpty()) {
-				builder.append("Các block trong bài học:\n");
-				for (LessonBlock block : lessonBlocks) {
-					builder.append("- ")
-							.append(block.getBlockType() == null ? "UNKNOWN" : block.getBlockType().name())
-							.append(": ")
-							.append(limit(toPlainText(safeText(block.getTitle(), "")), 220));
-					if (StringUtils.hasText(block.getContent())) {
-						builder.append(" | Nội dung: ")
-								.append(limit(toPlainText(block.getContent()), CONTEXT_TEXT_LIMIT));
-					}
-					if (StringUtils.hasText(block.getMediaUrl())) {
-						builder.append(" | Media/File: ")
-								.append(limit(block.getMediaUrl(), 500));
-					}
-					if (block.getQuiz() != null) {
-						builder.append("\n");
-						appendQuizContext(builder, block.getQuiz());
-					}
-					builder.append("\n");
-				}
+			if (StringUtils.hasText(lesson.getVideoUrl())) {
+				builder.append("Video bài học: ").append(limit(lesson.getVideoUrl(), 500)).append("\n");
 			}
 			quizRepository.findFirstByLessonId(lesson.getId())
 					.ifPresent(quiz -> {
@@ -421,9 +264,63 @@ public class ChatbotService {
 			long completed = progressList.stream().filter(item -> Boolean.TRUE.equals(item.getCompleted())).count();
 			builder.append("Tổng quan tiến độ: ").append(completed).append("/")
 					.append(progressList.size()).append(" bài có ghi nhận tiến độ đã hoàn thành.\n");
+
+			appendEnrolledCourseContext(builder, user);
+			if (isCourseRecommendationQuestion(question)) {
+				appendRecommendedCourseContext(builder, question, user);
+			}
 		}
 
 		return builder.toString().trim();
+	}
+
+	private void appendEnrolledCourseContext(StringBuilder builder, User user) {
+		List<Enrollment> enrollments = enrollmentRepository.findByUserId(user.getId());
+		if (enrollments.isEmpty()) {
+			builder.append("Khóa học đã đăng ký: chưa có khóa học nào.\n");
+			return;
+		}
+
+		builder.append("Khóa học người học đã đăng ký:\n");
+		enrollments.stream()
+				.filter(enrollment -> enrollment.getCourse() != null)
+				.limit(5)
+				.forEach(enrollment -> builder.append("- ")
+						.append(safeTitle(enrollment.getCourse().getTitle()))
+						.append(" | tiến độ ")
+						.append(enrollment.getProgressPercent() == null ? 0 : enrollment.getProgressPercent())
+						.append("% | trạng thái ")
+						.append(enrollment.getStatus())
+						.append(" | link ")
+						.append(buildCourseUrl(enrollment.getCourse()))
+						.append("\n"));
+	}
+
+	private void appendRecommendedCourseContext(StringBuilder builder, String question, User user) {
+		List<Course> courses = findRecommendedCourses(question, user, RECOMMENDED_COURSE_LIMIT);
+		if (courses.isEmpty()) {
+			builder.append("Khóa học gợi ý theo nhu cầu hiện tại: không tìm thấy khóa học public/published phù hợp trong hệ thống.\n");
+			return;
+		}
+
+		builder.append("Khóa học gợi ý theo nhu cầu hiện tại, bắt buộc dùng link thật dưới đây nếu tư vấn khóa học:\n");
+		for (Course course : courses) {
+			builder.append("- ")
+					.append(safeTitle(course.getTitle()))
+					.append(" | link: ")
+					.append(buildCourseUrl(course))
+					.append(" | cấp độ: ")
+					.append(safeText(course.getLevel(), "Chưa cập nhật"))
+					.append(" | học phí: ")
+					.append(Boolean.TRUE.equals(course.getPaid()) ? safeText(String.valueOf(course.getPrice()), "0") + " " + safeText(course.getCurrency(), "VND") : "Miễn phí")
+					.append(" | giảng viên: ")
+					.append(course.getInstructor() == null ? "Chưa cập nhật" : safeText(course.getInstructor().getFullName(), course.getInstructor().getUsername()))
+					.append(" | mô tả: ")
+					.append(limit(toPlainText(course.getDescription()), 450))
+					.append(" | người học sẽ học được: ")
+					.append(buildCourseLearningSummary(course))
+					.append("\n");
+		}
 	}
 
 	private void appendQuizContext(StringBuilder builder, Quiz quiz) {
@@ -477,6 +374,7 @@ public class ChatbotService {
 			String question,
 			String personalizedContext,
 			ChatbotConversation conversation,
+			User user,
 			ResponseStatusException exception) {
 		String reason = exception.getReason();
 		boolean quotaExceeded = reason != null
@@ -491,9 +389,13 @@ public class ChatbotService {
 						|| reason.contains("high demand"));
 		String lowerQuestion = question == null ? "" : question.toLowerCase();
 		if (conversation.getContextType() == ChatbotContextType.GENERAL
+				&& isCourseRecommendationQuestion(question)) {
+			return buildCourseRecommendationFallback(question, user, temporarilyUnavailable, quotaExceeded);
+		}
+
+		if (conversation.getContextType() == ChatbotContextType.GENERAL
 				&& (lowerQuestion.contains("tiến độ") || lowerQuestion.contains("tien do")
 						|| lowerQuestion.contains("tóm tắt") || lowerQuestion.contains("tom tat"))) {
-			User user = conversation.getUser();
 			List<LessonProgress> progressList = lessonProgressRepository.findByUserId(user.getId());
 			long completed = progressList.stream().filter(item -> Boolean.TRUE.equals(item.getCompleted())).count();
 			long total = progressList.size();
@@ -517,7 +419,7 @@ public class ChatbotService {
 			if (total == 0) {
 				progressAnswer.append("- Hệ thống chưa ghi nhận tiến độ học tập nào. Hãy bắt đầu một khóa học để có dữ liệu theo dõi.\n");
 			} else if (remaining == 0) {
-				progressAnswer.append("- Bạn đã hoàn tất toàn bộ bài có ghi nhận tiến độ. Bước tiếp theo hợp lý là làm quiz hoặc xem lại các bài đã đánh dấu.\n");
+				progressAnswer.append("- Bạn đã hoàn tất toàn bộ bài có ghi nhận tiến độ. Bước tiếp theo hợp lý là xem lại các bài đã đánh dấu hoặc hỏi thêm về nội dung cần ôn.\n");
 			} else {
 				progressAnswer.append("- Gợi ý: vào trang Tiến độ học hoặc Khóa học của tôi để xem danh sách bài chưa hoàn thành, rồi tiếp tục từ bài gần nhất.\n");
 			}
@@ -528,7 +430,7 @@ public class ChatbotService {
 					.suggestedQuestions(List.of(
 							"Tôi còn bao nhiêu bài chưa hoàn thành?",
 							"Gợi ý kế hoạch ôn tập hôm nay",
-							"Tạo danh sách việc cần làm để hoàn thành khóa học"))
+							"Tôi nên học tiếp bài nào trong khóa học?"))
 					.model(temporarilyUnavailable ? "fallback-unavailable" : quotaExceeded ? "fallback-quota" : "fallback-local")
 					.build();
 		}
@@ -552,7 +454,7 @@ public class ChatbotService {
 						.append(limit(toPlainText(lesson.getContent()), 900))
 						.append("\n\n");
 			}
-			answer.append("Khi Gemini hoạt động lại, mình sẽ trả lời chi tiết theo toàn bộ nội dung bài, video, block và tài liệu đính kèm. Tạo quiz tự động cũng cần Gemini nên hãy thử lại sau ít phút.");
+			answer.append("Khi Gemini hoạt động lại, mình sẽ trả lời chi tiết theo toàn bộ nội dung bài, video, block và tài liệu đính kèm.");
 		} else {
 			answer.append("Đây là hội thoại tổng quát nên mình không có ngữ cảnh bài học cụ thể. Hiện mình chỉ có thể hỗ trợ các thông tin tổng quan như tiến độ học tập, số bài đã hoàn thành và kế hoạch ôn tập.\n\n");
 			answer.append("Bạn có thể hỏi một trong các ý sau:\n");
@@ -571,6 +473,187 @@ public class ChatbotService {
 						"Gợi ý kế hoạch ôn tập hôm nay"))
 				.model(temporarilyUnavailable ? "fallback-unavailable" : quotaExceeded ? "fallback-quota" : "fallback-local")
 				.build();
+	}
+
+	private AiLessonAssistantResponse buildCourseRecommendationFallback(
+			String question,
+			User user,
+			boolean temporarilyUnavailable,
+			boolean quotaExceeded) {
+		List<Course> courses = findRecommendedCourses(question, user, 2);
+		StringBuilder answer = new StringBuilder();
+
+		if (temporarilyUnavailable) {
+			answer.append("Gemini API đang quá tải tạm thời, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+		} else if (quotaExceeded) {
+			answer.append("Gemini API đang hết quota hoặc bị giới hạn tốc độ, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+		} else {
+			answer.append("Hiện chưa gọi được dịch vụ AI, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+		}
+
+		if (courses.isEmpty()) {
+			answer.append("Mình chưa tìm thấy khóa học public phù hợp với nhu cầu này. Bạn có thể thử hỏi cụ thể hơn, ví dụ: lập trình Java, lập trình web, dữ liệu, an ninh mạng.");
+		} else {
+			answer.append("Dựa trên nhu cầu của bạn, các khóa học nên xem trước là:\n");
+			for (int index = 0; index < courses.size(); index++) {
+				Course course = courses.get(index);
+				answer.append(index + 1)
+						.append(". ")
+						.append(safeTitle(course.getTitle()))
+						.append("\n")
+						.append("   - Link học: ")
+						.append(buildCourseUrl(course))
+						.append("\n")
+						.append("   - Lý do phù hợp: nội dung khóa học khớp với nhu cầu bạn vừa nêu");
+				if (StringUtils.hasText(course.getLevel())) {
+					answer.append(", cấp độ ").append(course.getLevel());
+				}
+				answer.append(".\n");
+				if (StringUtils.hasText(course.getDescription())) {
+					answer.append("   - Mô tả ngắn: ")
+							.append(limit(toPlainText(course.getDescription()), 240))
+							.append("\n");
+				}
+				answer.append("   - Bạn sẽ học được: ")
+						.append(buildCourseLearningSummary(course))
+						.append("\n");
+			}
+			answer.append("\nThứ tự học đề xuất: bắt đầu với khóa nhập môn/cấp độ BEGINNER trước, sau đó chuyển sang khóa thực hành hoặc chuyên sâu hơn.");
+		}
+
+		return AiLessonAssistantResponse.builder()
+				.lessonId(null)
+				.answer(answer.toString())
+				.suggestedQuestions(List.of(
+						"Gợi ý lộ trình học theo thứ tự cho tôi",
+						"Tôi nên học khóa miễn phí hay trả phí trước?",
+						"Tìm khóa học phù hợp cho người mới bắt đầu"))
+				.model(temporarilyUnavailable ? "fallback-unavailable" : quotaExceeded ? "fallback-quota" : "fallback-local")
+				.build();
+	}
+
+	private boolean isCourseRecommendationQuestion(String question) {
+		String normalized = normalizeSearchText(question);
+		if (!StringUtils.hasText(normalized)) {
+			return false;
+		}
+
+		return normalized.contains("khoa hoc")
+				|| normalized.contains("hoc khoa nao")
+				|| normalized.contains("nen hoc")
+				|| normalized.contains("goi y")
+				|| normalized.contains("lo trinh")
+				|| normalized.contains("link de hoc")
+				|| normalized.contains("link hoc")
+				|| normalized.contains("cong nghe thong tin")
+				|| normalized.contains("lap trinh")
+				|| normalized.contains("it");
+	}
+
+	private List<Course> findRecommendedCourses(String question, User user, int limit) {
+		Set<String> enrolledCourseIds = new HashSet<>();
+		enrollmentRepository.findByUserId(user.getId()).stream()
+				.filter(enrollment -> enrollment.getCourse() != null)
+				.map(enrollment -> enrollment.getCourse().getId())
+				.forEach(enrolledCourseIds::add);
+
+		List<String> tokens = extractSearchTokens(question);
+		boolean broadItIntent = normalizeSearchText(question).contains("cong nghe thong tin")
+				|| normalizeSearchText(question).contains("it");
+
+		return courseRepository.findAll().stream()
+				.filter(this::isPublishedPublicCourse)
+				.map(course -> Map.entry(course, scoreCourse(course, tokens, broadItIntent, enrolledCourseIds)))
+				.filter(entry -> entry.getValue() > 0)
+				.sorted(Map.Entry.<Course, Integer>comparingByValue(Comparator.reverseOrder())
+						.thenComparing(entry -> enrollmentRepository.countByCourseId(entry.getKey().getId()), Comparator.reverseOrder())
+						.thenComparing(entry -> safeTitle(entry.getKey().getTitle())))
+				.limit(Math.max(1, limit))
+				.map(Map.Entry::getKey)
+				.toList();
+	}
+
+	private int scoreCourse(Course course, List<String> tokens, boolean broadItIntent, Set<String> enrolledCourseIds) {
+		String searchable = normalizeSearchText(String.join(" ",
+				safeText(course.getTitle(), ""),
+				safeText(course.getDescription(), ""),
+				safeText(course.getLevel(), ""),
+				course.getCategory() == null ? "" : safeText(course.getCategory().getName(), ""),
+				course.getInstructor() == null ? "" : safeText(course.getInstructor().getFullName(), course.getInstructor().getUsername())));
+
+		int score = broadItIntent ? 1 : 0;
+		for (String token : tokens) {
+			if (searchable.contains(token)) {
+				score += token.length() >= 6 ? 3 : 2;
+			}
+		}
+
+		if (enrolledCourseIds.contains(course.getId())) {
+			score -= 2;
+		}
+		if ("BEGINNER".equalsIgnoreCase(course.getLevel())) {
+			score += 1;
+		}
+		return score;
+	}
+
+	private List<String> extractSearchTokens(String question) {
+		String normalized = normalizeSearchText(question);
+		List<String> tokens = new ArrayList<>();
+		for (String token : normalized.split("\\s+")) {
+			if (token.length() >= 3 && !List.of("toi", "ban", "hoc", "nen", "khoa", "nao", "cho", "voi", "link").contains(token)) {
+				tokens.add(token);
+			}
+		}
+		if (normalized.contains("lap trinh")) {
+			tokens.addAll(List.of("lap trinh", "java", "web", "frontend", "backend", "android"));
+		}
+		if (normalized.contains("du lieu")) {
+			tokens.addAll(List.of("du lieu", "data", "sql", "database"));
+		}
+		return tokens;
+	}
+
+	private boolean isPublishedPublicCourse(Course course) {
+		return course != null
+				&& "PUBLISHED".equalsIgnoreCase(course.getStatus())
+				&& "PUBLIC".equalsIgnoreCase(course.getVisibility());
+	}
+
+	private String buildCourseUrl(Course course) {
+		String baseUrl = StringUtils.hasText(frontendBaseUrl) ? frontendBaseUrl.trim() : "http://localhost:5173";
+		return baseUrl.replaceAll("/+$", "") + "/courses/" + course.getId();
+	}
+
+	private String buildCourseLearningSummary(Course course) {
+		List<String> lessonTitles = sectionRepository.findByCourseIdOrderByOrderIndexAsc(course.getId()).stream()
+				.flatMap(section -> lessonRepository.findBySectionIdOrderByOrderIndexAsc(section.getId()).stream())
+				.map(Lesson::getTitle)
+				.filter(StringUtils::hasText)
+				.limit(3)
+				.map(this::safeTitle)
+				.toList();
+
+		if (!lessonTitles.isEmpty()) {
+			return String.join("; ", lessonTitles);
+		}
+
+		String description = limit(toPlainText(course.getDescription()), 320);
+		return StringUtils.hasText(description)
+				? description
+				: "Hệ thống chưa cập nhật chi tiết nội dung học cho khóa này.";
+	}
+
+	private String normalizeSearchText(String value) {
+		if (!StringUtils.hasText(value)) {
+			return "";
+		}
+		String normalized = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
+				.replaceAll("\\p{M}", "")
+				.replace("đ", "d")
+				.replace("Đ", "D")
+				.toLowerCase();
+		return normalized.replaceAll("[^a-z0-9\\s]", " ").replaceAll("\\s+", " ").trim();
 	}
 
 	private ChatbotConversationResponse toConversationResponse(ChatbotConversation conversation, boolean includeMessages) {

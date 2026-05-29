@@ -26,6 +26,7 @@ public class InstructorAssignmentService {
     private final AssignmentSubmissionRepository submissionRepository;
     private final SubmissionFileRepository submissionFileRepository;
     private final UserRepository userRepository;
+    private final AppNotificationService appNotificationService;
 
     public List<InstructorAssignmentSubmissionResponse> listSubmissions(String assignmentId) {
         User currentUser = getCurrentUser();
@@ -53,7 +54,9 @@ public class InstructorAssignmentService {
         submission.setGradedAt(LocalDateTime.now());
         submission.setStatus("GRADED");
 
-        return toResponse(submissionRepository.save(submission));
+        AssignmentSubmission saved = submissionRepository.save(submission);
+        appNotificationService.notifyAssignmentGraded(saved);
+        return toResponse(saved);
     }
 
     private void validateGradeRequest(Assignment assignment, GradeAssignmentSubmissionRequest request) {

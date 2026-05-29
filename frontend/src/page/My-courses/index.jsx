@@ -57,6 +57,14 @@ function getStatusLabel(status) {
   }
 }
 
+function getDisplayStatus(course) {
+  if (course?.status === "CANCELLED") return "CANCELLED";
+  if (course?.status === "COMPLETED" || clampPercent(course?.progressPercent) >= 100) {
+    return "COMPLETED";
+  }
+  return "ACTIVE";
+}
+
 function getStatusClass(status) {
   switch (status) {
     case "COMPLETED":
@@ -162,11 +170,12 @@ export default function MyCoursesPage() {
     const normalizedKeyword = keyword.trim().toLowerCase();
 
     return enrollments.filter((course) => {
+      const displayStatus = getDisplayStatus(course);
       const matchesKeyword =
         !normalizedKeyword ||
         course.courseTitle.toLowerCase().includes(normalizedKeyword);
       const matchesStatus =
-        statusFilter === STATUS_OPTIONS.ALL || course.status === statusFilter;
+        statusFilter === STATUS_OPTIONS.ALL || displayStatus === statusFilter;
 
       return matchesKeyword && matchesStatus;
     });
@@ -209,10 +218,10 @@ export default function MyCoursesPage() {
 
   const totalCount = enrollments.length;
   const activeCount = enrollments.filter(
-    (item) => item.status === "ACTIVE",
+    (item) => getDisplayStatus(item) === "ACTIVE",
   ).length;
   const completedCount = enrollments.filter(
-    (item) => item.status === "COMPLETED",
+    (item) => getDisplayStatus(item) === "COMPLETED",
   ).length;
   const averageProgress =
     totalCount === 0
@@ -328,6 +337,7 @@ export default function MyCoursesPage() {
         <div className={styles.courseGrid}>
           {filteredCourses.map((course) => {
             const progress = clampPercent(course.progressPercent);
+            const displayStatus = getDisplayStatus(course);
             const thumbnailSrc = getImageSrc(course.thumbnailUrl);
 
             return (
@@ -372,10 +382,10 @@ export default function MyCoursesPage() {
 
                   <span
                     className={`${styles.statusBadge} ${getStatusClass(
-                      course.status,
+                      displayStatus,
                     )}`}
                   >
-                    {getStatusLabel(course.status)}
+                    {getStatusLabel(displayStatus)}
                   </span>
                 </div>
 
@@ -407,7 +417,7 @@ export default function MyCoursesPage() {
                       style={{ width: `${progress}%` }}
                     />
                   </div>
-                  <p>{getProgressNote(progress, course.status)}</p>
+                  <p>{getProgressNote(progress, displayStatus)}</p>
                 </div>
               </article>
             );

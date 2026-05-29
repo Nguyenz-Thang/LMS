@@ -285,7 +285,7 @@ export default function ProgressPage() {
             </section>
           ) : null}
 
-          <section className={styles.dashboardGrid}>
+          <section className={`${styles.dashboardGrid} ${styles.weeklyGrid}`}>
             <article className={styles.panelCard}>
               <div className={styles.panelHead}>
                 <div>

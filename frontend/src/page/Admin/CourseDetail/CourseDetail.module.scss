@@ -430,10 +430,11 @@
 }
 
 .iconBadge {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid transparent;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -442,50 +443,36 @@
 .statusPublished,
 .publishedBadge,
 .levelBeginner {
-  background: #ecfdf5;
-  border-color: #bbf7d0;
   color: #047857;
 }
 
 .statusPending,
 .previewBadge {
-  background: #fffbeb;
-  border-color: #fde68a;
   color: #b45309;
 }
 
 .statusRejected {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #dc2626;
+  color: #b91c1c;
 }
 
 .statusArchived,
 .statusDraft,
 .visibilityUnlisted,
 .draftBadge {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
   color: #475569;
 }
 
 .visibilityPublic,
 .levelIntermediate,
 .lessonTypeBadge {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #2563eb;
+  color: #334155;
 }
 
 .visibilityPrivate {
-  background: #f8fafc;
-  border-color: #cbd5e1;
   color: #334155;
 }
 
 .levelAdvanced {
-  background: #fff7ed;
-  border-color: #fed7aa;
   color: #c2410c;
 }
 
@@ -493,10 +480,11 @@
 .publishedBadge,
 .previewBadge,
 .lessonTypeBadge {
-  min-height: 24px;
-  padding: 0 8px;
-  border-radius: 6px;
-  border: 1px solid transparent;
+  min-height: auto;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   font-size: 12px;

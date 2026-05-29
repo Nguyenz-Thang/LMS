@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, BrainCircuit, Send, Sparkles, X } from "lucide-react";
+import { Bot, Send, Sparkles, X } from "lucide-react";
 import styles from "../Learning.module.scss";
 
 function normalizeMessages(messages = []) {
@@ -105,11 +105,6 @@ export default function LessonAiAssistant({ lessonData, learningApi }) {
     }
   };
 
-  const handleCreateQuiz = () => {
-    const title = lessonData?.title ? ` về bài ${lessonData.title}` : "";
-    askAssistant(`Tạo quiz ôn tập${title} gồm 5 câu hỏi dựa trên nội dung bài học này`);
-  };
-
   if (!lessonData?.lessonId) return null;
 
   return (
@@ -164,20 +159,12 @@ export default function LessonAiAssistant({ lessonData, learningApi }) {
                 <Sparkles size={16} />
                 <span>Tóm tắt bài học</span>
               </button>
-              <button
-                type="button"
-                onClick={handleCreateQuiz}
-                disabled={loading || !conversation?.id}
-              >
-                <BrainCircuit size={16} />
-                <span>Tạo quiz ôn tập</span>
-              </button>
             </div>
 
             <div className={styles.aiMessageList} ref={messageListRef}>
               {messages.length === 0 ? (
                 <div className={styles.aiEmptyState}>
-                  Hỏi về nội dung bài học, video, bài đọc, tài liệu đính kèm hoặc tạo quiz để ôn tập.
+                  Hỏi về nội dung bài học, video, bài đọc hoặc tài liệu đính kèm.
                 </div>
               ) : (
                 messages.map((message, index) => (

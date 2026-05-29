@@ -259,10 +259,10 @@
     font-size: 13px;
   }
 
-  p {
+  p,
+  .messageContent {
     margin: 0;
     line-height: 1.7;
-    white-space: pre-wrap;
 
     a {
       color: #be185d;
@@ -271,6 +271,17 @@
       word-break: break-all;
     }
   }
+}
+
+.messageContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.messageLine {
+  min-height: 1.2em;
+  white-space: pre-wrap;
 }
 
 .messageUser {

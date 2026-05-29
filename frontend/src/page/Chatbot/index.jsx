@@ -7,7 +7,6 @@ const CONTEXT_LABELS = {
   GENERAL: "Tổng quát",
   COURSE: "Khóa học",
   LESSON: "Bài học",
-  QUIZ: "Quiz",
 };
 
 const TITLE_REPLACEMENTS = {
@@ -41,16 +40,87 @@ function normalizeMessages(messages = []) {
 }
 
 function renderMessageContent(content = "") {
-  const urlPattern = /(https?:\/\/[^\s]+)/g;
-  const parts = content.split(urlPattern);
+  const lines = normalizeMessageLines(content).split(/\r?\n/);
+
+  return lines.map((line, lineIndex) => {
+    const normalizedLine = line.replace(/^\s*\*\s+/, "• ").trimEnd();
+
+    return (
+      <span key={`line-${lineIndex}`} className={styles.messageLine}>
+        {renderInlineContent(normalizedLine)}
+      </span>
+    );
+  });
+}
+
+function normalizeMessageLines(content = "") {
+  const preparedContent = content
+    .replace(/\s+(?=(?:Link|Link học|Bạn sẽ học được gì|Lý do phù hợp):)/g, "\n")
+    .replace(/([.!?])\s+(?=\d+\.\s)/g, "$1\n\n");
+  const rawLines = preparedContent.split(/\r?\n/).map((line) => line.trim());
+  const lines = [];
+
+  for (let index = 0; index < rawLines.length; index++) {
+    const line = rawLines[index];
+    if (!line) continue;
+
+    if (
+      /^(\*|•|\d+\.)$/.test(line) &&
+      /^(Link|Link học|Bạn sẽ học được gì|Lý do phù hợp):$/i.test(
+        rawLines[index + 1],
+      ) &&
+      rawLines[index + 2]
+    ) {
+      lines.push(
+        `${line === "*" ? "•" : line} ${rawLines[index + 1].trim()} ${rawLines[
+          index + 2
+        ].trim()}`,
+      );
+      index += 2;
+      continue;
+    }
+
+    if (/^(\*|•|\d+\.)$/.test(line) && rawLines[index + 1]) {
+      lines.push(`${line === "*" ? "•" : line} ${rawLines[index + 1].trim()}`);
+      index += 1;
+      continue;
+    }
+
+    if (
+      /^(Link|Link học|Bạn sẽ học được gì|Lý do phù hợp):$/i.test(line) &&
+      rawLines[index + 1]
+    ) {
+      lines.push(`${line} ${rawLines[index + 1].trim()}`);
+      index += 1;
+      continue;
+    }
+
+    lines.push(line);
+  }
+
+  return lines.join("\n");
+}
+
+function renderInlineContent(content = "") {
+  const tokenPattern = /(https?:\/\/[^\s]+|\*\*[^*]+\*\*)/g;
+  const parts = content.split(tokenPattern);
 
   return parts.map((part, index) => {
     if (part.startsWith("http://") || part.startsWith("https://")) {
+      const cleanUrl = part.replace(/[.,)]$/, "");
+      const trailingText = part.slice(cleanUrl.length);
+
       return (
-        <a key={`${part}-${index}`} href={part} target="_blank" rel="noreferrer">
-          {part}
-        </a>
+        <span key={`${part}-${index}`}>
+          <a href={cleanUrl} target="_blank" rel="noreferrer">
+            {cleanUrl}
+          </a>
+          {trailingText}
+        </span>
       );
+    }
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
     }
     return part;
   });
@@ -283,8 +353,8 @@ export default function Chatbot() {
             <span>Trợ lý cá nhân</span>
             <h1>{activeTitle}</h1>
             <p>
-              Hỏi AI về tiến độ học tập, kế hoạch ôn tập và trạng thái hoàn
-              thành hiện tại của bạn.
+              Hỏi AI về khóa học, bài học, tiến độ học tập và nội dung cần ôn
+              tập của bạn.
             </p>
           </div>
         </header>
@@ -292,8 +362,8 @@ export default function Chatbot() {
         <div className={styles.messageList} ref={messageListRef}>
           {messages.length === 0 ? (
             <div className={styles.emptyState}>
-              Đặt câu hỏi về tiến độ học tập, kế hoạch ôn tập hoặc trạng thái
-              hoàn thành hiện tại của bạn.
+              Đặt câu hỏi về khóa học, bài học, tiến độ học tập hoặc nội dung
+              cần ôn tập của bạn.
             </div>
           ) : (
             messages.map((message, index) => (
@@ -306,7 +376,9 @@ export default function Chatbot() {
                 }
               >
                 <strong>{message.role === "user" ? "Bạn" : "AI"}</strong>
-                <p>{renderMessageContent(message.content)}</p>
+                <div className={styles.messageContent}>
+                  {renderMessageContent(message.content)}
+                </div>
               </div>
             ))
           )}
@@ -329,7 +401,7 @@ export default function Chatbot() {
                 askChatbot(question);
               }
             }}
-            placeholder="Hỏi AI về tiến độ hoặc kế hoạch ôn tập..."
+            placeholder="Hỏi AI về khóa học hoặc bài học..."
           />
           <button type="submit" disabled={loading || !question.trim()}>
             <Send size={18} />

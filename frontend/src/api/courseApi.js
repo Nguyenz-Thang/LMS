@@ -1,8 +1,14 @@
 import { useCallback, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
+import api from "./axios";
 
 export const LMS_BASE_URL = "http://localhost:8080/lms";
 const BASE = `${LMS_BASE_URL}/courses`;
+
+export async function getCourses(params = {}) {
+  const res = await api.get("/courses", { params });
+  return res?.data;
+}
 
 async function toJson(res) {
   const data = await res.json().catch(() => ({}));

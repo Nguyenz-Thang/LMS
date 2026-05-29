@@ -6,18 +6,27 @@ import {
   CalendarDays,
   Check,
   Eye,
-  GraduationCap,
+  Plus,
   RotateCcw,
   Search,
   SlidersHorizontal,
   UserRound,
+  X,
 } from "lucide-react";
 import {
+  enrollCourse,
   getAllEnrollments,
   markEnrollmentAccess,
 } from "../../api/enrollmentApi";
-import { LMS_BASE_URL } from "../../api/courseApi";
+import { searchUsers } from "../../api/userApi";
+import { getCourses, LMS_BASE_URL } from "../../api/courseApi";
 import styles from "./Enrollments.module.scss";
+
+const INITIAL_FORM = {
+  userId: "",
+  courseId: "",
+  paymentConfirmed: false,
+};
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "Tất cả trạng thái" },
@@ -59,6 +68,29 @@ function normalizeEnrollment(rawEnrollment) {
     progressPercent: Number(rawEnrollment?.progressPercent) || 0,
     enrolledAt: rawEnrollment?.enrolledAt || null,
     lastAccessedAt: rawEnrollment?.lastAccessedAt || null,
+  };
+}
+
+function normalizeUser(rawUser) {
+  return {
+    id: rawUser?.id || "",
+    username: rawUser?.username || "",
+    fullName: rawUser?.fullName || "",
+    email: rawUser?.email || "",
+    roles: Array.isArray(rawUser?.roles)
+      ? rawUser.roles.map((role) => role?.name).filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeCourse(rawCourse) {
+  return {
+    id: rawCourse?.id || "",
+    title: rawCourse?.title || "Khóa học không xác định",
+    paid: Boolean(rawCourse?.paid),
+    price: Number(rawCourse?.price) || 0,
+    currency: rawCourse?.currency || "VND",
+    status: rawCourse?.status || "",
   };
 }
 
@@ -113,6 +145,18 @@ export default function EnrollmentManagement() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [errorText, setErrorText] = useState("");
   const [accessingCourseId, setAccessingCourseId] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [form, setForm] = useState(INITIAL_FORM);
+  const [saving, setSaving] = useState(false);
+  const [modalErrorText, setModalErrorText] = useState("");
+  const [studentKeyword, setStudentKeyword] = useState("");
+  const [courseKeyword, setCourseKeyword] = useState("");
+  const [studentResults, setStudentResults] = useState([]);
+  const [courseResults, setCourseResults] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [loadingCourses, setLoadingCourses] = useState(false);
 
   const fetchEnrollments = async () => {
     try {
@@ -138,6 +182,68 @@ export default function EnrollmentManagement() {
   useEffect(() => {
     fetchEnrollments();
   }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) return undefined;
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setLoadingStudents(true);
+        const res = await searchUsers({
+          keyword: studentKeyword.trim(),
+          role: "STUDENT",
+          page: 0,
+          size: 10,
+        });
+        const data = Array.isArray(res?.result?.content)
+          ? res.result.content
+          : [];
+        setStudentResults(data.map(normalizeUser));
+      } catch (error) {
+        setStudentResults([]);
+        setModalErrorText(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Không tải được danh sách học viên.",
+        );
+      } finally {
+        setLoadingStudents(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isModalOpen, studentKeyword]);
+
+  useEffect(() => {
+    if (!isModalOpen) return undefined;
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setLoadingCourses(true);
+        const res = await getCourses({
+          keyword: courseKeyword.trim(),
+          manageOnly: true,
+          page: 0,
+          size: 10,
+        });
+        const data = Array.isArray(res?.result?.content)
+          ? res.result.content
+          : [];
+        setCourseResults(data.map(normalizeCourse));
+      } catch (error) {
+        setCourseResults([]);
+        setModalErrorText(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Không tải được danh sách khóa học.",
+        );
+      } finally {
+        setLoadingCourses(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isModalOpen, courseKeyword]);
 
   const handleViewCourse = async (enrollment) => {
     if (!enrollment.courseId) return;
@@ -199,6 +305,103 @@ export default function EnrollmentManagement() {
     setStatusFilter("ALL");
   };
 
+  const requiresPayment =
+    selectedCourse?.paid && Number(selectedCourse?.price) > 0;
+
+  const openCreateModal = () => {
+    setIsModalOpen(true);
+    setModalErrorText("");
+    setForm(INITIAL_FORM);
+    setStudentKeyword("");
+    setCourseKeyword("");
+    setStudentResults([]);
+    setCourseResults([]);
+    setSelectedStudent(null);
+    setSelectedCourse(null);
+  };
+
+  const closeModal = () => {
+    if (saving) return;
+
+    setIsModalOpen(false);
+    setModalErrorText("");
+    setForm(INITIAL_FORM);
+    setStudentKeyword("");
+    setCourseKeyword("");
+    setStudentResults([]);
+    setCourseResults([]);
+    setSelectedStudent(null);
+    setSelectedCourse(null);
+  };
+
+  const handleFormChange = (event) => {
+    const { name, value, checked, type } = event.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const validateForm = () => {
+    if (!form.userId) return "Vui lòng chọn học viên.";
+    if (!form.courseId) return "Vui lòng chọn khóa học.";
+    if (requiresPayment && !form.paymentConfirmed) {
+      return "Vui lòng xác nhận thanh toán trước khi thêm vào khóa học trả phí.";
+    }
+    return "";
+  };
+
+  const handleAddEnrollment = async (event) => {
+    event.preventDefault();
+
+    const validationError = validateForm();
+    if (validationError) {
+      setModalErrorText(validationError);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setModalErrorText("");
+
+      await enrollCourse({
+        userId: form.userId,
+        courseId: form.courseId,
+        paymentConfirmed: form.paymentConfirmed,
+      });
+
+      await fetchEnrollments();
+      closeModal();
+    } catch (error) {
+      setModalErrorText(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Thêm học viên vào khóa học thất bại.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelectStudent = (student) => {
+    setSelectedStudent(student);
+    setForm((prev) => ({
+      ...prev,
+      userId: student.id,
+    }));
+    setStudentKeyword(student.fullName || student.username || student.email);
+  };
+
+  const handleSelectCourse = (course) => {
+    setSelectedCourse(course);
+    setForm((prev) => ({
+      ...prev,
+      courseId: course.id,
+      paymentConfirmed: false,
+    }));
+    setCourseKeyword(course.title);
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.headerBar}>
@@ -207,6 +410,11 @@ export default function EnrollmentManagement() {
           <h1>Quản lí đăng ký học</h1>
           <p>Theo dõi học viên đã đăng ký khóa học và tiến độ học tập.</p>
         </div>
+
+        <button type="button" className={styles.addBtn} onClick={openCreateModal}>
+          <Plus size={18} />
+          <span>Thêm học viên</span>
+        </button>
       </div>
 
       <div className={styles.toolbar}>
@@ -383,6 +591,188 @@ export default function EnrollmentManagement() {
           </div>
         )}
       </div>
+
+      {isModalOpen ? (
+        <div className={styles.modalOverlay} role="presentation">
+          <div className={styles.modal} role="dialog" aria-modal="true">
+            <div className={styles.modalHeader}>
+              <div>
+                <h2>Thêm học viên</h2>
+                <p>Chọn học viên và khóa học để tạo đăng ký học mới.</p>
+              </div>
+
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={closeModal}
+                disabled={saving}
+                title="Đóng"
+                aria-label="Đóng"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            <form className={styles.form} onSubmit={handleAddEnrollment}>
+              {modalErrorText ? (
+                <div className={styles.modalError}>{modalErrorText}</div>
+              ) : null}
+
+              <div className={styles.formGroup}>
+                <span>Học viên</span>
+                <div className={styles.searchSelect}>
+                  <Search size={16} />
+                  <input
+                    value={studentKeyword}
+                    onChange={(event) => {
+                      setStudentKeyword(event.target.value);
+                      setSelectedStudent(null);
+                      setForm((prev) => ({ ...prev, userId: "" }));
+                    }}
+                    placeholder="Tìm theo tên, email hoặc username"
+                    disabled={saving}
+                  />
+                </div>
+
+                {selectedStudent ? (
+                  <div className={styles.selectedItem}>
+                    <UserRound size={16} />
+                    <div>
+                      <strong>
+                        {selectedStudent.fullName || selectedStudent.username}
+                      </strong>
+                      <span>{selectedStudent.email || selectedStudent.username}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.resultList}>
+                    {loadingStudents ? (
+                      <div className={styles.resultState}>Đang tìm học viên...</div>
+                    ) : studentResults.length === 0 ? (
+                      <div className={styles.resultState}>
+                        Không có học viên phù hợp.
+                      </div>
+                    ) : (
+                      studentResults.map((student) => (
+                        <button
+                          key={student.id}
+                          type="button"
+                          className={styles.resultItem}
+                          onClick={() => handleSelectStudent(student)}
+                          disabled={saving}
+                        >
+                          <UserRound size={16} />
+                          <div>
+                            <strong>{student.fullName || student.username}</strong>
+                            <span>{student.email || student.username}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.formGroup}>
+                <span>Khóa học</span>
+                <div className={styles.searchSelect}>
+                  <Search size={16} />
+                  <input
+                    value={courseKeyword}
+                    onChange={(event) => {
+                      setCourseKeyword(event.target.value);
+                      setSelectedCourse(null);
+                      setForm((prev) => ({
+                        ...prev,
+                        courseId: "",
+                        paymentConfirmed: false,
+                      }));
+                    }}
+                    placeholder="Tìm theo tên khóa học"
+                    disabled={saving}
+                  />
+                </div>
+
+                {selectedCourse ? (
+                  <div className={styles.selectedItem}>
+                    <BookOpen size={16} />
+                    <div>
+                      <strong>{selectedCourse.title}</strong>
+                      <span>
+                        {selectedCourse.paid && selectedCourse.price > 0
+                          ? `Trả phí - ${selectedCourse.price.toLocaleString(
+                              "vi-VN",
+                            )} ${selectedCourse.currency}`
+                          : "Miễn phí"}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.resultList}>
+                    {loadingCourses ? (
+                      <div className={styles.resultState}>Đang tìm khóa học...</div>
+                    ) : courseResults.length === 0 ? (
+                      <div className={styles.resultState}>
+                        Không có khóa học phù hợp.
+                      </div>
+                    ) : (
+                      courseResults.map((course) => (
+                        <button
+                          key={course.id}
+                          type="button"
+                          className={styles.resultItem}
+                          onClick={() => handleSelectCourse(course)}
+                          disabled={saving}
+                        >
+                          <BookOpen size={16} />
+                          <div>
+                            <strong>{course.title}</strong>
+                            <span>
+                              {course.paid && course.price > 0
+                                ? `Trả phí - ${course.price.toLocaleString(
+                                    "vi-VN",
+                                  )} ${course.currency}`
+                                : "Miễn phí"}
+                            </span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {requiresPayment ? (
+                <label className={styles.checkboxRow}>
+                  <input
+                    type="checkbox"
+                    name="paymentConfirmed"
+                    checked={form.paymentConfirmed}
+                    onChange={handleFormChange}
+                    disabled={saving}
+                  />
+                  <span>Đã xác nhận thanh toán cho khóa học trả phí</span>
+                </label>
+              ) : null}
+
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={closeModal}
+                  disabled={saving}
+                >
+                  Hủy
+                </button>
+
+                <button type="submit" className={styles.submitBtn} disabled={saving}>
+                  {saving ? "Đang thêm..." : "Thêm học viên"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

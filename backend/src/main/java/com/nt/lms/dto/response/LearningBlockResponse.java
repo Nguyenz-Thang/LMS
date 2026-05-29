@@ -1,6 +1,5 @@
 package com.nt.lms.dto.response;
 
-import com.nt.lms.enums.LessonBlockType;
 import lombok.*;
 
 @Getter
@@ -10,7 +9,7 @@ import lombok.*;
 @AllArgsConstructor
 public class LearningBlockResponse {
     private String id;
-    private LessonBlockType blockType;
+    private String blockType;
     private String title;
     private String content;
     private String mediaUrl;
