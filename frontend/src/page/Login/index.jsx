@@ -153,6 +153,9 @@ export default function Login() {
 
               <div className={styles.formGroup}>
                 <label htmlFor="password">Mật khẩu</label>
+                <div className={styles.labelRow}>
+                  <Link to="/forgot-password">Quên mật khẩu?</Link>
+                </div>
                 <div className={styles.passwordWrap}>
                   <input
                     id="password"

@@ -28,10 +28,10 @@ jwt:
   signerKey: "9POlrNobyAby/kPvcYdhlTYF5g2lWgHzHxjVmbHqOxo="
   valid-duration: 60 # in hours
   refreshable-duration: 72 # in hours
-gemini:
-  api-key: ${GEMINI_API_KEY:}
-  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
-  model: ${GEMINI_MODEL:gemini-2.5-flash}
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
 lms:
   frontend-base-url: ${LMS_FRONTEND_BASE_URL:http://localhost:5173}
   mail:

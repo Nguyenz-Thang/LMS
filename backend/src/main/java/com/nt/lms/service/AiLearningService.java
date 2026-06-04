@@ -51,14 +51,14 @@ public class AiLearningService {
 	private final AssignmentRepository assignmentRepository;
 	private final UserRepository userRepository;
 
-	@Value("${gemini.api-key:}")
-	private String geminiApiKey;
+	@Value("${openai.api-key:}")
+	private String openaiApiKey;
 
-	@Value("${gemini.base-url:https://generativelanguage.googleapis.com/v1beta}")
-	private String geminiBaseUrl;
+	@Value("${openai.base-url:https://api.openai.com/v1}")
+	private String openaiBaseUrl;
 
-	@Value("${gemini.model:gemini-2.5-flash}")
-	private String geminiModel;
+	@Value("${openai.model:gpt-4o-mini}")
+	private String openaiModel;
 
 	private static final int LESSON_CONTEXT_LIMIT = 6000;
 	private static final int LESSON_TEXT_LIMIT = 1200;
@@ -66,15 +66,15 @@ public class AiLearningService {
 	private static final int CHAT_HISTORY_CONTENT_LIMIT = 900;
 	private static final int QUIZ_OUTPUT_TOKEN_LIMIT = 6000;
 	private static final int ASSISTANT_OUTPUT_TOKEN_LIMIT = 2200;
-	private static final long[] GEMINI_RETRY_DELAYS_MS = {800L, 1600L};
+	private static final long[] OPENAI_RETRY_DELAYS_MS = {800L, 1600L};
 
 	@PostConstruct
-	void logGeminiConfig() {
+	void logOpenAiConfig() {
 		log.info(
-				"Gemini config loaded: baseUrl={}, model={}, apiKeyConfigured={}",
-				StringUtils.hasText(geminiBaseUrl) ? geminiBaseUrl.trim() : "",
+				"OpenAI config loaded: baseUrl={}, model={}, apiKeyConfigured={}",
+				StringUtils.hasText(openaiBaseUrl) ? openaiBaseUrl.trim() : "",
 				getNormalizedModel(),
-				StringUtils.hasText(geminiApiKey));
+				StringUtils.hasText(openaiApiKey));
 	}
 
 	public AiLessonAssistantResponse answerLessonQuestion(String lessonId, AiLessonAssistantRequest request, String username) {
@@ -90,8 +90,8 @@ public class AiLearningService {
 		Map<String, Object> schema = createLessonAssistantSchema();
 		List<Map<String, Object>> input = buildLessonAssistantInput(request, user, lessonContext);
 
-		JsonNode responseNode = callGeminiApi(
-				buildGeminiRequest(
+		JsonNode responseNode = callOpenAiApi(
+				buildOpenAiChatRequest(
 						"Bạn là trợ lý học tập thông minh cho hệ thống LMS. "
 								+ "Chỉ được trả lời dựa trên nội dung bài học đã cung cấp. "
 								+ "Nếu câu hỏi nằm ngoài bài học, hãy nói rõ rằng thông tin không có trong bài. "
@@ -101,6 +101,7 @@ public class AiLearningService {
 								+ "Đây là ngữ cảnh bài học:\n" + lessonContext,
 						input,
 						schema,
+						"lesson_assistant_response",
 						ASSISTANT_OUTPUT_TOKEN_LIMIT));
 
 		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
@@ -147,12 +148,13 @@ public class AiLearningService {
 						? "Bắt buộc viết explanation ngắn gọn, rõ ràng cho mỗi câu hỏi."
 						: "Nếu không cần, explanation để chuỗi rỗng.");
 
-		JsonNode responseNode = callGeminiApi(
-				buildGeminiRequest(
+		JsonNode responseNode = callOpenAiApi(
+				buildOpenAiChatRequest(
 						"Bạn là trợ lý tạo quiz cho hệ thống LMS. Đầu ra phải là JSON hợp lệ và bám sát bài học.\n\n"
 								+ "Đây là ngữ cảnh bài học:\n" + lessonContext,
 						List.of(message("user", instruction)),
 						schema,
+						"quiz_draft_response",
 						QUIZ_OUTPUT_TOKEN_LIMIT));
 
 		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
@@ -174,8 +176,8 @@ public class AiLearningService {
 				.history(history == null ? List.of() : history)
 				.build();
 		List<Map<String, Object>> input = buildLessonAssistantInput(request, null, systemContext);
-		JsonNode responseNode = callGeminiApi(
-				buildGeminiRequest(
+		JsonNode responseNode = callOpenAiApi(
+				buildOpenAiChatRequest(
 						"Bạn là chatbot AI hỗ trợ học tập thông minh trong hệ thống LMS. "
 								+ "Luôn đọc lịch sử hội thoại trước khi trả lời. Nếu câu hỏi mới dùng đại từ hoặc cụm mơ hồ như 'trong này', 'cái này', 'này', hãy hiểu nó theo câu hỏi gần nhất của người học. "
 								+ "Hãy cá nhân hóa câu trả lời dựa trên tiến độ, khóa học, bài học và lịch sử hội thoại nếu có. "
@@ -192,6 +194,7 @@ public class AiLearningService {
 								+ systemContext,
 						input,
 						createLessonAssistantSchema(),
+						"smart_chat_response",
 						ASSISTANT_OUTPUT_TOKEN_LIMIT));
 
 		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
@@ -231,8 +234,8 @@ public class AiLearningService {
 				+ "Mỗi câu phải có explanation gồm 2 phần: giải thích đáp án đúng và một ví dụ ngắn minh họa thực tế. "
 				+ "Explanation tối đa 500 ký tự, không viết quá dài để tránh JSON bị cắt.";
 
-		JsonNode responseNode = callGeminiApi(
-				buildGeminiRequest(
+		JsonNode responseNode = callOpenAiApi(
+				buildOpenAiChatRequest(
 						"Bạn là trợ lý tạo quiz cho hệ thống LMS. "
 								+ "Đầu ra phải là JSON hợp lệ theo schema. "
 								+ "Không viết markdown, không giải thích ngoài JSON. "
@@ -240,6 +243,7 @@ public class AiLearningService {
 								+ "Ngữ cảnh tổng quan nếu cần:\n" + (systemContext == null ? "" : systemContext),
 						List.of(message("user", instruction)),
 						createQuizDraftSchema(),
+						"standalone_quiz_draft_response",
 						QUIZ_OUTPUT_TOKEN_LIMIT));
 
 		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
@@ -273,11 +277,12 @@ public class AiLearningService {
 
 	private Map<String, Object> createLessonAssistantSchema() {
 		Map<String, Object> schema = new LinkedHashMap<>();
-		schema.put("type", "OBJECT");
+		schema.put("type", "object");
 		schema.put("properties", Map.of(
-				"answer", Map.of("type", "STRING"),
-				"suggestedQuestions", Map.of("type", "ARRAY", "items", Map.of("type", "STRING"))));
+				"answer", Map.of("type", "string"),
+				"suggestedQuestions", Map.of("type", "array", "items", Map.of("type", "string"))));
 		schema.put("required", List.of("answer", "suggestedQuestions"));
+		schema.put("additionalProperties", false);
 		return schema;
 	}
 
@@ -291,7 +296,7 @@ public class AiLearningService {
 			if (item == null || !StringUtils.hasText(item.getContent())) {
 				continue;
 			}
-			String role = "assistant".equalsIgnoreCase(item.getRole()) ? "model" : "user";
+			String role = "assistant".equalsIgnoreCase(item.getRole()) ? "assistant" : "user";
 			input.add(message(role, limitText(item.getContent().trim(), CHAT_HISTORY_CONTENT_LIMIT)));
 		}
 
@@ -301,30 +306,33 @@ public class AiLearningService {
 
 	private Map<String, Object> createQuizDraftSchema() {
 		Map<String, Object> answerSchema = new LinkedHashMap<>();
-		answerSchema.put("type", "OBJECT");
+		answerSchema.put("type", "object");
 		answerSchema.put("properties", Map.of(
-				"content", Map.of("type", "STRING"),
-				"isCorrect", Map.of("type", "BOOLEAN")));
+				"content", Map.of("type", "string"),
+				"isCorrect", Map.of("type", "boolean")));
 		answerSchema.put("required", List.of("content", "isCorrect"));
+		answerSchema.put("additionalProperties", false);
 
 		Map<String, Object> questionSchema = new LinkedHashMap<>();
-		questionSchema.put("type", "OBJECT");
+		questionSchema.put("type", "object");
 		questionSchema.put("properties", Map.of(
-				"content", Map.of("type", "STRING"),
-				"explanation", Map.of("type", "STRING"),
-				"questionType", Map.of("type", "STRING", "enum", List.of("SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE")),
-				"points", Map.of("type", "INTEGER"),
-				"orderIndex", Map.of("type", "INTEGER"),
-				"answers", Map.of("type", "ARRAY", "items", answerSchema)));
+				"content", Map.of("type", "string"),
+				"explanation", Map.of("type", "string"),
+				"questionType", Map.of("type", "string", "enum", List.of("SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE")),
+				"points", Map.of("type", "integer"),
+				"orderIndex", Map.of("type", "integer"),
+				"answers", Map.of("type", "array", "items", answerSchema)));
 		questionSchema.put("required", List.of("content", "explanation", "questionType", "points", "orderIndex", "answers"));
+		questionSchema.put("additionalProperties", false);
 
 		Map<String, Object> schema = new LinkedHashMap<>();
-		schema.put("type", "OBJECT");
+		schema.put("type", "object");
 		schema.put("properties", Map.of(
-				"title", Map.of("type", "STRING"),
-				"description", Map.of("type", "STRING"),
-				"questions", Map.of("type", "ARRAY", "items", questionSchema)));
+				"title", Map.of("type", "string"),
+				"description", Map.of("type", "string"),
+				"questions", Map.of("type", "array", "items", questionSchema)));
 		schema.put("required", List.of("title", "description", "questions"));
+		schema.put("additionalProperties", false);
 		return schema;
 	}
 
@@ -421,31 +429,29 @@ public class AiLearningService {
 	}
 
 	private void validateApiKey() {
-		if (!StringUtils.hasText(geminiApiKey)) {
-			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chưa cấu hình GEMINI_API_KEY");
+		if (!StringUtils.hasText(openaiApiKey)) {
+			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chưa cấu hình OPENAI_API_KEY");
 		}
 	}
 
 	private String getNormalizedModel() {
-		return StringUtils.hasText(geminiModel) ? geminiModel.trim() : "gemini-2.5-flash";
+		return StringUtils.hasText(openaiModel) ? openaiModel.trim() : "gpt-4o-mini";
 	}
 
-	private JsonNode callGeminiApi(Map<String, Object> requestBody) {
+	private JsonNode callOpenAiApi(Map<String, Object> requestBody) {
 		try {
 			RestClient client = RestClient.builder()
-					.baseUrl(geminiBaseUrl.trim())
+					.baseUrl(openaiBaseUrl.trim())
 					.defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+					.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + openaiApiKey.trim())
 					.build();
 
 			RestClientResponseException lastTransientException = null;
-			for (int attempt = 0; attempt <= GEMINI_RETRY_DELAYS_MS.length; attempt++) {
+			for (int attempt = 0; attempt <= OPENAI_RETRY_DELAYS_MS.length; attempt++) {
 				try {
-					log.info("Calling Gemini API: model={}, baseUrl={}, attempt={}", getNormalizedModel(), geminiBaseUrl.trim(), attempt + 1);
+					log.info("Calling OpenAI API: model={}, baseUrl={}, attempt={}", getNormalizedModel(), openaiBaseUrl.trim(), attempt + 1);
 					String rawBody = client.post()
-							.uri(uriBuilder -> uriBuilder
-									.path("/models/{model}:generateContent")
-									.queryParam("key", geminiApiKey.trim())
-									.build(getNormalizedModel()))
+							.uri("/chat/completions")
 							.body(requestBody)
 							.retrieve()
 							.body(String.class);
@@ -453,37 +459,36 @@ public class AiLearningService {
 					return objectMapper.readTree(rawBody);
 				} catch (RestClientResponseException exception) {
 					log.warn(
-							"Gemini API returned error: model={}, status={}, body={}",
+							"OpenAI API returned error: model={}, status={}, body={}",
 							getNormalizedModel(),
 							exception.getStatusCode(),
 							exception.getResponseBodyAsString());
-					if (!isGeminiTemporarilyUnavailable(exception) || attempt >= GEMINI_RETRY_DELAYS_MS.length) {
+					if (!isOpenAiTemporarilyUnavailable(exception) || attempt >= OPENAI_RETRY_DELAYS_MS.length) {
 						throw exception;
 					}
 					lastTransientException = exception;
-					sleepBeforeRetry(GEMINI_RETRY_DELAYS_MS[attempt]);
+					sleepBeforeRetry(OPENAI_RETRY_DELAYS_MS[attempt]);
 				}
 			}
 			throw lastTransientException;
 		} catch (RestClientResponseException exception) {
-			throw mapGeminiError(exception);
+			throw mapOpenAiError(exception);
 		} catch (ResponseStatusException exception) {
-			log.warn("Gemini API call aborted: model={}, reason={}", getNormalizedModel(), exception.getReason());
+			log.warn("OpenAI API call aborted: model={}, reason={}", getNormalizedModel(), exception.getReason());
 			throw exception;
 		} catch (Exception exception) {
-			log.warn("Gemini API call failed: model={}, message={}", getNormalizedModel(), exception.getMessage(), exception);
+			log.warn("OpenAI API call failed: model={}, message={}", getNormalizedModel(), exception.getMessage(), exception);
 			throw new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
-					"Không thể gọi Gemini API: " + exception.getMessage(),
+					"Không thể gọi OpenAI API: " + exception.getMessage(),
 					exception);
 		}
 	}
 
-	private boolean isGeminiTemporarilyUnavailable(RestClientResponseException exception) {
-		String responseBody = exception.getResponseBodyAsString();
+	private boolean isOpenAiTemporarilyUnavailable(RestClientResponseException exception) {
 		return exception.getStatusCode().value() == 503
-				|| (responseBody != null && responseBody.contains("\"status\": \"UNAVAILABLE\""))
-				|| (responseBody != null && responseBody.contains("high demand"));
+				|| exception.getStatusCode().value() == 502
+				|| exception.getStatusCode().value() == 504;
 	}
 
 	private void sleepBeforeRetry(long delayMs) {
@@ -491,7 +496,7 @@ public class AiLearningService {
 			Thread.sleep(delayMs);
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini API retry bị gián đoạn", exception);
+			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "OpenAI API retry bị gián đoạn", exception);
 		}
 	}
 
@@ -499,19 +504,19 @@ public class AiLearningService {
 		if (responseNode == null || responseNode.isMissingNode()) {
 			return "";
 		}
-		JsonNode candidatesNode = responseNode.path("candidates");
-		if (candidatesNode.isArray()) {
+		JsonNode choicesNode = responseNode.path("choices");
+		if (!choicesNode.isArray() || choicesNode.isEmpty()) {
+			return "";
+		}
+		JsonNode contentNode = choicesNode.get(0).path("message").path("content");
+		if (contentNode.isTextual()) {
+			return contentNode.asText("");
+		}
+		if (contentNode.isArray()) {
 			StringBuilder builder = new StringBuilder();
-			for (JsonNode item : candidatesNode) {
-				JsonNode contentNode = item.path("content");
-				JsonNode partsNode = contentNode.path("parts");
-				if (!partsNode.isArray()) {
-					continue;
-				}
-				for (JsonNode partItem : partsNode) {
-					if (partItem.hasNonNull("text")) {
-						builder.append(partItem.path("text").asText(""));
-					}
+			for (JsonNode item : contentNode) {
+				if (item.hasNonNull("text")) {
+					builder.append(item.path("text").asText(""));
 				}
 			}
 			return builder.toString();
@@ -543,7 +548,7 @@ public class AiLearningService {
 					// Fall through to the structured error below with the raw preview.
 				}
 			}
-			log.warn("Gemini returned non-JSON output: {}", toLogPreview(normalizedText));
+			log.warn("OpenAI returned non-JSON output: {}", toLogPreview(normalizedText));
 			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI trả về JSON không hợp lệ", exception);
 		}
 	}
@@ -572,71 +577,75 @@ public class AiLearningService {
 	private Map<String, Object> message(String role, String content) {
 		return Map.of(
 				"role", role,
-				"parts", List.of(Map.of("text", content)));
+				"content", content);
 	}
 
-	private Map<String, Object> buildGeminiRequest(
+	private Map<String, Object> buildOpenAiChatRequest(
 			String systemInstruction,
-			List<Map<String, Object>> contents,
+			List<Map<String, Object>> messages,
 			Map<String, Object> schema,
+			String schemaName,
 			int maxOutputTokens) {
+		List<Map<String, Object>> requestMessages = new ArrayList<>();
+		requestMessages.add(message("system", systemInstruction));
+		requestMessages.addAll(messages);
+
 		return Map.of(
-				"system_instruction", Map.of("parts", List.of(Map.of("text", systemInstruction))),
-				"contents", contents,
-				"generationConfig", Map.of(
-						"responseMimeType", "application/json",
-						"responseSchema", schema,
-						"maxOutputTokens", maxOutputTokens,
-						"temperature", 0.3));
+				"model", getNormalizedModel(),
+				"messages", requestMessages,
+				"max_completion_tokens", maxOutputTokens,
+				"response_format", Map.of(
+						"type", "json_schema",
+						"json_schema", Map.of(
+								"name", schemaName,
+								"strict", true,
+								"schema", schema)));
 	}
 
-	private ResponseStatusException mapGeminiError(RestClientResponseException exception) {
+	private ResponseStatusException mapOpenAiError(RestClientResponseException exception) {
 		String responseBody = exception.getResponseBodyAsString();
-		if (exception.getStatusCode().value() == 404
-				|| (responseBody != null && responseBody.contains("not found for API version"))) {
+		if (exception.getStatusCode().value() == 404) {
 			return new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
-					"Không tìm thấy model Gemini '" + getNormalizedModel()
-							+ "' trên endpoint hiện tại. Hãy đổi GEMINI_MODEL sang model đang hỗ trợ generateContent, ví dụ gemini-2.5-flash.",
+					"Không tìm thấy model OpenAI '" + getNormalizedModel()
+							+ "'. Hãy kiểm tra OPENAI_MODEL hoặc quyền truy cập model của API key.",
 					exception);
 		}
-		if (exception.getStatusCode().value() == 429
-				|| (responseBody != null && responseBody.contains("RESOURCE_EXHAUSTED"))
-				|| (responseBody != null && responseBody.contains("generate_content_free_tier"))) {
+		if (exception.getStatusCode().value() == 429) {
 			return new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
-					"Gemini API đã hết quota hoặc đang bị giới hạn tốc độ. Vui lòng đợi ít phút, đổi model/API key, hoặc bật billing cho project.",
+					"OpenAI API đã hết quota hoặc đang bị giới hạn tốc độ. Vui lòng đợi ít phút, kiểm tra billing/quota hoặc đổi API key.",
 					exception);
 		}
 		if (exception.getStatusCode().value() == 503
-				|| (responseBody != null && responseBody.contains("\"status\": \"UNAVAILABLE\""))
-				|| (responseBody != null && responseBody.contains("high demand"))) {
+				|| exception.getStatusCode().value() == 502
+				|| exception.getStatusCode().value() == 504) {
 			return new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
-					"Gemini API đang quá tải tạm thời. Vui lòng thử lại sau ít phút hoặc đổi GEMINI_MODEL sang model khác đang rảnh hơn.",
+					"OpenAI API đang quá tải tạm thời. Vui lòng thử lại sau ít phút.",
 					exception);
 		}
 		if (responseBody != null && responseBody.contains("insufficient_quota")) {
 			return new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
-					"Tài khoản Gemini API hiện không đủ quota hoặc billing chưa được bật",
+					"Tài khoản OpenAI API hiện không đủ quota hoặc billing chưa được bật",
 					exception);
 		}
-		if (responseBody != null && responseBody.contains("API_KEY_INVALID")) {
+		if (exception.getStatusCode().value() == 401 || responseBody != null && responseBody.contains("invalid_api_key")) {
 			return new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
-					"GEMINI_API_KEY không hợp lệ",
+					"OPENAI_API_KEY không hợp lệ",
 					exception);
 		}
-		if (responseBody != null && responseBody.contains("PERMISSION_DENIED")) {
+		if (exception.getStatusCode().value() == 403) {
 			return new ResponseStatusException(
 					HttpStatus.BAD_GATEWAY,
-					"Gemini API từ chối truy cập. Kiểm tra API key và quyền của project",
+					"OpenAI API từ chối truy cập. Kiểm tra API key, project và quyền truy cập model",
 					exception);
 		}
 		return new ResponseStatusException(
 				HttpStatus.BAD_GATEWAY,
-				"Không thể gọi Gemini API: " + exception.getStatusCode() + " " + responseBody,
+				"Không thể gọi OpenAI API: " + exception.getStatusCode() + " " + responseBody,
 				exception);
 	}
 

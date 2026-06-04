@@ -47,6 +47,34 @@ public class EmailNotificationService {
     @Value("${lms.frontend-base-url:http://localhost:5173}")
     String frontendBaseUrl;
 
+    public boolean sendPasswordResetEmail(User user, String resetUrl, LocalDateTime expiresAt) {
+        if (!hasValidEmail(user)) {
+            return false;
+        }
+
+        String subject = "[LMS] Dat lai mat khau";
+        String content = """
+                Xin chao %s,
+
+                Chung toi nhan duoc yeu cau dat lai mat khau cho tai khoan cua ban.
+
+                Vui long mo lien ket sau de tao mat khau moi:
+                %s
+
+                Lien ket co hieu luc den: %s
+
+                Neu ban khong yeu cau dat lai mat khau, vui long bo qua email nay.
+
+                Tran trong,
+                He thong quan ly hoc tap
+                """.formatted(
+                safeName(user),
+                resetUrl,
+                expiresAt.format(DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")));
+
+        return sendEmail(user.getEmail(), subject, content);
+    }
+
     public void sendManualTestEmail(User user) {
         if (!hasValidEmail(user)) {
             throw new ResponseStatusException(BAD_REQUEST, "Tài khoản chưa có email để nhận thư test");

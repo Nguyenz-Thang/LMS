@@ -4,6 +4,8 @@ import { useContext } from "react";
 import Home from "../../page/Home";
 import Register from "../../page/Register";
 import Login from "../../page/Login";
+import ForgotPassword from "../../page/ForgotPassword";
+import ResetPassword from "../../page/ResetPassword";
 import MainContent from "../../page/MainContent";
 import DefaultLayout from "../../layouts/DefaultLayout";
 import AdminLayout from "../../layouts/AdminLayout";
@@ -72,6 +74,22 @@ function AppRoutes() {
           path="/register"
           element={
             token ? <Navigate to={getDefaultRoute()} replace /> : <Register />
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            token ? (
+              <Navigate to={getDefaultRoute()} replace />
+            ) : (
+              <ForgotPassword />
+            )
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            token ? <Navigate to={getDefaultRoute()} replace /> : <ResetPassword />
           }
         />
 

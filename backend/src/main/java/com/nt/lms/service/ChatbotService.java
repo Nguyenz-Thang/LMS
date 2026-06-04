@@ -403,9 +403,9 @@ public class ChatbotService {
 			int percent = total == 0 ? 0 : (int) Math.round((completed * 100.0) / total);
 			StringBuilder progressAnswer = new StringBuilder();
 			if (temporarilyUnavailable) {
-				progressAnswer.append("Gemini API đang quá tải tạm thời, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
+				progressAnswer.append("OpenAI API đang quá tải tạm thời, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
 			} else if (quotaExceeded) {
-				progressAnswer.append("Gemini API đang hết quota hoặc bị giới hạn tốc độ, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
+				progressAnswer.append("OpenAI API đang hết quota hoặc bị giới hạn tốc độ, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
 			} else {
 				progressAnswer.append("Hiện chưa gọi được dịch vụ AI, nên mình tạm tổng hợp bằng dữ liệu học tập trong hệ thống.\n\n");
 			}
@@ -437,9 +437,9 @@ public class ChatbotService {
 
 		StringBuilder answer = new StringBuilder();
 		if (temporarilyUnavailable) {
-			answer.append("Gemini API đang quá tải tạm thời, nên mình chưa thể gọi AI trực tiếp lúc này.\n\n");
+			answer.append("OpenAI API đang quá tải tạm thời, nên mình chưa thể gọi AI trực tiếp lúc này.\n\n");
 		} else if (quotaExceeded) {
-			answer.append("Gemini API đang hết quota hoặc bị giới hạn tốc độ, nên mình chưa thể gọi AI trực tiếp lúc này.\n\n");
+			answer.append("OpenAI API đang hết quota hoặc bị giới hạn tốc độ, nên mình chưa thể gọi AI trực tiếp lúc này.\n\n");
 		} else {
 			answer.append("Hiện chưa gọi được dịch vụ AI, nên mình trả lời tạm theo dữ liệu học tập đang có.\n\n");
 		}
@@ -454,14 +454,14 @@ public class ChatbotService {
 						.append(limit(toPlainText(lesson.getContent()), 900))
 						.append("\n\n");
 			}
-			answer.append("Khi Gemini hoạt động lại, mình sẽ trả lời chi tiết theo toàn bộ nội dung bài, video, block và tài liệu đính kèm.");
+			answer.append("Khi OpenAI API hoạt động lại, mình sẽ trả lời chi tiết theo toàn bộ nội dung bài, video, block và tài liệu đính kèm.");
 		} else {
 			answer.append("Đây là hội thoại tổng quát nên mình không có ngữ cảnh bài học cụ thể. Hiện mình chỉ có thể hỗ trợ các thông tin tổng quan như tiến độ học tập, số bài đã hoàn thành và kế hoạch ôn tập.\n\n");
 			answer.append("Bạn có thể hỏi một trong các ý sau:\n");
 			answer.append("- Tóm tắt tiến độ học tập của tôi\n");
 			answer.append("- Tôi còn bao nhiêu bài chưa hoàn thành?\n");
 			answer.append("- Gợi ý kế hoạch ôn tập hôm nay\n\n");
-			answer.append("Khi Gemini hoạt động lại, chatbot sẽ trả lời đầy đủ và cá nhân hóa hơn.");
+			answer.append("Khi OpenAI API hoạt động lại, chatbot sẽ trả lời đầy đủ và cá nhân hóa hơn.");
 		}
 
 		return AiLessonAssistantResponse.builder()
@@ -484,9 +484,9 @@ public class ChatbotService {
 		StringBuilder answer = new StringBuilder();
 
 		if (temporarilyUnavailable) {
-			answer.append("Gemini API đang quá tải tạm thời, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+			answer.append("OpenAI API đang quá tải tạm thời, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
 		} else if (quotaExceeded) {
-			answer.append("Gemini API đang hết quota hoặc bị giới hạn tốc độ, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+			answer.append("OpenAI API đang hết quota hoặc bị giới hạn tốc độ, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
 		} else {
 			answer.append("Hiện chưa gọi được dịch vụ AI, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
 		}
