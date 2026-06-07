@@ -1,49 +1,23 @@
-import { useCallback, useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
-import { LMS_BASE_URL } from "./courseApi";
+import { useCallback } from "react";
+import { LMS_BASE_URL, toJson, useAuthedFetch } from "./authFetch";
 
 const BASE = `${LMS_BASE_URL}/reports`;
 
-async function toJson(res) {
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const err = new Error(data.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-
-  return data;
-}
-
 export function useReportApi() {
-  const { token, logout } = useContext(AuthContext);
+  const authedFetch = useAuthedFetch();
+  const getDashboard = useCallback(
+    async (params = {}) => {
+      const searchParams = new URLSearchParams();
 
-  const authedFetch = useCallback(
-    async (url, options = {}) => {
-      const headers = {
-        ...(options.headers || {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(url, {
-        ...options,
-        headers,
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+          searchParams.set(key, String(value).trim());
+        }
       });
 
-      if (res.status === 401 || res.status === 403) {
-        logout?.();
-        throw new Error("Phiên đăng nhập đã hết hạn hoặc bạn không có quyền.");
-      }
-
-      return res;
+      const query = searchParams.toString();
+      return toJson(await authedFetch(`${BASE}/dashboard${query ? `?${query}` : ""}`));
     },
-    [token, logout],
-  );
-
-  const getDashboard = useCallback(
-    async () => toJson(await authedFetch(`${BASE}/dashboard`)),
     [authedFetch],
   );
 

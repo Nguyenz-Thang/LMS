@@ -36,7 +36,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -294,7 +293,7 @@ public class LearningQuizService {
         if (selectedOption != null) {
             boolean isCorrect = selectedOption.isCorrect();
             answer.setIsCorrect(isCorrect);
-            answer.setEarnedPoints(isCorrect ? safeDouble(question.getPoints()) : 0.0);
+            answer.setEarnedPoints(isCorrect ? 1.0 : 0.0);
         } else {
             answer.setIsCorrect(false);
             answer.setEarnedPoints(0.0);
@@ -327,7 +326,7 @@ public class LearningQuizService {
         answer.setSelectedOption(null);
         answer.setAnswerText(serializeSelectedOptionIds(selectedOptionIds));
         answer.setIsCorrect(isCorrect);
-        answer.setEarnedPoints(isCorrect ? safeDouble(question.getPoints()) : 0.0);
+        answer.setEarnedPoints(isCorrect ? 1.0 : 0.0);
     }
 
     private void markLessonCompleted(User currentUser, Lesson lesson) {
@@ -433,7 +432,6 @@ public class LearningQuizService {
                 .title(quiz.getTitle())
                 .description(quiz.getDescription())
                 .quizScope(quiz.getQuizScope() != null ? String.valueOf(quiz.getQuizScope()) : null)
-                .passingScore(safeDouble(quiz.getPassingScore()))
                 .timeLimitMinutes(quiz.getTimeLimitMinutes())
                 .maxAttempts(quiz.getMaxAttempts())
                 .attemptId(attempt != null ? attempt.getId() : null)
@@ -631,7 +629,7 @@ public class LearningQuizService {
     private double calculateTotalScore(String quizId) {
         return questionRepository.findByQuizIdOrderByOrderIndexAsc(quizId)
                 .stream()
-                .mapToDouble(q -> safeDouble(q.getPoints()))
+                .mapToDouble(q -> 1.0)
                 .sum();
     }
 

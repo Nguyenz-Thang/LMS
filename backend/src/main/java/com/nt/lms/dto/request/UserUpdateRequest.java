@@ -1,7 +1,6 @@
 package com.nt.lms.dto.request;
 
 import java.time.LocalDate;
-import java.util.Set;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -17,5 +16,5 @@ public class UserUpdateRequest {
     String fullName;
     String avatar;
     LocalDate dob;
-    Set<String> roles;
+    String role;
 }

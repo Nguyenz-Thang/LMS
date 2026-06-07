@@ -1,8 +1,7 @@
 package com.nt.lms.service;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import com.nt.lms.dto.request.ChangePasswordRequest;
 import com.nt.lms.dto.request.RegisterRequest;
@@ -15,6 +14,14 @@ import com.nt.lms.entity.User;
 import com.nt.lms.exception.AppException;
 import com.nt.lms.exception.ErrorCode;
 import com.nt.lms.mapper.UserMapper;
+import com.nt.lms.repository.AssignmentSubmissionRepository;
+import com.nt.lms.repository.CourseRepository;
+import com.nt.lms.repository.DiscussionReplyRepository;
+import com.nt.lms.repository.DiscussionTopicRepository;
+import com.nt.lms.repository.EnrollmentRepository;
+import com.nt.lms.repository.LessonProgressRepository;
+import com.nt.lms.repository.PaymentRepository;
+import com.nt.lms.repository.QuizAttemptRepository;
 import com.nt.lms.repository.RoleRepository;
 import com.nt.lms.repository.UserRepository;
 
@@ -27,6 +34,7 @@ import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -37,6 +45,14 @@ public class UserService {
 
     UserRepository userRepository;
     RoleRepository roleRepository;
+    CourseRepository courseRepository;
+    EnrollmentRepository enrollmentRepository;
+    LessonProgressRepository lessonProgressRepository;
+    QuizAttemptRepository quizAttemptRepository;
+    PaymentRepository paymentRepository;
+    AssignmentSubmissionRepository assignmentSubmissionRepository;
+    DiscussionTopicRepository discussionTopicRepository;
+    DiscussionReplyRepository discussionReplyRepository;
     UserMapper userMapper;
     PasswordEncoder passwordEncoder;
 
@@ -64,7 +80,7 @@ public class UserService {
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .roles(Set.of(role))
+                .role(role)
                 .build();
 
         return userMapper.toUserResponse(userRepository.save(user));
@@ -89,10 +105,7 @@ public class UserService {
         User user = userMapper.toUser(request);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        Role role = roleRepository.findById("STUDENT")
-                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_EXISTED));
-
-        user.setRoles(Set.of(role));
+        user.setRole(resolveRoleOrDefault(request.getRole()));
 
         return userMapper.toUserResponse(userRepository.save(user));
     }
@@ -116,8 +129,8 @@ public class UserService {
         List<UserResponse> filtered = userRepository.findAll()
                 .stream()
                 .filter(user -> normalizedRole.isBlank()
-                        || (user.getRoles() != null && user.getRoles().stream()
-                                .anyMatch(item -> normalizedRole.equalsIgnoreCase(item.getName()))))
+                        || (user.getRole() != null
+                                && normalizedRole.equalsIgnoreCase(user.getRole().getName())))
                 .filter(user -> normalizedKeyword.isBlank()
                         || safeText(user.getUsername()).contains(normalizedKeyword)
                         || safeText(user.getFullName()).contains(normalizedKeyword)
@@ -140,13 +153,6 @@ public class UserService {
     }
 
     @PostAuthorize("returnObject.username == authentication.name or hasRole('ADMIN')")
-    public UserResponse getUser(String id) {
-        log.info("In method get user by Id");
-        return userMapper.toUserResponse(
-                userRepository.findById(id)
-                        .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED)));
-    }
-
     public UserResponse getMyInfo() {
         String username = SecurityContextHolder.getContext()
                 .getAuthentication()
@@ -212,9 +218,8 @@ public class UserService {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        if (request.getRoles() != null) {
-            var roles = roleRepository.findAllById(request.getRoles());
-            user.setRoles(new HashSet<>(roles));
+        if (request.getRole() != null) {
+            user.setRole(resolveRole(request.getRole()));
         }
 
         return userMapper.toUserResponse(userRepository.save(user));
@@ -224,10 +229,73 @@ public class UserService {
         if (!userRepository.existsById(userId)) {
             throw new AppException(ErrorCode.USER_NOT_EXISTED);
         }
-        userRepository.deleteById(userId);
+
+        List<String> relatedData = getUserRelatedDataLabels(userId);
+        if (!relatedData.isEmpty()) {
+            throw new AppException(
+                    ErrorCode.USER_HAS_RELATED_DATA,
+                    "Không thể xóa người dùng này vì đã có dữ liệu: "
+                            + String.join(", ", relatedData)
+                            + ". Bạn nên khóa tài khoản hoặc xử lý dữ liệu liên quan trước.");
+        }
+
+        try {
+            userRepository.deleteById(userId);
+        } catch (DataIntegrityViolationException exception) {
+            throw new AppException(
+                    ErrorCode.USER_HAS_RELATED_DATA,
+                    "Không thể xóa người dùng này vì đã có dữ liệu liên quan trong hệ thống. "
+                            + "Bạn nên khóa tài khoản hoặc xử lý dữ liệu liên quan trước.");
+        }
+    }
+
+    private List<String> getUserRelatedDataLabels(String userId) {
+        List<String> relatedData = new ArrayList<>();
+
+        if (enrollmentRepository.existsByUserId(userId)) {
+            relatedData.add("đăng ký học");
+        }
+        if (lessonProgressRepository.existsByUserId(userId)) {
+            relatedData.add("tiến độ học");
+        }
+        if (quizAttemptRepository.existsByUserId(userId)) {
+            relatedData.add("kết quả/lượt làm bài kiểm tra");
+        }
+        if (paymentRepository.existsByUserId(userId)) {
+            relatedData.add("thanh toán");
+        }
+        if (courseRepository.existsByInstructorId(userId)) {
+            relatedData.add("khóa học đang phụ trách");
+        }
+        if (assignmentSubmissionRepository.existsByStudentIdOrGradedById(userId, userId)) {
+            relatedData.add("bài nộp/bài chấm");
+        }
+        if (discussionTopicRepository.existsByCreatedById(userId)
+                || discussionReplyRepository.existsByUserId(userId)) {
+            relatedData.add("thảo luận/bình luận");
+        }
+
+        return relatedData;
     }
 
     private String safeText(String value) {
         return value == null ? "" : value.toLowerCase();
+    }
+
+    private Role resolveRoleOrDefault(String roleName) {
+        if (roleName == null || roleName.isBlank()) {
+            return resolveRole("STUDENT");
+        }
+
+        return resolveRole(roleName);
+    }
+
+    private Role resolveRole(String roleName) {
+        if (roleName == null || roleName.isBlank()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        return roleRepository.findById(roleName.trim().toUpperCase())
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_EXISTED));
     }
 }

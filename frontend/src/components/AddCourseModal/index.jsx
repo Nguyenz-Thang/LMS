@@ -277,7 +277,6 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
                 >
                   <option value="DRAFT">Nháp</option>
                   <option value="PUBLISHED">Đã duyệt</option>
-                  <option value="ARCHIVED">Lưu trữ</option>
                 </select>
               </div>
 
@@ -291,7 +290,6 @@ function AddCourseModal({ isOpen, onClose, onCreated, categories = [] }) {
                 >
                   <option value="PUBLIC">Công khai</option>
                   <option value="PRIVATE">Riêng tư</option>
-                  <option value="UNLISTED">Không liệt kê</option>
                 </select>
               </div>
             </>

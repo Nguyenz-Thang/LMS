@@ -55,13 +55,6 @@ public class RoleService {
                 .toList();
     }
 
-    public RoleResponse getByName(String roleName) {
-        Role role = roleRepository.findById(roleName)
-                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_EXISTED));
-
-        return roleMapper.toRoleResponse(role);
-    }
-
     @Transactional
     public RoleResponse update(String roleName, RoleRequest request) {
         validateUpdateRequest(request);

@@ -1,4 +1,4 @@
-import { BookOpen, Clock3, PlayCircle, Tag, UserRound, Users } from "lucide-react";
+import { BookOpen, Clock3, Layers3, Tag, UserRound, Users } from "lucide-react";
 import styles from "./CourseShowcaseCard.module.scss";
 
 function getImageSrc(value, baseUrl) {
@@ -13,17 +13,6 @@ function trimText(text = "", fallback = "") {
   return normalized || fallback;
 }
 
-function formatDuration(totalMinutes) {
-  if (!totalMinutes || totalMinutes <= 0) return "0 phút";
-
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-
-  if (hours > 0 && mins > 0) return `${hours} giờ ${mins} phút`;
-  if (hours > 0) return `${hours} giờ`;
-  return `${mins} phút`;
-}
-
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("vi-VN");
 }
@@ -34,9 +23,14 @@ function formatPrice(course) {
   return `${price.toLocaleString("vi-VN")} ${course?.currency || "VND"}`;
 }
 
+function formatEstimatedHours(value) {
+  const hours = Number(value || 0);
+  if (hours <= 0) return "Đang cập nhật";
+  return `${hours.toLocaleString("vi-VN")} giờ`;
+}
+
 export default function CourseShowcaseCard({
   course,
-  stats,
   baseUrl,
   onClick,
   busy = false,
@@ -87,8 +81,8 @@ export default function CourseShowcaseCard({
             <span>{formatPrice(course)}</span>
           </span>
           <span>
-            <PlayCircle size={14} />
-            <span>{formatNumber(stats?.totalLessons)}</span>
+            <Layers3 size={14} />
+            <span>{trimText(course?.level, "Cơ bản")}</span>
           </span>
           <span>
             <Users size={14} />
@@ -96,7 +90,7 @@ export default function CourseShowcaseCard({
           </span>
           <span>
             <Clock3 size={14} />
-            <span>{formatDuration(stats?.totalDurationMinutes)}</span>
+            <span>{formatEstimatedHours(course?.estimatedHours)}</span>
           </span>
         </div>
 

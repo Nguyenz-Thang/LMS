@@ -37,7 +37,7 @@ export default function Footer() {
             <a href="/home">Giới thiệu hệ thống</a>
             <a href="/courses">Khóa học</a>
             <a href="/my-courses">Lộ trình học tập</a>
-            <a href="/discussions">Câu hỏi thường gặp</a>
+            <a href="/chatbot">Hỗ trợ học tập AI</a>
             <a href="/profile">Liên hệ</a>
           </div>
 

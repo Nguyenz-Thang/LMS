@@ -20,4 +20,6 @@ public class ProgressDashboardResponse {
 	List<ProgressQuizInsightResponse> independentQuizzes;
 	List<ProgressPausedLessonResponse> pausedLessons;
 	List<ProgressRiskCourseResponse> atRiskCourses;
+	List<Integer> activityYears;
+	Integer selectedYear;
 }

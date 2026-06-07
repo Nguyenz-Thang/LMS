@@ -1,11 +1,10 @@
 package com.nt.lms.service;
 
-import com.nt.lms.dto.response.AdminReportAlertResponse;
 import com.nt.lms.dto.response.AdminReportCourseStatResponse;
 import com.nt.lms.dto.response.AdminReportDashboardResponse;
 import com.nt.lms.dto.response.AdminReportInstructorStatResponse;
+import com.nt.lms.dto.response.AdminReportLearnerStatResponse;
 import com.nt.lms.dto.response.AdminReportSummaryResponse;
-import com.nt.lms.dto.response.AdminReportTrendPointResponse;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Enrollment;
 import com.nt.lms.entity.Lesson;
@@ -24,14 +23,13 @@ import com.nt.lms.repository.QuizAttemptRepository;
 import com.nt.lms.repository.SectionRepository;
 import com.nt.lms.repository.UserRepository;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -54,12 +52,22 @@ public class ReportService {
     UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public AdminReportDashboardResponse getDashboard() {
+    public AdminReportDashboardResponse getDashboard(
+            String fromDate,
+            String toDate,
+            String courseId,
+            String learnerId,
+            String instructorId,
+            String status) {
         User currentUser = getCurrentUser();
         boolean isAdmin = hasRole(currentUser, "ADMIN");
+        ReportFilter filter = ReportFilter.from(fromDate, toDate, courseId, learnerId, instructorId, status);
 
         List<Course> scopedCourses = courseRepository.findAll().stream()
                 .filter(course -> isAdmin || isOwnedBy(course, currentUser))
+                .filter(course -> isBlank(filter.courseId()) || filter.courseId().equals(course.getId()))
+                .filter(course -> isBlank(filter.instructorId())
+                        || (course.getInstructor() != null && filter.instructorId().equals(course.getInstructor().getId())))
                 .toList();
 
         Set<String> scopedCourseIds = scopedCourses.stream()
@@ -69,16 +77,43 @@ public class ReportService {
         List<Enrollment> scopedEnrollments = enrollmentRepository.findAll().stream()
                 .filter(enrollment -> enrollment.getCourse() != null)
                 .filter(enrollment -> scopedCourseIds.contains(enrollment.getCourse().getId()))
+                .filter(enrollment -> isBlank(filter.learnerId())
+                        || (enrollment.getUser() != null && filter.learnerId().equals(enrollment.getUser().getId())))
+                .filter(enrollment -> isBlank(filter.status())
+                        || (enrollment.getStatus() != null && filter.status().equalsIgnoreCase(enrollment.getStatus().name())))
                 .toList();
+        List<Enrollment> statusFilteredEnrollments = scopedEnrollments;
 
         List<LessonProgress> scopedProgresses = lessonProgressRepository.findAll().stream()
                 .filter(progress -> getCourseId(progress) != null)
                 .filter(progress -> scopedCourseIds.contains(getCourseId(progress)))
+                .filter(progress -> isBlank(filter.learnerId())
+                        || (progress.getUser() != null && filter.learnerId().equals(progress.getUser().getId())))
+                .filter(progress -> matchesEnrollmentStatus(progress, statusFilteredEnrollments, filter))
+                .filter(progress -> isWithinDateRange(
+                        firstPresent(progress.getLastAccessedAt(), progress.getUpdatedAt(), progress.getCreatedAt()),
+                        filter.fromDate(),
+                        filter.toDate()))
                 .toList();
 
         List<QuizAttempt> scopedQuizAttempts = quizAttemptRepository.findAll().stream()
                 .filter(attempt -> getCourseId(attempt) != null)
                 .filter(attempt -> scopedCourseIds.contains(getCourseId(attempt)))
+                .filter(attempt -> isBlank(filter.learnerId())
+                        || (attempt.getUser() != null && filter.learnerId().equals(attempt.getUser().getId())))
+                .filter(attempt -> matchesEnrollmentStatus(attempt, statusFilteredEnrollments, filter))
+                .filter(attempt -> isWithinDateRange(
+                        firstPresent(attempt.getSubmittedAt(), attempt.getStartedAt()),
+                        filter.fromDate(),
+                        filter.toDate()))
+                .toList();
+
+        scopedEnrollments = filterRelevantEnrollments(scopedEnrollments, scopedProgresses, scopedQuizAttempts, filter);
+
+        Set<String> reportCourseIds = collectReportCourseIds(scopedEnrollments, scopedProgresses, scopedQuizAttempts);
+        boolean hasDataFilter = filter.hasDataFilter();
+        List<Course> reportCourses = scopedCourses.stream()
+                .filter(course -> !hasDataFilter || reportCourseIds.contains(course.getId()))
                 .toList();
 
         Map<String, List<Section>> sectionsByCourse = sectionRepository.findAll().stream()
@@ -94,15 +129,22 @@ public class ReportService {
             lessonsByCourse.put(entry.getKey(), lessons);
         }
 
-        AdminReportSummaryResponse summary = buildSummary(scopedCourses, scopedEnrollments, scopedProgresses, scopedQuizAttempts, lessonsByCourse);
+        Map<String, List<Lesson>> reportLessonsByCourse = lessonsByCourse.entrySet().stream()
+                .filter(entry -> reportCourseIds.contains(entry.getKey()) || !hasDataFilter)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+
+        AdminReportSummaryResponse summary = buildSummary(reportCourses, scopedEnrollments, scopedProgresses, scopedQuizAttempts, reportLessonsByCourse);
 
         return AdminReportDashboardResponse.builder()
                 .scope(isAdmin ? "ADMIN" : "INSTRUCTOR")
                 .summary(summary)
-                .enrollmentTrend(buildEnrollmentTrend(scopedEnrollments))
-                .topCourses(buildTopCourseStats(scopedCourses, scopedEnrollments, scopedProgresses, scopedQuizAttempts))
-                .topInstructors(isAdmin ? buildTopInstructorStats(scopedCourses, scopedEnrollments) : List.of())
-                .alerts(buildAlerts(scopedEnrollments, scopedProgresses))
+                .topCourses(buildTopCourseStats(reportCourses, scopedEnrollments, scopedProgresses, scopedQuizAttempts))
+                .learners(buildLearnerStats(scopedEnrollments, scopedProgresses, scopedQuizAttempts, reportLessonsByCourse))
+                .topInstructors(isAdmin ? buildTopInstructorStats(reportCourses, scopedEnrollments) : List.of())
                 .build();
     }
 
@@ -144,25 +186,51 @@ public class ReportService {
                 .build();
     }
 
-    private List<AdminReportTrendPointResponse> buildEnrollmentTrend(List<Enrollment> enrollments) {
-        LocalDate today = LocalDate.now();
-        LocalDate start = today.minusDays(6);
-        Map<LocalDate, Long> countByDate = enrollments.stream()
-                .filter(item -> item.getEnrolledAt() != null)
-                .map(item -> item.getEnrolledAt().toLocalDate())
-                .filter(date -> !date.isBefore(start) && !date.isAfter(today))
-                .collect(Collectors.groupingBy(Function.identity(), LinkedHashMap::new, Collectors.counting()));
-
-        List<AdminReportTrendPointResponse> result = new ArrayList<>();
-        for (int i = 0; i < 7; i++) {
-            LocalDate date = start.plusDays(i);
-            result.add(AdminReportTrendPointResponse.builder()
-                    .key(date.toString())
-                    .label(date.getDayOfWeek().name().substring(0, 3))
-                    .value(countByDate.getOrDefault(date, 0L))
-                    .build());
+    private List<Enrollment> filterRelevantEnrollments(
+            List<Enrollment> enrollments,
+            List<LessonProgress> progresses,
+            List<QuizAttempt> attempts,
+            ReportFilter filter) {
+        if (!filter.hasDateFilter()) {
+            return enrollments;
         }
-        return result;
+
+        Set<String> activeKeys = new java.util.HashSet<>();
+        progresses.stream()
+                .filter(progress -> progress.getUser() != null && getCourseId(progress) != null)
+                .map(progress -> enrollmentKey(getCourseId(progress), progress.getUser().getId()))
+                .forEach(activeKeys::add);
+        attempts.stream()
+                .filter(attempt -> attempt.getUser() != null && getCourseId(attempt) != null)
+                .map(attempt -> enrollmentKey(getCourseId(attempt), attempt.getUser().getId()))
+                .forEach(activeKeys::add);
+
+        return enrollments.stream()
+                .filter(enrollment -> isWithinDateRange(enrollment.getEnrolledAt(), filter.fromDate(), filter.toDate())
+                        || (enrollment.getCourse() != null
+                        && enrollment.getUser() != null
+                        && activeKeys.contains(enrollmentKey(enrollment.getCourse().getId(), enrollment.getUser().getId()))))
+                .toList();
+    }
+
+    private Set<String> collectReportCourseIds(
+            List<Enrollment> enrollments,
+            List<LessonProgress> progresses,
+            List<QuizAttempt> attempts) {
+        Set<String> courseIds = new java.util.HashSet<>();
+        enrollments.stream()
+                .filter(enrollment -> enrollment.getCourse() != null)
+                .map(enrollment -> enrollment.getCourse().getId())
+                .forEach(courseIds::add);
+        progresses.stream()
+                .map(this::getCourseId)
+                .filter(id -> id != null)
+                .forEach(courseIds::add);
+        attempts.stream()
+                .map(this::getCourseId)
+                .filter(id -> id != null)
+                .forEach(courseIds::add);
+        return courseIds;
     }
 
     private List<AdminReportCourseStatResponse> buildTopCourseStats(
@@ -217,7 +285,64 @@ public class ReportService {
                 .sorted(Comparator
                         .comparing(AdminReportCourseStatResponse::getEnrollmentCount, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(AdminReportCourseStatResponse::getAverageProgressPercent, Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(6)
+                .toList();
+    }
+
+    private List<AdminReportLearnerStatResponse> buildLearnerStats(
+            List<Enrollment> enrollments,
+            List<LessonProgress> progresses,
+            List<QuizAttempt> attempts,
+            Map<String, List<Lesson>> lessonsByCourse) {
+        Map<String, List<LessonProgress>> progressesByCourseAndUser = progresses.stream()
+                .filter(progress -> progress.getUser() != null && getCourseId(progress) != null)
+                .collect(Collectors.groupingBy(progress -> enrollmentKey(getCourseId(progress), progress.getUser().getId())));
+        Map<String, List<QuizAttempt>> attemptsByCourseAndUser = attempts.stream()
+                .filter(attempt -> attempt.getUser() != null && getCourseId(attempt) != null)
+                .collect(Collectors.groupingBy(attempt -> enrollmentKey(getCourseId(attempt), attempt.getUser().getId())));
+
+        return enrollments.stream()
+                .filter(enrollment -> enrollment.getCourse() != null && enrollment.getUser() != null)
+                .map(enrollment -> {
+                    String courseId = enrollment.getCourse().getId();
+                    String userId = enrollment.getUser().getId();
+                    String key = enrollmentKey(courseId, userId);
+                    List<LessonProgress> learnerProgresses = progressesByCourseAndUser.getOrDefault(key, List.of());
+                    List<QuizAttempt> learnerAttempts = attemptsByCourseAndUser.getOrDefault(key, List.of());
+
+                    int completedLessons = (int) learnerProgresses.stream()
+                            .filter(progress -> Boolean.TRUE.equals(progress.getCompleted()))
+                            .count();
+                    int totalLessons = lessonsByCourse.getOrDefault(courseId, List.of()).size();
+                    double learningHours = learnerProgresses.stream()
+                            .mapToLong(progress -> safeInt(progress.getWatchedSeconds()))
+                            .sum() / 3600.0;
+                    double averageQuizScore = learnerAttempts.stream()
+                            .filter(attempt -> attempt.getSubmittedAt() != null)
+                            .mapToDouble(this::calculateScorePercent)
+                            .average()
+                            .orElse(0.0);
+
+                    return AdminReportLearnerStatResponse.builder()
+                            .userId(userId)
+                            .username(enrollment.getUser().getUsername())
+                            .learnerName(getUserDisplayName(enrollment.getUser()))
+                            .courseId(courseId)
+                            .courseTitle(enrollment.getCourse().getTitle())
+                            .instructorName(getUserDisplayName(enrollment.getCourse().getInstructor()))
+                            .status(enrollment.getStatus() != null ? enrollment.getStatus().name() : null)
+                            .enrolledAt(enrollment.getEnrolledAt())
+                            .lastAccessedAt(latestAccessedAt(enrollment, learnerProgresses))
+                            .progressPercent(roundTwoDecimals(safeDouble(enrollment.getProgressPercent())))
+                            .completedLessons(completedLessons)
+                            .totalLessons(totalLessons)
+                            .quizAttemptCount(learnerAttempts.size())
+                            .averageQuizScorePercent(roundTwoDecimals(averageQuizScore))
+                            .learningHours(roundTwoDecimals(learningHours))
+                            .build();
+                })
+                .sorted(Comparator
+                        .comparing(AdminReportLearnerStatResponse::getCourseTitle, Comparator.nullsLast(String::compareToIgnoreCase))
+                        .thenComparing(AdminReportLearnerStatResponse::getLearnerName, Comparator.nullsLast(String::compareToIgnoreCase)))
                 .toList();
     }
 
@@ -262,73 +387,6 @@ public class ReportService {
                 .sorted(Comparator
                         .comparing(AdminReportInstructorStatResponse::getLearnerCount, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(AdminReportInstructorStatResponse::getAverageProgressPercent, Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(6)
-                .toList();
-    }
-
-    private List<AdminReportAlertResponse> buildAlerts(
-            List<Enrollment> enrollments,
-            List<LessonProgress> progresses) {
-        Map<String, LessonProgress> latestProgressByCourseAndUser = progresses.stream()
-                .filter(item -> item.getUser() != null && getCourseId(item) != null)
-                .collect(Collectors.toMap(
-                        item -> getCourseId(item) + ":" + item.getUser().getId(),
-                        Function.identity(),
-                        (left, right) -> {
-                            if (left.getLastAccessedAt() == null) {
-                                return right;
-                            }
-                            if (right.getLastAccessedAt() == null) {
-                                return left;
-                            }
-                            return left.getLastAccessedAt().isAfter(right.getLastAccessedAt()) ? left : right;
-                        }));
-
-        LocalDate today = LocalDate.now();
-        return enrollments.stream()
-                .filter(item -> item.getCourse() != null && item.getUser() != null)
-                .map(item -> {
-                    long daysSinceAccess = item.getLastAccessedAt() == null
-                            ? 999
-                            : ChronoUnit.DAYS.between(item.getLastAccessedAt().toLocalDate(), today);
-                    double progressPercent = safeDouble(item.getProgressPercent());
-                    LessonProgress latestProgress = latestProgressByCourseAndUser.get(item.getCourse().getId() + ":" + item.getUser().getId());
-
-                    if (daysSinceAccess >= 7 && progressPercent < 80) {
-                        return AdminReportAlertResponse.builder()
-                                .severity("HIGH")
-                                .title("Hoc vien co nguy co bo dang")
-                                .description(item.getUser().getUsername() + " chua truy cap " + daysSinceAccess
-                                        + " ngay, tien do hien tai " + roundTwoDecimals(progressPercent) + "%.")
-                                .courseId(item.getCourse().getId())
-                                .courseTitle(item.getCourse().getTitle())
-                                .userId(item.getUser().getId())
-                                .username(getUserDisplayName(item.getUser()))
-                                .lastAccessedAt(latestProgress != null ? latestProgress.getLastAccessedAt() : item.getLastAccessedAt())
-                                .build();
-                    }
-
-                    if (item.getStatus() == EnrollmentStatus.ACTIVE && progressPercent >= 85 && daysSinceAccess >= 3) {
-                        return AdminReportAlertResponse.builder()
-                                .severity("MEDIUM")
-                                .title("Hoc vien sap hoan thanh nhung dang dung lai")
-                                .description(item.getUser().getUsername() + " da dat " + roundTwoDecimals(progressPercent)
-                                        + "% nhung khong truy cap gan day.")
-                                .courseId(item.getCourse().getId())
-                                .courseTitle(item.getCourse().getTitle())
-                                .userId(item.getUser().getId())
-                                .username(getUserDisplayName(item.getUser()))
-                                .lastAccessedAt(latestProgress != null ? latestProgress.getLastAccessedAt() : item.getLastAccessedAt())
-                                .build();
-                    }
-
-                    return null;
-                })
-                .filter(item -> item != null)
-                .sorted(Comparator
-                        .comparing((AdminReportAlertResponse item) -> "HIGH".equals(item.getSeverity()) ? 0 : 1)
-                        .thenComparing(AdminReportAlertResponse::getLastAccessedAt, Comparator.nullsLast(Comparator.naturalOrder())))
-                .limit(8)
                 .toList();
     }
 
@@ -336,6 +394,61 @@ public class ReportService {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    }
+
+    private boolean matchesEnrollmentStatus(
+            LessonProgress progress,
+            List<Enrollment> enrollments,
+            ReportFilter filter) {
+        if (isBlank(filter.status())) {
+            return true;
+        }
+        if (progress.getUser() == null || getCourseId(progress) == null) {
+            return false;
+        }
+        return hasEnrollmentWithStatus(getCourseId(progress), progress.getUser().getId(), enrollments, filter.status());
+    }
+
+    private boolean matchesEnrollmentStatus(
+            QuizAttempt attempt,
+            List<Enrollment> enrollments,
+            ReportFilter filter) {
+        if (isBlank(filter.status())) {
+            return true;
+        }
+        if (attempt.getUser() == null || getCourseId(attempt) == null) {
+            return false;
+        }
+        return hasEnrollmentWithStatus(getCourseId(attempt), attempt.getUser().getId(), enrollments, filter.status());
+    }
+
+    private boolean hasEnrollmentWithStatus(
+            String courseId,
+            String userId,
+            List<Enrollment> enrollments,
+            String status) {
+        return enrollments.stream()
+                .anyMatch(enrollment -> enrollment.getCourse() != null
+                        && enrollment.getUser() != null
+                        && courseId.equals(enrollment.getCourse().getId())
+                        && userId.equals(enrollment.getUser().getId())
+                        && enrollment.getStatus() != null
+                        && status.equalsIgnoreCase(enrollment.getStatus().name()));
+    }
+
+    private LocalDateTime latestAccessedAt(Enrollment enrollment, List<LessonProgress> progresses) {
+        LocalDateTime latest = enrollment.getLastAccessedAt();
+        for (LessonProgress progress : progresses) {
+            LocalDateTime progressTime = progress.getLastAccessedAt();
+            if (progressTime != null && (latest == null || progressTime.isAfter(latest))) {
+                latest = progressTime;
+            }
+        }
+        return latest;
+    }
+
+    private String enrollmentKey(String courseId, String userId) {
+        return courseId + ":" + userId;
     }
 
     private boolean hasRole(User user, String roleName) {
@@ -396,5 +509,79 @@ public class ReportService {
 
     private double roundTwoDecimals(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private boolean isWithinDateRange(LocalDateTime value, LocalDate fromDate, LocalDate toDate) {
+        if (value == null) {
+            return fromDate == null && toDate == null;
+        }
+        LocalDate date = value.toLocalDate();
+        return (fromDate == null || !date.isBefore(fromDate))
+                && (toDate == null || !date.isAfter(toDate));
+    }
+
+    private LocalDateTime firstPresent(LocalDateTime... values) {
+        for (LocalDateTime value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private record ReportFilter(
+            LocalDate fromDate,
+            LocalDate toDate,
+            String courseId,
+            String learnerId,
+            String instructorId,
+            String status) {
+
+        private boolean hasDateFilter() {
+            return fromDate != null || toDate != null;
+        }
+
+        private boolean hasDataFilter() {
+            return hasDateFilter() || learnerId != null || status != null;
+        }
+
+        private static ReportFilter from(
+                String fromDate,
+                String toDate,
+                String courseId,
+                String learnerId,
+                String instructorId,
+                String status) {
+            return new ReportFilter(
+                    parseDate(fromDate),
+                    parseDate(toDate),
+                    trimToNull(courseId),
+                    trimToNull(learnerId),
+                    trimToNull(instructorId),
+                    trimToNull(status));
+        }
+
+        private static LocalDate parseDate(String value) {
+            String cleanValue = trimToNull(value);
+            if (cleanValue == null) {
+                return null;
+            }
+            try {
+                return LocalDate.parse(cleanValue);
+            } catch (DateTimeParseException ignored) {
+                return null;
+            }
+        }
+
+        private static String trimToNull(String value) {
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            return value.trim();
+        }
     }
 }

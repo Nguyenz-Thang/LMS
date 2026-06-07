@@ -27,7 +27,6 @@ public class CreateQuizRequest {
         private String content;
         private String explanation;
         private String questionType;
-        private Integer points;
         private Integer orderIndex;
         private List<AnswerRequest> answers;
     }

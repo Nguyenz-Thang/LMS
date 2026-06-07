@@ -5,7 +5,6 @@ import {
   Pencil,
   Plus,
   RotateCcw,
-  Save,
   Search,
   Shield,
   Trash2,
@@ -30,7 +29,7 @@ const INITIAL_FORM = {
   fullName: "",
   dob: "",
   avatar: "",
-  roles: [],
+  role: "",
 };
 
 function normalizeUser(rawUser) {
@@ -41,9 +40,11 @@ function normalizeUser(rawUser) {
     fullName: rawUser?.fullName || "",
     avatar: rawUser?.avatar || "",
     dob: rawUser?.dob || "",
-    roles: Array.isArray(rawUser?.roles)
-      ? rawUser.roles.map((role) => role?.name).filter(Boolean)
-      : [],
+    role:
+      rawUser?.role?.name ||
+      rawUser?.role ||
+      (Array.isArray(rawUser?.roles) ? rawUser.roles[0]?.name : "") ||
+      "",
   };
 }
 
@@ -146,7 +147,7 @@ export default function UserManagement() {
         user.email,
         user.fullName,
         user.id,
-        ...user.roles,
+        user.role,
       ]
         .filter(Boolean)
         .join(" ")
@@ -156,19 +157,15 @@ export default function UserManagement() {
         !normalizedKeyword || searchableText.includes(normalizedKeyword);
 
       const matchesRole =
-        roleFilter === "ALL" || user.roles.includes(roleFilter);
+        roleFilter === "ALL" || user.role === roleFilter;
 
       return matchesKeyword && matchesRole;
     });
   }, [users, keyword, roleFilter]);
 
-  const adminCount = users.filter((user) => user.roles.includes("ADMIN")).length;
-  const instructorCount = users.filter((user) =>
-    user.roles.includes("INSTRUCTOR"),
-  ).length;
-  const studentCount = users.filter((user) =>
-    user.roles.includes("STUDENT"),
-  ).length;
+  const adminCount = users.filter((user) => user.role === "ADMIN").length;
+  const instructorCount = users.filter((user) => user.role === "INSTRUCTOR").length;
+  const studentCount = users.filter((user) => user.role === "STUDENT").length;
 
   const resetFilters = () => {
     setKeyword("");
@@ -195,7 +192,7 @@ export default function UserManagement() {
       fullName: user.fullName || "",
       dob: user.dob || "",
       avatar: user.avatar || "",
-      roles: Array.isArray(user.roles) ? user.roles : [],
+      role: user.role || "",
     });
   };
 
@@ -218,17 +215,10 @@ export default function UserManagement() {
   };
 
   const handleRoleChange = (roleName) => {
-    setForm((prev) => {
-      const currentRoles = Array.isArray(prev.roles) ? prev.roles : [];
-      const exists = currentRoles.includes(roleName);
-
-      return {
-        ...prev,
-        roles: exists
-          ? currentRoles.filter((role) => role !== roleName)
-          : [...currentRoles, roleName],
-      };
-    });
+    setForm((prev) => ({
+      ...prev,
+      role: roleName,
+    }));
   };
 
   const validateForm = () => {
@@ -244,6 +234,7 @@ export default function UserManagement() {
     password: form.password,
     fullName: form.fullName.trim(),
     dob: form.dob || null,
+    role: form.role || null,
   });
 
   const buildUpdatePayload = () => ({
@@ -252,7 +243,7 @@ export default function UserManagement() {
     fullName: form.fullName.trim(),
     avatar: form.avatar.trim(),
     dob: form.dob || null,
-    roles: form.roles,
+    role: form.role || null,
   });
 
   const handleSubmit = async (event) => {
@@ -450,15 +441,10 @@ export default function UserManagement() {
 
                     <td>
                       <div className={styles.roleList}>
-                        {user.roles.length > 0 ? (
-                          user.roles.map((role) => (
-                            <span
-                              key={`${user.id}-${role}`}
-                              className={styles.roleTag}
-                            >
-                              {getRoleLabel(role)}
-                            </span>
-                          ))
+                        {user.role ? (
+                          <span className={styles.roleTag}>
+                            {getRoleLabel(user.role)}
+                          </span>
                         ) : (
                           <span className={styles.emptyRole}>
                             Chưa có vai trò
@@ -613,8 +599,9 @@ export default function UserManagement() {
                     roles.map((role) => (
                       <label key={role.name} className={styles.roleOption}>
                         <input
-                          type="checkbox"
-                          checked={form.roles.includes(role.name)}
+                          type="radio"
+                          name="role"
+                          checked={form.role === role.name}
                           onChange={() => handleRoleChange(role.name)}
                           disabled={saving}
                         />
@@ -628,23 +615,27 @@ export default function UserManagement() {
               <div className={styles.modalActions}>
                 <button
                   type="button"
-                  className={styles.iconBtn}
+                  className={styles.cancelAction}
                   onClick={closeModal}
                   disabled={saving}
                   title="Hủy"
                   aria-label="Hủy"
                 >
-                  <X size={17} />
+                  Hủy
                 </button>
 
                 <button
                   type="submit"
-                  className={`${styles.iconBtn} ${styles.saveAction}`}
+                  className={styles.saveAction}
                   disabled={saving}
-                  title="Lưu thay đổi"
-                  aria-label="Lưu thay đổi"
+                  title={isEditMode ? "Lưu thay đổi" : "Thêm người dùng"}
+                  aria-label={isEditMode ? "Lưu thay đổi" : "Thêm người dùng"}
                 >
-                  <Save size={17} />
+                  {saving
+                    ? "Đang lưu..."
+                    : isEditMode
+                      ? "Lưu thay đổi"
+                      : "Thêm người dùng"}
                 </button>
               </div>
             </form>

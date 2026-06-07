@@ -44,9 +44,9 @@ public class EnrollmentController {
     }
 
     @GetMapping("/me/dashboard")
-    public ApiResponse<ProgressDashboardResponse> myDashboard() {
+    public ApiResponse<ProgressDashboardResponse> myDashboard(@RequestParam(required = false) Integer year) {
         return ApiResponse.<ProgressDashboardResponse>builder()
-                .result(enrollmentService.getMyDashboard())
+                .result(enrollmentService.getMyDashboard(year))
                 .build();
     }
 

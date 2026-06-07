@@ -475,6 +475,36 @@
     background: #eff6ff;
     color: #1e3a8a;
   }
+
+  ul,
+  ol {
+    margin: 6px 0;
+    padding-left: 22px;
+  }
+
+  pre {
+    margin: 10px 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #111827;
+    color: #e5e7eb;
+    overflow-x: auto;
+
+    code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 360px;
+    margin: 10px 0;
+    border-radius: 10px;
+    object-fit: contain;
+  }
 }
 
 .commentCodeBlock {
@@ -1011,10 +1041,10 @@
   gap: 8px;
   min-width: 0;
 
-  textarea {
+  .commentEditable {
     width: 100%;
     min-height: 92px;
-    resize: vertical;
+    overflow-y: auto;
     border: 1px solid #dbe4f0;
     border-radius: 10px;
     padding: 12px 14px;
@@ -1022,6 +1052,75 @@
     color: #0f172a;
     font-size: 14px;
     line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+
+    &:empty::before {
+      content: attr(data-placeholder);
+      color: #94a3b8;
+      pointer-events: none;
+    }
+
+    &:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    &[contenteditable="false"] {
+      background: #f8fafc;
+      cursor: not-allowed;
+    }
+
+    p,
+    div {
+      margin: 0 0 6px;
+    }
+
+    ul,
+    ol {
+      margin: 6px 0;
+      padding-left: 22px;
+    }
+
+    blockquote {
+      margin: 6px 0;
+      padding: 8px 10px;
+      border-left: 3px solid #60a5fa;
+      background: #eff6ff;
+      color: #1e3a8a;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 5px;
+      background: #eef2f7;
+      color: #0f172a;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+    }
+
+    pre {
+      margin: 8px 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #111827;
+      color: #e5e7eb;
+      overflow-x: auto;
+
+      code {
+        padding: 0;
+        background: transparent;
+        color: inherit;
+      }
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+      max-height: 260px;
+      margin: 8px 0;
+      border-radius: 8px;
+    }
   }
 
   > button {
@@ -1048,7 +1147,7 @@
 .commentEditorCompact {
   margin-top: 10px;
 
-  textarea {
+  .commentEditable {
     min-height: 58px;
   }
 

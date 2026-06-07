@@ -1,5 +1,6 @@
-import { createElement, useEffect, useMemo, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
+import DOMPurify from "dompurify";
 import {
   Bold,
   Code,
@@ -45,22 +46,69 @@ function formatDate(value) {
   });
 }
 
-function insertTextAtCursor(textarea, value, onChange, before, after = "") {
-  const start = textarea?.selectionStart ?? value.length;
-  const end = textarea?.selectionEnd ?? value.length;
-  const selected = value.slice(start, end);
-  const nextValue = `${value.slice(0, start)}${before}${selected || ""}${after}${value.slice(end)}`;
-  onChange(nextValue);
+const COMMENT_ALLOWED_TAGS = [
+  "a",
+  "b",
+  "blockquote",
+  "br",
+  "code",
+  "div",
+  "em",
+  "i",
+  "img",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "span",
+  "strong",
+  "u",
+  "ul",
+];
 
-  requestAnimationFrame(() => {
-    textarea?.focus();
-    const cursor = start + before.length + (selected ? selected.length : 0);
-    textarea?.setSelectionRange(cursor, cursor);
+const COMMENT_ALLOWED_ATTR = ["alt", "href", "rel", "src", "target"];
+
+function sanitizeCommentHtml(value) {
+  return DOMPurify.sanitize(value || "", {
+    ALLOWED_TAGS: COMMENT_ALLOWED_TAGS,
+    ALLOWED_ATTR: COMMENT_ALLOWED_ATTR,
   });
+}
+
+function isHtmlComment(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value || "");
+}
+
+function escapeHtml(value) {
+  const wrapper = document.createElement("div");
+  wrapper.textContent = value || "";
+  return wrapper.innerHTML;
+}
+
+function getCommentPlainText(value) {
+  if (!value) return "";
+  if (!isHtmlComment(value)) return value.trim();
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = sanitizeCommentHtml(value);
+  return wrapper.textContent.trim();
+}
+
+function hasCommentContent(value) {
+  return Boolean(getCommentPlainText(value) || /<img\s/i.test(sanitizeCommentHtml(value)));
 }
 
 function renderRichComment(content) {
   const text = content || "";
+
+  if (isHtmlComment(text)) {
+    return (
+      <div
+        className={styles.commentHtmlContent}
+        dangerouslySetInnerHTML={{ __html: sanitizeCommentHtml(text) }}
+      />
+    );
+  }
+
   const blocks = [];
   const parts = text.split(/(```[\s\S]*?```)/g);
 
@@ -159,28 +207,54 @@ function CommentEditor({
   placeholder,
   compact = false,
 }) {
-  const textareaRef = useState(null);
-  const [textareaEl, setTextareaEl] = textareaRef;
+  const editorRef = useRef(null);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const nextValue = sanitizeCommentHtml(value);
+    if (editor.innerHTML !== nextValue) {
+      editor.innerHTML = nextValue;
+    }
+  }, [value]);
+
+  const syncEditorValue = () => {
+    const nextValue = sanitizeCommentHtml(editorRef.current?.innerHTML || "");
+    onChange(nextValue);
+  };
+
+  const runCommand = (command, commandValue = null) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.focus();
+    document.execCommand(command, false, commandValue);
+    syncEditorValue();
+  };
+
+  const insertHtml = (html) => {
+    runCommand("insertHTML", sanitizeCommentHtml(html));
+  };
 
   const applyFormat = (format) => {
-    if (!textareaEl) return;
-    if (format === "bold") insertTextAtCursor(textareaEl, value, onChange, "**", "**");
-    if (format === "italic") insertTextAtCursor(textareaEl, value, onChange, "*", "*");
-    if (format === "quote") insertTextAtCursor(textareaEl, value, onChange, "> ");
-    if (format === "ul") insertTextAtCursor(textareaEl, value, onChange, "- ");
-    if (format === "ol") insertTextAtCursor(textareaEl, value, onChange, "1. ");
-    if (format === "inlineCode") insertTextAtCursor(textareaEl, value, onChange, "`", "`");
-    if (format === "codeBlock") insertTextAtCursor(textareaEl, value, onChange, "```\n", "\n```");
+    if (format === "bold") runCommand("bold");
+    if (format === "italic") runCommand("italic");
+    if (format === "quote") runCommand("formatBlock", "blockquote");
+    if (format === "ul") runCommand("insertUnorderedList");
+    if (format === "ol") runCommand("insertOrderedList");
+    if (format === "inlineCode") insertHtml("<code>code</code>");
+    if (format === "codeBlock") insertHtml("<pre><code>code</code></pre>");
     if (format === "link") {
       const url = window.prompt("Nhập URL liên kết");
-      if (url) insertTextAtCursor(textareaEl, value, onChange, "[nội dung liên kết](", `${url})`);
+      if (url) runCommand("createLink", url);
     }
     if (format === "image") {
       const url = window.prompt("Nhập URL ảnh");
-      if (url) insertTextAtCursor(textareaEl, value, onChange, "![mô tả ảnh](", `${url})`);
+      if (url) insertHtml(`<img src="${escapeHtml(url)}" alt="comment attachment">`);
     }
     if (format === "unlink") {
-      onChange(value.replace(/\[(.*?)]\(.*?\)/g, "$1"));
+      runCommand("unlink");
     }
   };
 
@@ -217,15 +291,23 @@ function CommentEditor({
           );
         })}
       </div>
-      <textarea
-        ref={setTextareaEl}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        rows={compact ? 2 : 4}
+      <div
+        ref={editorRef}
+        className={styles.commentEditable}
+        contentEditable={!disabled}
+        role="textbox"
+        aria-label={placeholder}
+        data-placeholder={placeholder}
+        onInput={syncEditorValue}
+        onBlur={syncEditorValue}
+        onPaste={(event) => {
+          event.preventDefault();
+          const pastedText = event.clipboardData.getData("text/plain");
+          insertHtml(escapeHtml(pastedText).replace(/\n/g, "<br>"));
+        }}
+        suppressContentEditableWarning
       />
-      <button type="submit" disabled={saving || !value.trim() || disabled}>
+      <button type="submit" disabled={saving || !hasCommentContent(value) || disabled}>
         <Send size={16} />
         {compact ? "Gửi" : saving ? "Đang gửi..." : "Gửi bình luận"}
       </button>
@@ -290,8 +372,8 @@ export default function LessonDiscussion({ lessonId }) {
 
   const submitComment = async (event) => {
     event.preventDefault();
-    const trimmedContent = content.trim();
-    if (!trimmedContent) return;
+    const trimmedContent = sanitizeCommentHtml(content.trim());
+    if (!hasCommentContent(trimmedContent)) return;
 
     try {
       setSaving(true);
@@ -312,8 +394,8 @@ export default function LessonDiscussion({ lessonId }) {
 
   const submitReply = async (event, parentId) => {
     event.preventDefault();
-    const trimmedContent = replyContent.trim();
-    if (!trimmedContent || !parentId) return;
+    const trimmedContent = sanitizeCommentHtml(replyContent.trim());
+    if (!hasCommentContent(trimmedContent) || !parentId) return;
 
     try {
       setSaving(true);

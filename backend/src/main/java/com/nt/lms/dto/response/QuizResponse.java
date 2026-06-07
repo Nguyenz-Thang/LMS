@@ -30,7 +30,6 @@ public class QuizResponse {
         String content;
         String explanation;
         String questionType;
-        Integer points;
         Integer orderIndex;
         List<Option> options;
     }

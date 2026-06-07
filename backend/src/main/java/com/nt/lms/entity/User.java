@@ -37,13 +37,18 @@ public class User {
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_name")
-    )
-    Set<Role> roles;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "role_name")
+    Role role;
+
+    @Transient
+    public Set<Role> getRoles() {
+        return role == null ? Set.of() : Set.of(role);
+    }
+
+    public void setRoles(Set<Role> roles) {
+        role = roles == null || roles.isEmpty() ? null : roles.iterator().next();
+    }
 
     @PrePersist
     void prePersist() {

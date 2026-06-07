@@ -10,6 +10,7 @@ import com.nt.lms.entity.SubmissionFile;
 import com.nt.lms.entity.User;
 import com.nt.lms.enums.EnrollmentStatus;
 import com.nt.lms.repository.AssignmentRepository;
+import com.nt.lms.repository.AssignmentRepository.LearningAssignmentView;
 import com.nt.lms.repository.AssignmentSubmissionRepository;
 import com.nt.lms.repository.EnrollmentRepository;
 import com.nt.lms.repository.LessonProgressRepository;
@@ -36,6 +37,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class LearningAssignmentService {
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
 
     private final UserRepository userRepository;
     private final AssignmentRepository assignmentRepository;
@@ -48,9 +50,9 @@ public class LearningAssignmentService {
 
     public LearningAssignmentResponse getAssignmentDetail(String assignmentId) {
         User currentUser = getCurrentUser();
-        Assignment assignment = getAssignmentOrThrow(assignmentId);
+        LearningAssignmentView assignment = getLearningAssignmentOrThrow(assignmentId);
 
-        validateAssignmentAccess(currentUser, assignment);
+        validateCourseAccess(currentUser, assignment.getCourseId());
 
         AssignmentSubmission submission = assignmentSubmissionRepository
                 .findByAssignmentIdAndStudentId(assignmentId, currentUser.getId())
@@ -79,15 +81,8 @@ public class LearningAssignmentService {
         submission.setSubmissionText(request.getSubmissionText());
 
         if (Boolean.TRUE.equals(request.getSubmitNow())) {
-            LocalDateTime now = LocalDateTime.now();
-            boolean late = assignment.getDueAt() != null && now.isAfter(assignment.getDueAt());
-
-            if (late && !Boolean.TRUE.equals(assignment.getAllowLateSubmit())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Đã quá hạn nộp bài");
-            }
-
-            submission.setSubmittedAt(now);
-            submission.setStatus(late ? "LATE" : "SUBMITTED");
+            submission.setSubmittedAt(LocalDateTime.now());
+            submission.setStatus("SUBMITTED");
         } else if (submission.getStatus() == null || submission.getStatus().isBlank()) {
             submission.setStatus("DRAFT");
         }
@@ -234,9 +229,37 @@ public class LearningAssignmentService {
                 .title(assignment.getTitle())
                 .description(assignment.getDescription())
                 .assignmentType(String.valueOf(assignment.getAssignmentType()))
-                .maxScore(safeDouble(assignment.getMaxScore()))
-                .dueAt(formatDateTime(assignment.getDueAt()))
-                .allowLateSubmit(Boolean.TRUE.equals(assignment.getAllowLateSubmit()))
+                .submissionId(submission != null ? submission.getId() : null)
+                .submissionText(submission != null ? submission.getSubmissionText() : null)
+                .submissionStatus(submission != null ? submission.getStatus() : null)
+                .submittedAt(submission != null ? formatDateTime(submission.getSubmittedAt()) : null)
+                .score(submission != null ? submission.getScore() : null)
+                .feedback(submission != null ? submission.getFeedback() : null)
+                .files(files)
+                .build();
+    }
+
+    private LearningAssignmentResponse mapResponse(LearningAssignmentView assignment, AssignmentSubmission submission) {
+        List<LearningSubmissionFileResponse> files = submission == null
+                ? Collections.emptyList()
+                : submissionFileRepository.findBySubmissionId(submission.getId())
+                .stream()
+                .map(file -> LearningSubmissionFileResponse.builder()
+                        .id(file.getId())
+                        .fileName(file.getFileName())
+                        .fileUrl(file.getFileUrl())
+                        .fileType(file.getFileType())
+                        .fileSize(file.getFileSize())
+                        .build())
+                .toList();
+
+        return LearningAssignmentResponse.builder()
+                .assignmentId(assignment.getId())
+                .courseId(assignment.getCourseId())
+                .lessonId(assignment.getLessonId())
+                .title(assignment.getTitle())
+                .description(assignment.getDescription())
+                .assignmentType(assignment.getAssignmentType())
                 .submissionId(submission != null ? submission.getId() : null)
                 .submissionText(submission != null ? submission.getSubmissionText() : null)
                 .submissionStatus(submission != null ? submission.getStatus() : null)
@@ -250,6 +273,10 @@ public class LearningAssignmentService {
     private void validateAssignmentAccess(User currentUser, Assignment assignment) {
         String courseId = assignment.getCourse() != null ? assignment.getCourse().getId() : null;
 
+        validateCourseAccess(currentUser, courseId);
+    }
+
+    private void validateCourseAccess(User currentUser, String courseId) {
         if (courseId != null) {
             Enrollment enrollment = enrollmentRepository
                     .findByUserIdAndCourseId(currentUser.getId(), courseId)
@@ -274,6 +301,11 @@ public class LearningAssignmentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bài tập"));
     }
 
+    private LearningAssignmentView getLearningAssignmentOrThrow(String assignmentId) {
+        return assignmentRepository.findLearningAssignmentViewById(assignmentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bài tập"));
+    }
+
     private User getCurrentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByUsername(username)
@@ -281,12 +313,7 @@ public class LearningAssignmentService {
     }
 
     private String formatDateTime(LocalDateTime value) {
-        if (value == null) return null;
-        return value.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-    }
-
-    private double safeDouble(Number value) {
-        return value == null ? 0.0 : value.doubleValue();
+        return value == null ? null : value.format(DATE_TIME_FORMATTER);
     }
 
     private void markLessonCompleted(User currentUser, com.nt.lms.entity.Lesson lesson) {

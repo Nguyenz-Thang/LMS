@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 import styles from "./Category.module.scss";
 
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message || error?.message || fallback;
+}
+
 const INITIAL_FORM = {
   name: "",
   description: "",
@@ -134,7 +138,7 @@ export default function Category() {
       await fetchCategories();
     } catch (error) {
       console.error("Save category failed:", error);
-      setModalError("Lưu danh mục thất bại.");
+      setModalError(getErrorMessage(error, "Lưu danh mục thất bại."));
     } finally {
       setSaving(false);
     }
@@ -153,7 +157,7 @@ export default function Category() {
       await fetchCategories();
     } catch (error) {
       console.error("Delete category failed:", error);
-      setErrorText("Xóa danh mục thất bại.");
+      setErrorText(getErrorMessage(error, "Xóa danh mục thất bại."));
     } finally {
       setDeletingId("");
     }

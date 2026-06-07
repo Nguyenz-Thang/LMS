@@ -77,7 +77,6 @@ function createEmptyQuestion() {
     content: "",
     explanation: "",
     questionType: QUESTION_TYPES.SINGLE_CHOICE,
-    points: 1,
     orderIndex: 0,
     options: createDefaultOptionsByType(QUESTION_TYPES.SINGLE_CHOICE),
   };
@@ -122,7 +121,6 @@ function normalizeQuestion(rawQuestion, index) {
     content: rawQuestion?.content || "",
     explanation: rawQuestion?.explanation || "",
     questionType,
-    points: Number(rawQuestion?.points) || 1,
     orderIndex:
       typeof rawQuestion?.orderIndex === "number"
         ? rawQuestion.orderIndex
@@ -439,7 +437,6 @@ export default function QuizEditor() {
       content: question.content.trim(),
       explanation: question.explanation?.trim() || "",
       questionType: question.questionType,
-      points: Math.max(1, Number(question.points) || 1),
       orderIndex: index,
       answers: (Array.isArray(question.options) ? question.options : [])
         .filter((option) => option.content.trim())
@@ -624,42 +621,24 @@ export default function QuizEditor() {
                 </div>
               </div>
 
-              <div className={styles.row2col}>
-                <div className={styles.formGroup}>
-                  <label>Loại câu hỏi</label>
-                  <select
-                    value={question.questionType}
-                    onChange={(e) =>
-                      handleQuestionTypeChange(qIndex, e.target.value)
-                    }
-                  >
-                    <option value={QUESTION_TYPES.SINGLE_CHOICE}>
-                      1 đáp án đúng
-                    </option>
-                    <option value={QUESTION_TYPES.MULTIPLE_CHOICE}>
-                      Nhiều đáp án đúng
-                    </option>
-                    <option value={QUESTION_TYPES.TRUE_FALSE}>
-                      Đúng / Sai
-                    </option>
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label>Điểm</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={question.points}
-                    onChange={(e) =>
-                      updateQuestionField(
-                        qIndex,
-                        "points",
-                        Math.max(1, Number(e.target.value) || 1),
-                      )
-                    }
-                  />
-                </div>
+              <div className={styles.formGroup}>
+                <label>Loại câu hỏi</label>
+                <select
+                  value={question.questionType}
+                  onChange={(e) =>
+                    handleQuestionTypeChange(qIndex, e.target.value)
+                  }
+                >
+                  <option value={QUESTION_TYPES.SINGLE_CHOICE}>
+                    1 đáp án đúng
+                  </option>
+                  <option value={QUESTION_TYPES.MULTIPLE_CHOICE}>
+                    Nhiều đáp án đúng
+                  </option>
+                  <option value={QUESTION_TYPES.TRUE_FALSE}>
+                    Đúng / Sai
+                  </option>
+                </select>
               </div>
 
               <div className={styles.formGroup}>

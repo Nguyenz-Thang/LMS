@@ -8,32 +8,12 @@ import CourseShowcaseCard from "../../components/CourseShowcaseCard";
 
 const PAGE_SIZE = 8;
 
-function buildCourseStats(curriculum) {
-  const sections = curriculum?.sections || [];
-
-  let totalLessons = 0;
-  let totalDurationMinutes = 0;
-
-  sections.forEach((section) => {
-    const lessons = section?.lessons || [];
-    totalLessons += section?.totalLessons || lessons.length || 0;
-    totalDurationMinutes += section?.totalDurationMinutes || 0;
-  });
-
-  return {
-    sectionCount: sections.length,
-    totalLessons,
-    totalDurationMinutes,
-  };
-}
-
 export default function Courses() {
   const navigate = useNavigate();
-  const { listCourses, getCourseCurriculum } = useCourseApi();
+  const { listCourses } = useCourseApi();
   const { getLearningCourse } = useLearningApi();
 
   const [courses, setCourses] = useState([]);
-  const [courseStatsMap, setCourseStatsMap] = useState({});
   const [pageInfo, setPageInfo] = useState({
     page: 0,
     size: PAGE_SIZE,
@@ -70,11 +50,8 @@ export default function Courses() {
         totalElements: payload?.totalElements ?? 0,
         totalPages: payload?.totalPages ?? 0,
       });
-
-      await fetchCurriculumStats(content);
     } catch (error) {
       setCourses([]);
-      setCourseStatsMap({});
       setErrorText(
         error?.body?.message ||
           error?.message ||
@@ -83,33 +60,6 @@ export default function Courses() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchCurriculumStats = async (courseList) => {
-    if (!Array.isArray(courseList) || courseList.length === 0) {
-      setCourseStatsMap({});
-      return;
-    }
-
-    const statsEntries = await Promise.all(
-      courseList.map(async (course) => {
-        try {
-          const res = await getCourseCurriculum(course.id);
-          return [course.id, buildCourseStats(res?.result || null)];
-        } catch {
-          return [
-            course.id,
-            {
-              sectionCount: 0,
-              totalLessons: 0,
-              totalDurationMinutes: 0,
-            },
-          ];
-        }
-      }),
-    );
-
-    setCourseStatsMap(Object.fromEntries(statsEntries));
   };
 
   const visibleCourses = useMemo(() => {
@@ -200,7 +150,6 @@ export default function Courses() {
             <CourseShowcaseCard
               key={course.id}
               course={course}
-              stats={courseStatsMap[course.id]}
               baseUrl={LMS_BASE_URL}
               onClick={() => handleOpenCourse(course.id)}
               busy={openingCourseId === course.id}

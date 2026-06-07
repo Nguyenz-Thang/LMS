@@ -45,10 +45,10 @@ export default function Login() {
   };
 
   const getRedirectByRole = (user) => {
-    const roles = user?.roles?.map((role) => role.name) || [];
+    const role = user?.role?.name || user?.role || user?.roles?.[0]?.name || "";
 
-    if (roles.includes("ADMIN")) return "/admin";
-    if (roles.includes("INSTRUCTOR")) return "/instructor";
+    if (role === "ADMIN") return "/admin/courses";
+    if (role === "INSTRUCTOR") return "/admin/courses";
     return "/home";
   };
 

@@ -1,8 +1,8 @@
-import { useCallback, useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { useCallback } from "react";
 import api from "./axios";
+import { LMS_BASE_URL, toJson, useAuthedFetch } from "./authFetch";
 
-export const LMS_BASE_URL = "http://localhost:8080/lms";
+export { LMS_BASE_URL };
 const BASE = `${LMS_BASE_URL}/courses`;
 
 export async function getCourses(params = {}) {
@@ -10,43 +10,8 @@ export async function getCourses(params = {}) {
   return res?.data;
 }
 
-async function toJson(res) {
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const err = new Error(data.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-
-  return data;
-}
-
 export function useCourseApi() {
-  const { token, logout } = useContext(AuthContext);
-
-  const authedFetch = useCallback(
-    async (url, options = {}) => {
-      const headers = {
-        ...(options.headers || {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      if (res.status === 401) {
-        logout?.();
-        throw new Error("Phiên đăng nhập đã hết hạn.");
-      }
-
-      return res;
-    },
-    [token, logout],
-  );
+  const authedFetch = useAuthedFetch({ logoutOnForbidden: false });
 
   const listCourses = useCallback(
     async ({
@@ -128,16 +93,6 @@ export function useCourseApi() {
     [authedFetch],
   );
 
-  const rejectCourse = useCallback(
-    async (courseId) =>
-      toJson(
-        await authedFetch(`${BASE}/${courseId}/reject`, {
-          method: "POST",
-        }),
-      ),
-    [authedFetch],
-  );
-
   const uploadCourseImage = useCallback(
     async (file) => {
       const formData = new FormData();
@@ -161,7 +116,6 @@ export function useCourseApi() {
     updateCourse,
     deleteCourse,
     approveCourse,
-    rejectCourse,
     uploadCourseImage,
   };
 }

@@ -31,13 +31,6 @@ public class CategoryController {
                 .build();
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<CategoryResponse> getById(@PathVariable String id) {
-        return ApiResponse.<CategoryResponse>builder()
-                .result(categoryService.getById(id))
-                .build();
-    }
-
     @PutMapping("/{id}")
     public ApiResponse<CategoryResponse> update(
             @PathVariable String id,

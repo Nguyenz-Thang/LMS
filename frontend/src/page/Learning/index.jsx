@@ -13,6 +13,7 @@ export default function Learning() {
   const videoRef = useRef(null);
   const contentAreaRef = useRef(null);
   const lessonRequestSeqRef = useRef(0);
+  const lessonCacheRef = useRef({});
   const learningApi = useLearningApi();
 
   const [courseData, setCourseData] = useState(null);
@@ -71,6 +72,8 @@ export default function Learning() {
     null;
 
   useEffect(() => {
+    lessonCacheRef.current = {};
+    setLessonData(null);
     fetchLearningCourse();
   }, [courseId]);
 
@@ -112,10 +115,6 @@ export default function Learning() {
       });
       setOpenSections(initialOpenState);
     } catch (error) {
-      // eslint-disable-next-line no-undef
-      if (!autoNavigate) {
-        throw error;
-      }
       setErrorText(
         error?.body?.message ||
           error?.message ||
@@ -134,6 +133,13 @@ export default function Learning() {
         ? { ...prev, completed: true }
         : prev,
     );
+
+    if (lessonCacheRef.current[completedLessonId]) {
+      lessonCacheRef.current[completedLessonId] = {
+        ...lessonCacheRef.current[completedLessonId],
+        completed: true,
+      };
+    }
 
     setCourseData((prev) => {
       if (!prev?.sections) return prev;
@@ -204,6 +210,13 @@ export default function Learning() {
       setLoadingLesson(true);
       setErrorText("");
 
+      const cachedLesson = lessonCacheRef.current[targetLessonId];
+      if (cachedLesson) {
+        setLessonData(cachedLesson);
+        setLoadingLesson(false);
+        return;
+      }
+
       const res = await learningApi.getLearningLesson(courseId, targetLessonId);
       const data = res?.result || null;
 
@@ -211,6 +224,7 @@ export default function Learning() {
         return;
       }
 
+      lessonCacheRef.current[targetLessonId] = data;
       setLessonData(data);
 
       await learningApi.saveLessonProgress(targetLessonId, {

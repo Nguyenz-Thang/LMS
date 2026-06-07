@@ -16,8 +16,8 @@ public class CourseRequest {
     String categoryId;
 
     // theo DB mới
-    String status;          // DRAFT, PENDING_APPROVAL, PUBLISHED, REJECTED, ARCHIVED
-    String visibility;      // PUBLIC, PRIVATE, UNLISTED
+    String status;          // DRAFT, PENDING_APPROVAL, PUBLISHED
+    String visibility;      // PUBLIC, PRIVATE
     String level;           // BEGINNER, INTERMEDIATE, ADVANCED
     Integer estimatedHours;
     BigDecimal price;

@@ -7,4 +7,8 @@ import com.nt.lms.entity.Course;
 
 public interface CourseRepository extends JpaRepository<Course, String> {
     Page<Course> findByTitleContainingIgnoreCase(String keyword, Pageable pageable);
+
+    boolean existsByCategoryId(String categoryId);
+
+    boolean existsByInstructorId(String instructorId);
 }

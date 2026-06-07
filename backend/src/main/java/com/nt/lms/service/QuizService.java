@@ -102,7 +102,6 @@ public class QuizService {
                                     .content(q.getContent())
                                     .explanation(q.getExplanation())
                                     .questionType(q.getQuestionType())
-                                    .points(q.getPoints())
                                     .orderIndex(q.getOrderIndex())
                                     .options(
                                             options.stream().map(o ->
@@ -172,6 +171,13 @@ public class QuizService {
         Quiz quiz = quizRepository.findById(quizId)
                 .orElseThrow(() -> new AppException(ErrorCode.QUIZ_NOT_EXISTED));
 
+        if (quizAttemptRepository.existsByQuizId(quizId)) {
+            throw new AppException(
+                    ErrorCode.QUIZ_HAS_ATTEMPTS,
+                    "Không thể xóa bài kiểm tra này vì đã có học viên làm bài. "
+                            + "Bạn nên ẩn bài kiểm tra hoặc giữ lại để bảo toàn kết quả.");
+        }
+
         List<Question> questions = questionRepository.findByQuizId(quizId);
 
         for (Question question : questions) {
@@ -228,10 +234,6 @@ public class QuizService {
                 throw new AppException(ErrorCode.INVALID_REQUEST);
             }
 
-            if (question.getPoints() == null || question.getPoints() <= 0) {
-                throw new AppException(ErrorCode.INVALID_REQUEST);
-            }
-
             if (question.getAnswers() == null || question.getAnswers().size() < 2) {
                 throw new AppException(ErrorCode.INVALID_REQUEST);
             }
@@ -277,7 +279,6 @@ public class QuizService {
                             ? "SINGLE_CHOICE"
                             : q.getQuestionType().trim();
 
-            Integer points = q.getPoints() == null || q.getPoints() <= 0 ? 1 : q.getPoints();
             Integer orderIndex = q.getOrderIndex() == null ? questionIndex : q.getOrderIndex();
 
             Question question = Question.builder()
@@ -285,7 +286,6 @@ public class QuizService {
                     .explanation(trimToNull(q.getExplanation()))
                     .quiz(quiz)
                     .questionType(questionType)
-                    .points(points)
                     .orderIndex(orderIndex)
                     .createdSource("SYSTEM")
                     .createdAt(java.time.LocalDateTime.now())

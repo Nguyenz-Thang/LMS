@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Archive,
   ArrowLeft,
   BookOpen,
   Check,
@@ -71,10 +70,6 @@ function getStatusMeta(status) {
         className: "statusPending",
         icon: CircleAlert,
       };
-    case "REJECTED":
-      return { label: "Bị từ chối", className: "statusRejected", icon: Trash2 };
-    case "ARCHIVED":
-      return { label: "Lưu trữ", className: "statusArchived", icon: Archive };
     case "DRAFT":
     default:
       return { label: "Nháp", className: "statusDraft", icon: CircleDashed };
@@ -85,12 +80,6 @@ function getVisibilityMeta(visibility) {
   switch (visibility) {
     case "PRIVATE":
       return { label: "Riêng tư", className: "visibilityPrivate", icon: Lock };
-    case "UNLISTED":
-      return {
-        label: "Không liệt kê",
-        className: "visibilityUnlisted",
-        icon: CircleDashed,
-      };
     case "PUBLIC":
     default:
       return { label: "Công khai", className: "visibilityPublic", icon: Globe2 };

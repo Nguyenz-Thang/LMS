@@ -38,7 +38,8 @@
 }
 
 .addBtn,
-.saveAction {
+.saveAction,
+.cancelAction {
   height: 40px;
   border: 1px solid #dbe3ef;
   border-radius: 6px;
@@ -52,6 +53,18 @@
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.modalActions .saveAction {
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.cancelAction {
+  background: #fff;
+  color: #334155;
 }
 
 .toolbar {

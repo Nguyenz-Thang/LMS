@@ -274,7 +274,6 @@ function AddLessonModal({
         videoUrl: form.lessonType === "VIDEO" ? form.videoUrl.trim() : "",
         thumbnailUrl: "",
         durationMinutes: Number(form.durationMinutes) || 0,
-        isPreview: false,
         isPublished: form.isPublished,
         orderIndex: Number(form.orderIndex),
         sectionId: section.id,

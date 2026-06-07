@@ -30,7 +30,6 @@ public class AiQuizDraftResponse {
 		String content;
 		String explanation;
 		String questionType;
-		Integer points;
 		Integer orderIndex;
 		List<AnswerDraft> answers;
 	}

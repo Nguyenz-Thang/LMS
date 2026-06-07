@@ -362,12 +362,6 @@ public class ChatbotService {
 				.append(limit(toPlainText(assignment.getDescription()), CONTEXT_TEXT_LIMIT))
 				.append("\n");
 		builder.append("Loai bai tap: ").append(safeText(assignment.getAssignmentType(), "")).append("\n");
-		if (assignment.getMaxScore() != null) {
-			builder.append("Diem toi da: ").append(assignment.getMaxScore()).append("\n");
-		}
-		if (assignment.getDueAt() != null) {
-			builder.append("Han nop: ").append(assignment.getDueAt()).append("\n");
-		}
 	}
 
 	private AiLessonAssistantResponse buildFallbackResponse(
@@ -483,42 +477,44 @@ public class ChatbotService {
 		List<Course> courses = findRecommendedCourses(question, user, 2);
 		StringBuilder answer = new StringBuilder();
 
-		if (temporarilyUnavailable) {
-			answer.append("OpenAI API đang quá tải tạm thời, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
-		} else if (quotaExceeded) {
-			answer.append("OpenAI API đang hết quota hoặc bị giới hạn tốc độ, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
-		} else {
-			answer.append("Hiện chưa gọi được dịch vụ AI, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+		if (!quotaExceeded) {
+			if (temporarilyUnavailable) {
+				answer.append("OpenAI API đang quá tải tạm thời, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+			} else {
+				answer.append("Hiện chưa gọi được dịch vụ AI, nên mình gợi ý bằng dữ liệu khóa học trong hệ thống.\n\n");
+			}
 		}
 
 		if (courses.isEmpty()) {
-			answer.append("Mình chưa tìm thấy khóa học public phù hợp với nhu cầu này. Bạn có thể thử hỏi cụ thể hơn, ví dụ: lập trình Java, lập trình web, dữ liệu, an ninh mạng.");
+			answer.append("Mình chưa tìm thấy khóa học public phù hợp với nhu cầu này. ")
+					.append("Bạn có thể hỏi cụ thể hơn, ví dụ: lập trình Java, lập trình web, dữ liệu hoặc an ninh mạng.");
 		} else {
-			answer.append("Dựa trên nhu cầu của bạn, các khóa học nên xem trước là:\n");
+			answer.append("Dựa trên nhu cầu của bạn, mình gợi ý các khóa học sau:\n\n");
 			for (int index = 0; index < courses.size(); index++) {
 				Course course = courses.get(index);
 				answer.append(index + 1)
 						.append(". ")
 						.append(safeTitle(course.getTitle()))
 						.append("\n")
-						.append("   - Link học: ")
+						.append("- Link học: ")
 						.append(buildCourseUrl(course))
 						.append("\n")
-						.append("   - Lý do phù hợp: nội dung khóa học khớp với nhu cầu bạn vừa nêu");
+						.append("- Lý do phù hợp: nội dung khóa học khớp với nhu cầu bạn vừa nêu");
 				if (StringUtils.hasText(course.getLevel())) {
 					answer.append(", cấp độ ").append(course.getLevel());
 				}
 				answer.append(".\n");
 				if (StringUtils.hasText(course.getDescription())) {
-					answer.append("   - Mô tả ngắn: ")
+					answer.append("- Mô tả ngắn: ")
 							.append(limit(toPlainText(course.getDescription()), 240))
 							.append("\n");
 				}
-				answer.append("   - Bạn sẽ học được: ")
+				answer.append("- Nội dung nổi bật: ")
 						.append(buildCourseLearningSummary(course))
-						.append("\n");
+						.append("\n\n");
 			}
-			answer.append("\nThứ tự học đề xuất: bắt đầu với khóa nhập môn/cấp độ BEGINNER trước, sau đó chuyển sang khóa thực hành hoặc chuyên sâu hơn.");
+			answer.append("Lộ trình đề xuất: bắt đầu với khóa có cấp độ BEGINNER hoặc nội dung nền tảng trước, ")
+					.append("sau đó chuyển sang khóa thực hành hoặc chuyên sâu hơn.");
 		}
 
 		return AiLessonAssistantResponse.builder()
@@ -528,7 +524,7 @@ public class ChatbotService {
 						"Gợi ý lộ trình học theo thứ tự cho tôi",
 						"Tôi nên học khóa miễn phí hay trả phí trước?",
 						"Tìm khóa học phù hợp cho người mới bắt đầu"))
-				.model(temporarilyUnavailable ? "fallback-unavailable" : quotaExceeded ? "fallback-quota" : "fallback-local")
+				.model(quotaExceeded ? "mock-ai-quota" : temporarilyUnavailable ? "fallback-unavailable" : "fallback-local")
 				.build();
 	}
 

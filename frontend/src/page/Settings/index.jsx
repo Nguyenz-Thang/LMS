@@ -5,13 +5,13 @@ import styles from "./Settings.module.scss";
 const SETTING_ITEMS = [
   {
     key: "newAssignmentEmail",
-    title: "Bài tập mới",
-    description: "Nhận email khi khóa học có bài tập mới được giao.",
+    title: "Kết quả bài tập",
+    description: "Nhận email khi giáo viên đã chấm bài tập của bạn.",
   },
   {
     key: "weeklyProgressEmail",
-    title: "Báo cáo học tập hằng tuần",
-    description: "Nhận email tóm tắt tiến độ học tập của bạn mỗi tuần.",
+    title: "Nhắc học hằng tuần",
+    description: "Nhận email nhắc bạn quay lại học mỗi tuần.",
   },
 ];
 

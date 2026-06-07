@@ -24,7 +24,6 @@ function getStatusLabel(status) {
     case "GRADED":
       return "Đã chấm";
     case "LATE":
-      return "Nộp muộn";
     case "SUBMITTED":
       return "Đã nộp";
     case "DRAFT":
@@ -203,7 +202,6 @@ export default function AssignmentSubmissions() {
         <div className={styles.submissionList}>
           {filteredSubmissions.map((submission) => {
             const form = gradeForms[submission.id] || {};
-            const maxScore = submission.maxScore || 10;
             const graded = (submission.status || "").toUpperCase() === "GRADED";
 
             return (
@@ -255,11 +253,10 @@ export default function AssignmentSubmissions() {
 
                   <div className={styles.gradeBox}>
                     <label>
-                      <span>Điểm / {maxScore}</span>
+                      <span>Điểm</span>
                       <input
                         type="number"
                         min="0"
-                        max={maxScore}
                         step="0.1"
                         value={form.score}
                         onChange={(event) =>

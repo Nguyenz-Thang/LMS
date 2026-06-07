@@ -31,20 +31,6 @@ public class LessonController {
                 .build();
     }
 
-    @GetMapping("/section/{sectionId}")
-    public ApiResponse<List<LessonResponse>> getBySection(@PathVariable String sectionId) {
-        return ApiResponse.<List<LessonResponse>>builder()
-                .result(lessonService.getLessonsBySection(sectionId))
-                .build();
-    }
-
-    @GetMapping("/{id}")
-    public ApiResponse<LessonResponse> get(@PathVariable String id) {
-        return ApiResponse.<LessonResponse>builder()
-                .result(lessonService.getLessonById(id))
-                .build();
-    }
-
     @GetMapping("/{id}/resources")
     public ApiResponse<List<LearningLessonResourceResponse>> getResources(@PathVariable String id) {
         return ApiResponse.<List<LearningLessonResourceResponse>>builder()

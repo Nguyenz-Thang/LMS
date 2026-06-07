@@ -20,6 +20,5 @@ public class ProgressQuizInsightResponse {
 	Integer attemptCount;
 	Double bestScorePercent;
 	Double lastScorePercent;
-	Double passingScorePercent;
 	LocalDateTime lastSubmittedAt;
 }

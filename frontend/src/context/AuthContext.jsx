@@ -33,7 +33,9 @@ export function AuthProvider({ children }) {
   };
 
   const hasRole = (roleName) => {
-    return user?.roles?.some((role) => role.name === roleName) || false;
+    const currentRole =
+      user?.role?.name || user?.role || user?.roles?.[0]?.name || "";
+    return currentRole === roleName;
   };
 
   const value = {

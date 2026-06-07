@@ -1,50 +1,19 @@
-import { useCallback, useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
-import { LMS_BASE_URL } from "./courseApi";
+import { useCallback } from "react";
+import { LMS_BASE_URL, toJson, useAuthedFetch } from "./authFetch";
 
 const BASE = `${LMS_BASE_URL}/assignments`;
 
-async function toJson(res) {
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const err = new Error(data.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-
-  return data;
-}
-
 export function useAssignmentApi() {
-  const { token, logout } = useContext(AuthContext);
-
-  const authedFetch = useCallback(
-    async (url, options = {}) => {
-      const headers = {
-        ...(options.headers || {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      if (res.status === 401 || res.status === 403) {
-        logout?.();
-        throw new Error("Phien dang nhap da het han hoac ban khong co quyen.");
-      }
-
-      return res;
-    },
-    [token, logout],
-  );
+  const authedFetch = useAuthedFetch();
 
   const listSubmissions = useCallback(
     async (assignmentId) =>
       toJson(await authedFetch(`${BASE}/${assignmentId}/submissions`)),
+    [authedFetch],
+  );
+
+  const listAssignmentSummaries = useCallback(
+    async () => toJson(await authedFetch(`${BASE}/summary`)),
     [authedFetch],
   );
 
@@ -63,6 +32,7 @@ export function useAssignmentApi() {
   );
 
   return {
+    listAssignmentSummaries,
     listSubmissions,
     gradeSubmission,
   };

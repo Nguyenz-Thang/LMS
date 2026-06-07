@@ -124,6 +124,7 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
   const [starting, setStarting] = useState(false);
+  const [learningCourse, setLearningCourse] = useState(null);
   const [showPayment, setShowPayment] = useState(false);
   const [payment, setPayment] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -165,6 +166,7 @@ export default function CourseDetail() {
       try {
         const learningRes = await getLearningCourse(id);
         const learningData = learningRes?.result || null;
+        setLearningCourse(learningData);
 
         if (learningData?.enrolled && learningData?.currentLessonId) {
           navigate(`/learning/${id}/${learningData.currentLessonId}`, {
@@ -174,6 +176,7 @@ export default function CourseDetail() {
         }
       } catch {
         // ignore, continue load detail
+        setLearningCourse(null);
       }
 
       const [courseRes, curriculumRes] = await Promise.all([
@@ -239,6 +242,7 @@ export default function CourseDetail() {
   const startCourse = async (payload = null) => {
     try {
       setStarting(true);
+      setShowPayment(false);
       const res = await startLearning(id, payload);
       const data = res?.result || null;
 
@@ -261,14 +265,38 @@ export default function CourseDetail() {
     }
   };
 
+  const isEnrolled = Boolean(learningCourse?.enrolled);
+  const hasCoursePrice = course?.paid && Number(course?.price || 0) > 0;
+
   const handleStartLearning = async () => {
-    if (course?.paid && Number(course?.price || 0) > 0) {
+    if (isEnrolled) {
+      await startCourse();
+      return;
+    }
+
+    if (hasCoursePrice) {
       setShowPayment(true);
       await loadPayment();
       return;
     }
 
     await startCourse();
+  };
+
+  const isAlreadyEnrolledError = (error) => {
+    const message =
+      error?.response?.data?.message ||
+      error?.body?.message ||
+      error?.message ||
+      "";
+    const code = error?.response?.data?.code || error?.body?.code;
+    const normalizedMessage = message
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d");
+
+    return code === 1013 || normalizedMessage.includes("dang ky");
   };
 
   const loadPayment = async () => {
@@ -278,6 +306,13 @@ export default function CourseDetail() {
       const res = await createCoursePayment(id);
       setPayment(res?.result || null);
     } catch (error) {
+      if (isAlreadyEnrolledError(error)) {
+        setPaymentError("");
+        setShowPayment(false);
+        await startCourse();
+        return;
+      }
+
       setPaymentError(
         error?.response?.data?.message ||
           error?.body?.message ||
@@ -375,8 +410,10 @@ export default function CourseDetail() {
           >
             {starting
               ? "Đang xử lý..."
-              : course?.paid && Number(course?.price || 0) > 0
-                ? "Thanh toán để học"
+              : isEnrolled
+                ? "Vào học"
+                : hasCoursePrice
+                  ? "Thanh toán để học"
                 : "Bắt đầu học"}
           </button>
 

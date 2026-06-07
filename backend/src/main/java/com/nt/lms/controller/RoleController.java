@@ -40,14 +40,6 @@ public class RoleController {
                 .build();
     }
 
-    @GetMapping("/{role}")
-    @PreAuthorize("hasRole('ADMIN')")
-    ApiResponse<RoleResponse> getByName(@PathVariable String role) {
-        return ApiResponse.<RoleResponse>builder()
-                .result(roleService.getByName(role))
-                .build();
-    }
-
     @PutMapping("/{role}")
     @PreAuthorize("hasRole('ADMIN')")
     ApiResponse<RoleResponse> update(

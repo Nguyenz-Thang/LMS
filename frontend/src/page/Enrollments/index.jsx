@@ -16,7 +16,6 @@ import {
 import {
   enrollCourse,
   getAllEnrollments,
-  markEnrollmentAccess,
 } from "../../api/enrollmentApi";
 import { searchUsers } from "../../api/userApi";
 import { getCourses, LMS_BASE_URL } from "../../api/courseApi";
@@ -77,9 +76,11 @@ function normalizeUser(rawUser) {
     username: rawUser?.username || "",
     fullName: rawUser?.fullName || "",
     email: rawUser?.email || "",
-    roles: Array.isArray(rawUser?.roles)
-      ? rawUser.roles.map((role) => role?.name).filter(Boolean)
-      : [],
+    role:
+      rawUser?.role?.name ||
+      rawUser?.role ||
+      (Array.isArray(rawUser?.roles) ? rawUser.roles[0]?.name : "") ||
+      "",
   };
 }
 
@@ -144,7 +145,6 @@ export default function EnrollmentManagement() {
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [errorText, setErrorText] = useState("");
-  const [accessingCourseId, setAccessingCourseId] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
@@ -245,33 +245,9 @@ export default function EnrollmentManagement() {
     return () => window.clearTimeout(timeoutId);
   }, [isModalOpen, courseKeyword]);
 
-  const handleViewCourse = async (enrollment) => {
+  const handleViewCourse = (enrollment) => {
     if (!enrollment.courseId) return;
-
-    try {
-      setAccessingCourseId(enrollment.courseId);
-
-      const res = await markEnrollmentAccess(enrollment.courseId);
-      const updated = res?.result;
-
-      setEnrollments((prev) =>
-        prev.map((item) =>
-          item.id === enrollment.id
-            ? normalizeEnrollment({
-                ...item,
-                ...updated,
-              })
-            : item,
-        ),
-      );
-
-      navigate(`/courses/${enrollment.courseId}`);
-    } catch (error) {
-      console.error("Mark enrollment access error:", error);
-      navigate(`/courses/${enrollment.courseId}`);
-    } finally {
-      setAccessingCourseId("");
-    }
+    navigate(`/admin/courses/${enrollment.courseId}`);
   };
 
   const filteredEnrollments = useMemo(() => {
@@ -575,7 +551,6 @@ export default function EnrollmentManagement() {
                             type="button"
                             className={styles.iconBtn}
                             onClick={() => handleViewCourse(enrollment)}
-                            disabled={accessingCourseId === enrollment.courseId}
                             title="Xem khóa học"
                             aria-label="Xem khóa học"
                           >

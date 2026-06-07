@@ -53,7 +53,7 @@ public class Lesson {
     @Column(name = "updated_at")
     LocalDateTime updatedAt;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "section_id")
     Section section;
 

@@ -17,8 +17,8 @@ public class CurriculumLessonResponse {
     String videoUrl;
     String thumbnailUrl;
     Integer durationMinutes;
-    Boolean isPreview;
     Boolean isPublished;
+    Boolean isPreview;
     int orderIndex;
 
     LessonType lessonType;

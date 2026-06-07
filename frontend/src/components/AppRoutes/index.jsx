@@ -25,6 +25,7 @@ import RoleManagement from "../../page/Roles";
 import UserManagement from "../../page/Users";
 import Reports from "../../page/Admin/Reports";
 import RevenueManagement from "../../page/Admin/Revenue";
+import AssignmentManagement from "../../page/Admin/AssignmentManagement";
 import AssignmentSubmissions from "../../page/Admin/AssignmentSubmissions";
 import MyCourses from "../../page/My-courses";
 import Courses from "../../page/Courses";
@@ -37,16 +38,15 @@ import QuizResults from "../../page/QuizResults";
 import QuizResultDetail from "../../page/QuizResults/Detail";
 import QuizResultSummary from "../../page/QuizResults/Summary";
 import Settings from "../../page/Settings";
-import Discussions from "../../page/Discussions";
 import Chatbot from "../../page/Chatbot";
 
 function AppRoutes() {
   const { token, user } = useContext(AuthContext);
 
   const getDefaultRoute = () => {
-    const roles = user?.roles?.map((r) => r.name) || [];
-    if (roles.includes("ADMIN")) return "/admin/courses";
-    if (roles.includes("INSTRUCTOR")) return "/admin/courses";
+    const role = user?.role?.name || user?.role || user?.roles?.[0]?.name || "";
+    if (role === "ADMIN") return "/admin/courses";
+    if (role === "INSTRUCTOR") return "/admin/courses";
     return "/home";
   };
 
@@ -89,7 +89,11 @@ function AppRoutes() {
         <Route
           path="/reset-password"
           element={
-            token ? <Navigate to={getDefaultRoute()} replace /> : <ResetPassword />
+            token ? (
+              <Navigate to={getDefaultRoute()} replace />
+            ) : (
+              <ResetPassword />
+            )
           }
         />
 
@@ -118,7 +122,6 @@ function AppRoutes() {
                 path="/quiz-results/:attemptId/summary"
                 element={<QuizResultSummary />}
               />
-              <Route path="/discussions" element={<Discussions />} />
               <Route path="/chatbot" element={<Chatbot />} />
               <Route
                 path="/quiz-results/:attemptId"
@@ -158,6 +161,7 @@ function AppRoutes() {
               <Route path="/admin/users" element={<UserManagement />} />
               <Route path="/admin/reports" element={<Reports />} />
               <Route path="/admin/revenue" element={<RevenueManagement />} />
+              <Route path="/admin/assignments" element={<AssignmentManagement />} />
               <Route
                 path="/admin/assignments/:assignmentId/submissions"
                 element={<AssignmentSubmissions />}

@@ -9,5 +9,5 @@ public interface DiscussionReplyRepository extends JpaRepository<DiscussionReply
 
     long countByTopicId(String topicId);
 
-    void deleteByTopicId(String topicId);
+    boolean existsByUserId(String userId);
 }

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import styles from "./NotFound.module.scss";
-import logo from "../../assets/img/utt.png";
-import heroImage from "../../assets/img/utt.png";
+import logo from "../../assets/img/logo.png";
+import heroImage from "../../assets/img/logo.png";
 
 export default function NotFound() {
   return (

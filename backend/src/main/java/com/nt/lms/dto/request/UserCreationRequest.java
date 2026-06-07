@@ -29,4 +29,6 @@ public class UserCreationRequest {
 
     @DobConstraint(min = 2, message = "INVALID_DOB")
     LocalDate dob;
+
+    String role;
 }

@@ -1,6 +1,7 @@
 package com.nt.lms.service;
 
 import com.nt.lms.dto.request.GradeAssignmentSubmissionRequest;
+import com.nt.lms.dto.response.InstructorAssignmentSummaryResponse;
 import com.nt.lms.dto.response.InstructorAssignmentSubmissionResponse;
 import com.nt.lms.dto.response.LearningSubmissionFileResponse;
 import com.nt.lms.entity.Assignment;
@@ -12,6 +13,7 @@ import com.nt.lms.repository.AssignmentSubmissionRepository;
 import com.nt.lms.repository.SubmissionFileRepository;
 import com.nt.lms.repository.UserRepository;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,11 +24,30 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @RequiredArgsConstructor
 public class InstructorAssignmentService {
+    private static final List<String> SUBMITTED_STATUSES = List.of("SUBMITTED", "LATE", "GRADED");
+    private static final List<String> PENDING_STATUSES = List.of("SUBMITTED", "LATE");
+
     private final AssignmentRepository assignmentRepository;
     private final AssignmentSubmissionRepository submissionRepository;
     private final SubmissionFileRepository submissionFileRepository;
     private final UserRepository userRepository;
     private final AppNotificationService appNotificationService;
+    private final EmailNotificationService emailNotificationService;
+
+    public List<InstructorAssignmentSummaryResponse> listAssignmentSummaries() {
+        User currentUser = getCurrentUser();
+        List<Assignment> assignments = hasRole(currentUser, "ADMIN")
+                ? assignmentRepository.findAll()
+                : assignmentRepository.findByCourseInstructorId(currentUser.getId());
+
+        return assignments.stream()
+                .sorted(Comparator
+                        .comparing((Assignment assignment) -> safeText(
+                                assignment.getCourse() != null ? assignment.getCourse().getTitle() : ""))
+                        .thenComparing(assignment -> safeText(assignment.getTitle())))
+                .map(this::toSummaryResponse)
+                .toList();
+    }
 
     public List<InstructorAssignmentSubmissionResponse> listSubmissions(String assignmentId) {
         User currentUser = getCurrentUser();
@@ -46,7 +67,7 @@ public class InstructorAssignmentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Khong tim thay bai nop"));
 
         ensureCanGrade(currentUser, submission.getAssignment());
-        validateGradeRequest(submission.getAssignment(), request);
+        validateGradeRequest(request);
 
         submission.setScore(request.getScore());
         submission.setFeedback(trimToNull(request.getFeedback()));
@@ -56,19 +77,17 @@ public class InstructorAssignmentService {
 
         AssignmentSubmission saved = submissionRepository.save(submission);
         appNotificationService.notifyAssignmentGraded(saved);
+        emailNotificationService.sendAssignmentGraded(saved);
         return toResponse(saved);
     }
 
-    private void validateGradeRequest(Assignment assignment, GradeAssignmentSubmissionRequest request) {
+    private void validateGradeRequest(GradeAssignmentSubmissionRequest request) {
         if (request == null || request.getScore() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Diem cham khong duoc de trong");
         }
 
-        double maxScore = assignment.getMaxScore() == null ? 10.0 : assignment.getMaxScore().doubleValue();
-        if (request.getScore() < 0 || request.getScore() > maxScore) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Diem phai nam trong khoang 0 den " + maxScore);
+        if (request.getScore() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Diem phai lon hon hoac bang 0");
         }
     }
 
@@ -108,11 +127,42 @@ public class InstructorAssignmentService {
                 .submittedAt(submission.getSubmittedAt())
                 .status(submission.getStatus())
                 .score(submission.getScore())
-                .maxScore(assignment.getMaxScore() == null ? 10.0 : assignment.getMaxScore().doubleValue())
                 .feedback(submission.getFeedback())
                 .gradedByName(getUserDisplayName(submission.getGradedBy()))
                 .gradedAt(submission.getGradedAt())
                 .files(toFileResponses(submission.getId()))
+                .build();
+    }
+
+    private InstructorAssignmentSummaryResponse toSummaryResponse(Assignment assignment) {
+        long totalSubmitted = submissionRepository.countByAssignmentIdAndStatusIn(
+                assignment.getId(),
+                SUBMITTED_STATUSES);
+        long gradedCount = submissionRepository.countByAssignmentIdAndStatus(
+                assignment.getId(),
+                "GRADED");
+        long pendingCount = submissionRepository.countByAssignmentIdAndStatusIn(
+                assignment.getId(),
+                PENDING_STATUSES);
+
+        return InstructorAssignmentSummaryResponse.builder()
+                .assignmentId(assignment.getId())
+                .assignmentTitle(assignment.getTitle())
+                .assignmentType(assignment.getAssignmentType())
+                .courseId(assignment.getCourse() != null ? assignment.getCourse().getId() : null)
+                .courseTitle(assignment.getCourse() != null ? assignment.getCourse().getTitle() : null)
+                .instructorName(assignment.getCourse() != null
+                        ? getUserDisplayName(assignment.getCourse().getInstructor())
+                        : getUserDisplayName(assignment.getCreatedBy()))
+                .lessonId(assignment.getLesson() != null ? assignment.getLesson().getId() : null)
+                .lessonTitle(assignment.getLesson() != null ? assignment.getLesson().getTitle() : null)
+                .totalSubmitted(totalSubmitted)
+                .gradedCount(gradedCount)
+                .pendingCount(pendingCount)
+                .draftCount(submissionRepository.countByAssignmentIdAndStatus(assignment.getId(), "DRAFT"))
+                .lastSubmittedAt(submissionRepository.findLatestSubmittedAt(
+                        assignment.getId(),
+                        SUBMITTED_STATUSES))
                 .build();
     }
 
@@ -161,5 +211,9 @@ public class InstructorAssignmentService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String safeText(String value) {
+        return value == null ? "" : value;
     }
 }

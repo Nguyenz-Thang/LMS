@@ -55,13 +55,6 @@ public class CourseController {
                 .build();
     }
 
-    @PostMapping("/{id}/reject")
-    public ApiResponse<CourseResponse> reject(@PathVariable String id) {
-        return ApiResponse.<CourseResponse>builder()
-                .result(courseService.rejectCourse(id))
-                .build();
-    }
-
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable String id) {
         courseService.deleteCourse(id);

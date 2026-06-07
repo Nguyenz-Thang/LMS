@@ -1,6 +1,7 @@
 package com.nt.lms.service;
 
 import com.nt.lms.entity.Assignment;
+import com.nt.lms.entity.AssignmentSubmission;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Enrollment;
 import com.nt.lms.entity.Lesson;
@@ -19,14 +20,10 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 @Service
 @RequiredArgsConstructor
@@ -75,49 +72,6 @@ public class EmailNotificationService {
         return sendEmail(user.getEmail(), subject, content);
     }
 
-    public void sendManualTestEmail(User user) {
-        if (!hasValidEmail(user)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Tài khoản chưa có email để nhận thư test");
-        }
-
-        if (!mailEnabled) {
-            throw new ResponseStatusException(
-                    SERVICE_UNAVAILABLE,
-                    "Chưa bật gửi mail. Hãy cấu hình LMS_MAIL_ENABLED=true");
-        }
-
-        if (mailSenderProvider.getIfAvailable() == null) {
-            throw new ResponseStatusException(
-                    SERVICE_UNAVAILABLE,
-                    "Chưa cấu hình SMTP hoặc JavaMailSender");
-        }
-
-        String subject = "[LMS] Email test cấu hình SMTP";
-        String content = """
-                Xin chào %s,
-
-                Đây là email test từ hệ thống quản lý học tập.
-
-                Nếu bạn nhận được thư này, cấu hình SMTP hiện tại đã hoạt động.
-
-                Thời gian gửi: %s
-                Trang hệ thống: %s
-
-                Trân trọng,
-                Hệ thống quản lý học tập
-                """.formatted(
-                safeName(user),
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy")),
-                frontendBaseUrl);
-
-        boolean sent = sendEmail(user.getEmail(), subject, content);
-        if (!sent) {
-            throw new ResponseStatusException(
-                    SERVICE_UNAVAILABLE,
-                    "Không gửi được email test. Kiểm tra lại cấu hình SMTP");
-        }
-    }
-
     public void sendNewLessonPublished(Lesson lesson) {
         if (!canNotifyForCourse(lesson.getSection().getCourse()) || !Boolean.TRUE.equals(lesson.getIsPublished())) {
             return;
@@ -159,51 +113,55 @@ public class EmailNotificationService {
         }
     }
 
-    public void sendNewAssignmentPublished(Assignment assignment) {
-        if (assignment == null || assignment.getCourse() == null || !canNotifyForCourse(assignment.getCourse())) {
+    public void sendAssignmentGraded(AssignmentSubmission submission) {
+        if (submission == null || submission.getStudent() == null || submission.getAssignment() == null) {
             return;
         }
 
-        List<Enrollment> enrollments =
-                enrollmentRepository.findByCourseIdAndStatus(assignment.getCourse().getId(), EnrollmentStatus.ACTIVE);
-
-        for (Enrollment enrollment : enrollments) {
-            User user = enrollment.getUser();
-            if (!hasValidEmail(user)) {
-                continue;
-            }
-
-            UserNotificationSetting setting = notificationSettingRepository.findByUserId(user.getId()).orElse(null);
-            if (setting != null && !Boolean.TRUE.equals(setting.getNewAssignmentEmail())) {
-                continue;
-            }
-
-            String dueText = assignment.getDueAt() == null
-                    ? "Không giới hạn hạn nộp"
-                    : "Hạn nộp: " + formatDateTime(assignment.getDueAt());
-
-            String subject = "[LMS] Có bài tập mới trong khóa " + assignment.getCourse().getTitle();
-            String content = """
-                    Xin chào %s,
-
-                    Bạn vừa được giao bài tập mới: "%s" trong khóa "%s".
-                    %s
-
-                    Vào khóa học để xem chi tiết:
-                    %s/learning/%s
-
-                    Trân trọng,
-                    Hệ thống quản lý học tập
-                    """.formatted(
-                    safeName(user),
-                    assignment.getTitle(),
-                    assignment.getCourse().getTitle(),
-                    dueText,
-                    frontendBaseUrl,
-                    assignment.getCourse().getId());
-
-            sendEmail(user.getEmail(), subject, content);
+        Assignment assignment = submission.getAssignment();
+        Course course = assignment.getCourse();
+        User user = submission.getStudent();
+        if (!hasValidEmail(user)) {
+            return;
         }
+
+        UserNotificationSetting setting = notificationSettingRepository.findByUserId(user.getId()).orElse(null);
+        if (setting != null && !Boolean.TRUE.equals(setting.getNewAssignmentEmail())) {
+            return;
+        }
+
+        String courseTitle = course != null ? course.getTitle() : "Khoa hoc";
+        String targetUrl = course != null
+                ? frontendBaseUrl + "/learning/" + course.getId()
+                : frontendBaseUrl + "/my-courses";
+        String scoreText = submission.getScore() == null
+                ? "Diem cua ban da duoc cap nhat."
+                : "Diem cua ban: " + submission.getScore() + ".";
+        String feedbackText = submission.getFeedback() == null || submission.getFeedback().isBlank()
+                ? ""
+                : "\nNhan xet: " + submission.getFeedback().trim();
+
+        String subject = "[LMS] Bai tap da duoc cham";
+        String content = """
+                Xin chao %s,
+
+                Bai tap "%s" trong khoa "%s" da duoc giao vien cham.
+                %s%s
+
+                Xem chi tiet tai:
+                %s
+
+                Tran trong,
+                He thong quan ly hoc tap
+                """.formatted(
+                safeName(user),
+                assignment.getTitle(),
+                courseTitle,
+                scoreText,
+                feedbackText,
+                targetUrl);
+
+        sendEmail(user.getEmail(), subject, content);
     }
 
     @Scheduled(cron = "${lms.mail.weekly-progress-cron:0 0 7 * * MON}")

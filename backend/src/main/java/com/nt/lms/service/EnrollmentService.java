@@ -36,7 +36,6 @@ import com.nt.lms.repository.EnrollmentRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
 import com.nt.lms.repository.QuizAttemptRepository;
-import com.nt.lms.repository.SectionRepository;
 import com.nt.lms.repository.UserRepository;
 
 import lombok.AccessLevel;
@@ -59,7 +58,6 @@ public class EnrollmentService {
     EnrollmentMapper enrollmentMapper;
     LessonProgressRepository lessonProgressRepository;
     LessonRepository lessonRepository;
-    SectionRepository sectionRepository;
     QuizAttemptRepository quizAttemptRepository;
     AppNotificationService appNotificationService;
 
@@ -144,7 +142,7 @@ public class EnrollmentService {
     }
 
     @Transactional(readOnly = true)
-    public ProgressDashboardResponse getMyDashboard() {
+    public ProgressDashboardResponse getMyDashboard(Integer year) {
         User user = getCurrentUser();
         LocalDate today = LocalDate.now();
 
@@ -161,9 +159,7 @@ public class EnrollmentService {
                 continue;
             }
 
-            int totalLessons = sectionRepository.findByCourseIdOrderByOrderIndexAsc(courseId).stream()
-                    .mapToInt(section -> lessonRepository.findBySectionIdOrderByOrderIndexAsc(section.getId()).size())
-                    .sum();
+            int totalLessons = (int) lessonRepository.countBySection_Course_Id(courseId);
 
             int completedLessons = (int) progresses.stream()
                     .filter(progress -> progress.getLesson() != null
@@ -177,7 +173,10 @@ public class EnrollmentService {
             completedLessonsByCourse.put(courseId, completedLessons);
         }
 
-        List<ProgressTimelinePointResponse> dailyCompletions = buildDailyCompletionSeries(progresses, today);
+        List<Integer> activityYears = buildActivityYears(progresses, today.getYear());
+        int selectedYear = resolveSelectedActivityYear(year, activityYears, today.getYear());
+
+        List<ProgressTimelinePointResponse> dailyCompletions = buildDailyCompletionSeries(progresses, selectedYear);
         List<ProgressTimelinePointResponse> weeklyCompletions = buildWeeklyCompletionSeries(progresses, today);
         List<ProgressQuizInsightResponse> independentQuizzes = buildIndependentQuizInsights(attempts);
         List<ProgressPausedLessonResponse> pausedLessons = buildPausedLessonInsights(progresses);
@@ -223,6 +222,8 @@ public class EnrollmentService {
                 .independentQuizzes(independentQuizzes)
                 .pausedLessons(pausedLessons)
                 .atRiskCourses(atRiskCourses)
+                .activityYears(activityYears)
+                .selectedYear(selectedYear)
                 .build();
     }
 
@@ -265,22 +266,47 @@ public class EnrollmentService {
         return price != null && price.compareTo(BigDecimal.ZERO) > 0;
     }
 
+    private List<Integer> buildActivityYears(List<LessonProgress> progresses, int fallbackYear) {
+        List<Integer> years = progresses.stream()
+                .filter(progress -> Boolean.TRUE.equals(progress.getCompleted()) && progress.getCompletedAt() != null)
+                .map(progress -> progress.getCompletedAt().getYear())
+                .distinct()
+                .sorted(Comparator.reverseOrder())
+                .toList();
+
+        return years.isEmpty() ? List.of(fallbackYear) : years;
+    }
+
+    private int resolveSelectedActivityYear(Integer requestedYear, List<Integer> activityYears, int fallbackYear) {
+        if (requestedYear != null && activityYears.contains(requestedYear)) {
+            return requestedYear;
+        }
+
+        if (activityYears.contains(fallbackYear)) {
+            return fallbackYear;
+        }
+
+        return activityYears.isEmpty() ? fallbackYear : activityYears.get(0);
+    }
+
     private List<ProgressTimelinePointResponse> buildDailyCompletionSeries(
             List<LessonProgress> progresses,
-            LocalDate today) {
-        LocalDate startDate = today.minusDays(6);
+            int selectedYear) {
+        LocalDate yearStart = LocalDate.of(selectedYear, 1, 1);
+        LocalDate yearEnd = LocalDate.of(selectedYear, 12, 31);
+        LocalDate startDate = yearStart.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        LocalDate endDate = yearEnd.with(TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY));
         Map<LocalDate, Long> completionMap = progresses.stream()
                 .filter(progress -> Boolean.TRUE.equals(progress.getCompleted()) && progress.getCompletedAt() != null)
                 .map(progress -> progress.getCompletedAt().toLocalDate())
-                .filter(date -> !date.isBefore(startDate) && !date.isAfter(today))
+                .filter(date -> !date.isBefore(yearStart) && !date.isAfter(yearEnd))
                 .collect(Collectors.groupingBy(date -> date, LinkedHashMap::new, Collectors.counting()));
 
         List<ProgressTimelinePointResponse> result = new ArrayList<>();
-        for (int index = 0; index < 7; index++) {
-            LocalDate date = startDate.plusDays(index);
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
             result.add(ProgressTimelinePointResponse.builder()
                     .key(date.toString())
-                    .label(date.getDayOfWeek().name().substring(0, 3))
+                    .label(String.format("%02d/%02d", date.getDayOfMonth(), date.getMonthValue()))
                     .value(completionMap.getOrDefault(date, 0L))
                     .build());
         }
@@ -346,7 +372,6 @@ public class EnrollmentService {
                             .attemptCount(quizAttempts.size())
                             .bestScorePercent(roundTwoDecimals(bestScore))
                             .lastScorePercent(roundTwoDecimals(calculateScorePercent(latestAttempt)))
-                            .passingScorePercent(quiz.getPassingScore() == null ? 0.0 : quiz.getPassingScore().doubleValue())
                             .lastSubmittedAt(latestAttempt.getSubmittedAt())
                             .build();
                 })

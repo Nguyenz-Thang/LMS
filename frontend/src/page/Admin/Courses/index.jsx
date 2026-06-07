@@ -1,6 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import {
-  Archive,
   Check,
   CircleAlert,
   CircleDashed,
@@ -14,7 +13,6 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
-  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AddCourseModal from "../../../components/AddCourseModal";
@@ -33,14 +31,11 @@ const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Nháp" },
   { value: "PENDING_APPROVAL", label: "Chờ duyệt" },
   { value: "PUBLISHED", label: "Đã duyệt" },
-  { value: "REJECTED", label: "Bị từ chối" },
-  { value: "ARCHIVED", label: "Lưu trữ" },
 ];
 
 const VISIBILITY_OPTIONS = [
   { value: "PUBLIC", label: "Công khai" },
   { value: "PRIVATE", label: "Riêng tư" },
-  { value: "UNLISTED", label: "Không liệt kê" },
 ];
 
 function getStatusMeta(status) {
@@ -56,18 +51,6 @@ function getStatusMeta(status) {
         label: "Chờ duyệt",
         className: "statusPending",
         icon: CircleAlert,
-      };
-    case "REJECTED":
-      return {
-        label: "Bị từ chối",
-        className: "statusRejected",
-        icon: X,
-      };
-    case "ARCHIVED":
-      return {
-        label: "Lưu trữ",
-        className: "statusArchived",
-        icon: Archive,
       };
     case "DRAFT":
     default:
@@ -88,14 +71,6 @@ function getVisibilityMeta(visibility) {
     };
   }
 
-  if (visibility === "UNLISTED") {
-    return {
-      label: "Không liệt kê",
-      className: "visibilityPrivate",
-      icon: Lock,
-    };
-  }
-
   return {
     label: "Công khai",
     className: "visibilityPublic",
@@ -105,8 +80,7 @@ function getVisibilityMeta(visibility) {
 
 export default function Courses() {
   const navigate = useNavigate();
-  const { listCourses, updateCourse, approveCourse, rejectCourse } =
-    useCourseApi();
+  const { listCourses, updateCourse, approveCourse } = useCourseApi();
   const { hasRole } = useContext(AuthContext);
 
   const [courses, setCourses] = useState([]);
@@ -281,18 +255,6 @@ export default function Courses() {
     }
   };
 
-  const handleRejectCourse = async (courseId) => {
-    try {
-      setErrorText("");
-      await rejectCourse(courseId);
-      await fetchCourses(page);
-    } catch (error) {
-      setErrorText(
-        error?.body?.message || error?.message || "Từ chối khóa học thất bại.",
-      );
-    }
-  };
-
   const getImageSrc = (thumbnailUrl) => {
     if (!thumbnailUrl) return FALLBACK_THUMB;
     if (thumbnailUrl.startsWith("http")) return thumbnailUrl;
@@ -358,9 +320,7 @@ export default function Courses() {
             <option value="">Tất cả trạng thái</option>
             <option value="PENDING_APPROVAL">Chờ duyệt</option>
             <option value="PUBLISHED">Đã duyệt</option>
-            <option value="REJECTED">Bị từ chối</option>
             <option value="DRAFT">Nháp</option>
-            <option value="ARCHIVED">Lưu trữ</option>
           </select>
         </div>
 
@@ -566,19 +526,6 @@ export default function Courses() {
                               onClick={() => handleApproveCourse(course.id)}
                             >
                               <Check size={16} />
-                            </button>
-                          ) : null}
-
-                          {hasRole("ADMIN") &&
-                          course.status === "PENDING_APPROVAL" ? (
-                            <button
-                              type="button"
-                              className={`${styles.iconBtn} ${styles.rejectAction}`}
-                              title="Từ chối"
-                              aria-label="Từ chối"
-                              onClick={() => handleRejectCourse(course.id)}
-                            >
-                              <X size={16} />
                             </button>
                           ) : null}
 

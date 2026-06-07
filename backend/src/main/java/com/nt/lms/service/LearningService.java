@@ -13,7 +13,6 @@ import com.nt.lms.dto.response.LearningSectionItemResponse;
 import com.nt.lms.dto.response.LearningStartResponse;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Enrollment;
-import com.nt.lms.entity.LearningActivityLog;
 import com.nt.lms.entity.Lesson;
 import com.nt.lms.entity.LessonNote;
 import com.nt.lms.entity.LessonProgress;
@@ -29,7 +28,6 @@ import com.nt.lms.repository.AssignmentRepository;
 import com.nt.lms.repository.AssignmentSubmissionRepository;
 import com.nt.lms.repository.CourseRepository;
 import com.nt.lms.repository.EnrollmentRepository;
-import com.nt.lms.repository.LearningActivityLogRepository;
 import com.nt.lms.repository.LessonNoteRepository;
 import com.nt.lms.repository.LessonProgressRepository;
 import com.nt.lms.repository.LessonRepository;
@@ -70,7 +68,6 @@ public class LearningService {
 	private final LessonProgressRepository lessonProgressRepository;
 	private final LessonResourceRepository lessonResourceRepository;
 	private final LessonNoteRepository lessonNoteRepository;
-	private final LearningActivityLogRepository learningActivityLogRepository;
 	private final QuizAttemptRepository quizAttemptRepository;
 	private final QuizAttemptAnswerRepository quizAttemptAnswerRepository;
 	private final QuestionRepository questionRepository;
@@ -98,10 +95,7 @@ public class LearningService {
 					return enrollmentRepository.save(newEnrollment);
 				});
 
-		logActivity(currentUser, course, null, "VIEW_COURSE", "start-course");
-
-		List<Section> sections = sectionRepository.findByCourseIdOrderByOrderIndexAsc(courseId);
-		String firstLessonId = findFirstLessonId(sections);
+		String firstLessonId = findFirstLessonId(courseId);
 
 		return LearningStartResponse.builder()
 				.enrollmentId(enrollment.getId())
@@ -117,7 +111,6 @@ public class LearningService {
 		User currentUser = getCurrentUser();
 		Course course = getCourseOrThrow(courseId);
 		ensureCourseAvailableForLearning(course, currentUser);
-		logActivity(currentUser, course, null, "VIEW_COURSE", "open-learning-course");
 
 		Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(currentUser.getId(), courseId)
 				.orElse(null);
@@ -125,19 +118,15 @@ public class LearningService {
 		boolean enrolled = enrollment != null && enrollment.getStatus() == EnrollmentStatus.ACTIVE;
 
 		List<Section> sections = sectionRepository.findByCourseIdOrderByOrderIndexAsc(courseId);
-		List<String> lessonIds = new ArrayList<>();
-		Map<String, List<Lesson>> sectionLessonsMap = new LinkedHashMap<>();
-
-		for (Section section : sections) {
-			List<Lesson> lessons = lessonRepository.findBySectionIdOrderByOrderIndexAsc(section.getId());
-			sectionLessonsMap.put(section.getId(), lessons);
-			lessonIds.addAll(lessons.stream().map(Lesson::getId).toList());
-		}
+		List<Lesson> orderedLessons = getOrderedLessons(courseId);
+		Map<String, List<Lesson>> sectionLessonsMap = groupLessonsBySection(orderedLessons);
+		List<String> lessonIds = orderedLessons.stream().map(Lesson::getId).toList();
 
 		Map<String, LessonProgress> progressMap = lessonIds.isEmpty()
 				? new HashMap<>()
 				: getLessonProgressMap(currentUser.getId(), lessonIds);
-		Map<String, Boolean> sequenceLockedMap = buildSequenceLockedMap(sections, progressMap, enrolled);
+		Map<String, Boolean> sequenceLockedMap =
+				buildSequenceLockedMap(orderedLessons, progressMap, enrolled);
 
 		List<LearningSectionItemResponse> sectionResponses = new ArrayList<>();
 		int totalLessons = 0;
@@ -225,11 +214,7 @@ public class LearningService {
 				.orElse(null);
 		List<LessonResource> resources = lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lessonId);
 		List<LessonNote> notes = lessonNoteRepository.findByUserIdAndLessonIdOrderByCreatedAtDesc(currentUser.getId(), lessonId);
-		List<Section> sections = sectionRepository.findByCourseIdOrderByOrderIndexAsc(courseId);
-		List<Lesson> flatLessons = new ArrayList<>();
-		for (Section section : sections) {
-			flatLessons.addAll(lessonRepository.findBySectionIdOrderByOrderIndexAsc(section.getId()));
-		}
+		List<Lesson> flatLessons = getOrderedLessons(courseId);
 
 		int currentIndex = -1;
 		for (int i = 0; i < flatLessons.size(); i++) {
@@ -245,7 +230,6 @@ public class LearningService {
 				: null;
 
 		List<LearningBlockResponse> blockResponses = buildLearningBlocks(lesson, resources);
-		logActivity(currentUser, course, lesson, "START_LESSON", lesson.getId());
 
 		return LearningLessonDetailResponse.builder()
 				.lessonId(lesson.getId())
@@ -321,10 +305,6 @@ public class LearningService {
 		enrollment.setLastAccessedAt(LocalDateTime.now());
 		enrollment.setProgressPercent(recalculateCourseProgress(currentUser.getId(), courseId));
 		enrollmentRepository.save(enrollment);
-
-		if (Boolean.TRUE.equals(request.getCompleted())) {
-			logActivity(currentUser, enrollment.getCourse(), lesson, "COMPLETE_LESSON", lesson.getId());
-		}
 	}
 
 	public List<LearningLessonNoteResponse> getLessonNotes(String lessonId) {
@@ -350,7 +330,6 @@ public class LearningService {
 				.build();
 
 		note = lessonNoteRepository.save(note);
-		logActivity(currentUser, lesson.getSection().getCourse(), lesson, "ADD_NOTE", note.getId());
 		return toLearningNoteResponse(note);
 	}
 
@@ -399,14 +378,11 @@ public class LearningService {
 		return Math.round(percent * 100.0) / 100.0;
 	}
 
-	private String findFirstLessonId(List<Section> sections) {
-		for (Section section : sections) {
-			List<Lesson> lessons = lessonRepository.findBySectionIdOrderByOrderIndexAsc(section.getId());
-			if (!lessons.isEmpty()) {
-				return lessons.get(0).getId();
-			}
-		}
-		return null;
+	private String findFirstLessonId(String courseId) {
+		return getOrderedLessons(courseId).stream()
+				.findFirst()
+				.map(Lesson::getId)
+				.orElse(null);
 	}
 
 	private String findCurrentLessonId(List<LearningSectionItemResponse> sections) {
@@ -531,7 +507,6 @@ public class LearningService {
 	}
 
 	private boolean isLockedBySequence(String userId, String courseId, String lessonId) {
-		List<Section> sections = sectionRepository.findByCourseIdOrderByOrderIndexAsc(courseId);
 		List<Lesson> orderedLessons = getOrderedLessons(courseId);
 		if (orderedLessons.isEmpty()) {
 			return false;
@@ -540,7 +515,7 @@ public class LearningService {
 		Map<String, LessonProgress> progressMap = getLessonProgressMap(
 				userId,
 				orderedLessons.stream().map(Lesson::getId).toList());
-		Map<String, Boolean> lockedMap = buildSequenceLockedMap(sections, progressMap, true);
+		Map<String, Boolean> lockedMap = buildSequenceLockedMap(orderedLessons, progressMap, true);
 		return Boolean.TRUE.equals(lockedMap.get(lessonId));
 	}
 
@@ -554,35 +529,36 @@ public class LearningService {
 	}
 
 	private Map<String, Boolean> buildSequenceLockedMap(
-			List<Section> sections,
+			List<Lesson> orderedLessons,
 			Map<String, LessonProgress> progressMap,
 			boolean enrolled) {
 		Map<String, Boolean> lockedMap = new LinkedHashMap<>();
 		boolean previousLessonCompleted = true;
 
-		for (Section section : sections) {
-			List<Lesson> lessons = lessonRepository.findBySectionIdOrderByOrderIndexAsc(section.getId());
+		for (Lesson lesson : orderedLessons) {
+			LessonProgress progress = progressMap.get(lesson.getId());
+			boolean completed = progress != null && Boolean.TRUE.equals(progress.getCompleted());
+			boolean accessibleByEnrollment = enrolled || Boolean.TRUE.equals(lesson.getIsPreview());
+			boolean locked = !accessibleByEnrollment || !previousLessonCompleted;
 
-			for (Lesson lesson : lessons) {
-				LessonProgress progress = progressMap.get(lesson.getId());
-				boolean completed = progress != null && Boolean.TRUE.equals(progress.getCompleted());
-				boolean accessibleByEnrollment = enrolled || Boolean.TRUE.equals(lesson.getIsPreview());
-				boolean locked = !accessibleByEnrollment || !previousLessonCompleted;
-
-				lockedMap.put(lesson.getId(), locked);
-				previousLessonCompleted = completed;
-			}
+			lockedMap.put(lesson.getId(), locked);
+			previousLessonCompleted = completed;
 		}
 
 		return lockedMap;
 	}
 
 	private List<Lesson> getOrderedLessons(String courseId) {
-		List<Lesson> orderedLessons = new ArrayList<>();
-		for (Section section : sectionRepository.findByCourseIdOrderByOrderIndexAsc(courseId)) {
-			orderedLessons.addAll(lessonRepository.findBySectionIdOrderByOrderIndexAsc(section.getId()));
-		}
-		return orderedLessons;
+		return lessonRepository.findByCourseIdOrderBySectionAndLesson(courseId);
+	}
+
+	private Map<String, List<Lesson>> groupLessonsBySection(List<Lesson> orderedLessons) {
+		return orderedLessons.stream()
+				.filter(lesson -> lesson.getSection() != null)
+				.collect(Collectors.groupingBy(
+						lesson -> lesson.getSection().getId(),
+						LinkedHashMap::new,
+						Collectors.toList()));
 	}
 
 	private boolean canMarkLessonCompleted(String userId, Lesson lesson) {
@@ -750,13 +726,4 @@ public class LearningService {
 				.build();
 	}
 
-	private void logActivity(User user, Course course, Lesson lesson, String activityType, String activityValue) {
-		learningActivityLogRepository.save(LearningActivityLog.builder()
-				.user(user)
-				.course(course)
-				.lesson(lesson)
-				.activityType(activityType)
-				.activityValue(activityValue)
-				.build());
-	}
 }

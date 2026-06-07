@@ -2,7 +2,6 @@ package com.nt.lms.dto.response;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Set;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -21,5 +20,5 @@ public class UserResponse {
     LocalDate dob;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
-    Set<RoleResponse> roles;
+    RoleResponse role;
 }

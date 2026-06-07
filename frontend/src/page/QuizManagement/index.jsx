@@ -113,7 +113,11 @@ export default function QuizManagement() {
       await fetchData();
     } catch (error) {
       console.error("Delete quiz error:", error);
-      setErrorText("Xóa bài kiểm tra thất bại.");
+      setErrorText(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Xóa bài kiểm tra thất bại.",
+      );
     } finally {
       setUpdatingId("");
     }

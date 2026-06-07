@@ -78,9 +78,13 @@ export default function Profile() {
     return d.toISOString().split("T")[0];
   };
 
-  const getRoleText = (roles) => {
-    if (!roles || roles.length === 0) return "Chưa có vai trò";
-    return roles.map((role) => role.name).join(", ");
+  const getRoleText = (profile) => {
+    const roleName =
+      profile?.role?.name ||
+      profile?.role ||
+      (Array.isArray(profile?.roles) ? profile.roles[0]?.name : "") ||
+      "";
+    return roleName || "Chưa có vai trò";
   };
 
   const buildImageUrl = (value) => {
@@ -279,7 +283,7 @@ export default function Profile() {
           <div className={styles.quickInfo}>
             <div>
               <Users size={16} />
-              <span>{getRoleText(user?.roles)}</span>
+              <span>{getRoleText(user)}</span>
             </div>
             <div>
               <CalendarDays size={16} />
@@ -348,7 +352,7 @@ export default function Profile() {
           {renderInfoRow({
             icon: <ShieldCheck size={18} />,
             label: "Vai trò",
-            value: getRoleText(user?.roles),
+            value: getRoleText(user),
           })}
         </section>
       </div>

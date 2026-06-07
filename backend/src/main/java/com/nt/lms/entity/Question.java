@@ -36,9 +36,6 @@ public class Question {
     @Column(name = "explanation", columnDefinition = "TEXT")
     String explanation;
 
-    @Column(name = "points")
-    Integer points;
-
     @Column(name = "order_index")
     Integer orderIndex;
 

@@ -9,8 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/sections")
 @RequiredArgsConstructor
@@ -23,20 +21,6 @@ public class SectionController {
     public ApiResponse<SectionResponse> create(@RequestBody SectionRequest request) {
         return ApiResponse.<SectionResponse>builder()
                 .result(sectionService.createSection(request))
-                .build();
-    }
-
-    @GetMapping("/course/{courseId}")
-    public ApiResponse<List<SectionResponse>> getByCourse(@PathVariable String courseId) {
-        return ApiResponse.<List<SectionResponse>>builder()
-                .result(sectionService.getSectionsByCourse(courseId))
-                .build();
-    }
-
-    @GetMapping("/{id}")
-    public ApiResponse<SectionResponse> get(@PathVariable String id) {
-        return ApiResponse.<SectionResponse>builder()
-                .result(sectionService.getSection(id))
                 .build();
     }
 

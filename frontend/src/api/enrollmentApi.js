@@ -10,8 +10,8 @@ export async function getMyEnrollments() {
   return res?.data;
 }
 
-export async function getMyProgressDashboard() {
-  const res = await api.get("/enrollments/me/dashboard");
+export async function getMyProgressDashboard(params = {}) {
+  const res = await api.get("/enrollments/me/dashboard", { params });
   return res?.data;
 }
 

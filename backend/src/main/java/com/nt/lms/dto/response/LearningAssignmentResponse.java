@@ -17,9 +17,6 @@ public class LearningAssignmentResponse {
     private String title;
     private String description;
     private String assignmentType;
-    private Double maxScore;
-    private String dueAt;
-    private Boolean allowLateSubmit;
 
     private String submissionId;
     private String submissionText;

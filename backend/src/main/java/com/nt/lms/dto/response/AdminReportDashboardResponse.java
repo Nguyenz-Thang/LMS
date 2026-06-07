@@ -13,8 +13,7 @@ import lombok.NoArgsConstructor;
 public class AdminReportDashboardResponse {
     private String scope;
     private AdminReportSummaryResponse summary;
-    private List<AdminReportTrendPointResponse> enrollmentTrend;
     private List<AdminReportCourseStatResponse> topCourses;
+    private List<AdminReportLearnerStatResponse> learners;
     private List<AdminReportInstructorStatResponse> topInstructors;
-    private List<AdminReportAlertResponse> alerts;
 }

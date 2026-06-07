@@ -25,7 +25,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
 
 import com.nt.lms.dto.request.AuthenticatitonRequest;
 import com.nt.lms.dto.request.IntrospectRequest;
@@ -268,10 +267,8 @@ public class AuthenticationService {
     private String buildScope(User user) {
         StringJoiner stringJoiner = new StringJoiner(" ");
 
-        if (!CollectionUtils.isEmpty(user.getRoles())) {
-            user.getRoles().forEach(role -> {
-                stringJoiner.add("ROLE_" + role.getName());
-            });
+        if (user.getRole() != null) {
+            stringJoiner.add("ROLE_" + user.getRole().getName());
         }
 
         return stringJoiner.toString();

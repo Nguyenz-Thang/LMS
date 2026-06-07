@@ -1,45 +1,10 @@
-import { useContext, useCallback } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { useCallback } from "react";
+import { LMS_BASE_URL, toJson, useAuthedFetch } from "./authFetch";
 
-const BASE = "http://localhost:8080/lms/lessons";
-
-async function toJson(res) {
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const err = new Error(data.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.body = data;
-    throw err;
-  }
-
-  return data;
-}
+const BASE = `${LMS_BASE_URL}/lessons`;
 
 export function useLessonApi() {
-  const { token, logout } = useContext(AuthContext);
-
-  const authedFetch = useCallback(
-    async (url, options = {}) => {
-      const headers = {
-        ...(options.headers || {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      if (res.status === 401 || res.status === 403) {
-        logout?.();
-        throw new Error("Phiên đăng nhập đã hết hạn hoặc bạn không có quyền.");
-      }
-
-      return res;
-    },
-    [token, logout],
-  );
+  const authedFetch = useAuthedFetch();
 
   const createLesson = useCallback(
     async (payload) =>
@@ -112,11 +77,6 @@ export function useLessonApi() {
     [authedFetch],
   );
 
-  const getLessonById = useCallback(
-    async (lessonId) => toJson(await authedFetch(`${BASE}/${lessonId}`)),
-    [authedFetch],
-  );
-
   return {
     createLesson,
     updateLesson,
@@ -124,6 +84,5 @@ export function useLessonApi() {
     getLessonResources,
     uploadLessonResources,
     deleteLessonResource,
-    getLessonById,
   };
 }

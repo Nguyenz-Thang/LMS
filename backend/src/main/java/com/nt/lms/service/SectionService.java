@@ -12,8 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -35,23 +33,6 @@ public class SectionService {
                 .build();
 
         return sectionMapper.toSectionResponse(sectionRepository.save(section));
-    }
-
-    public List<SectionResponse> getSectionsByCourse(String courseId) {
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("Course not found"));
-
-        return sectionRepository.findByCourseOrderByOrderIndexAsc(course)
-                .stream()
-                .map(sectionMapper::toSectionResponse)
-                .toList();
-    }
-
-    public SectionResponse getSection(String id) {
-        Section section = sectionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Section not found"));
-
-        return sectionMapper.toSectionResponse(section);
     }
 
     public SectionResponse updateSection(String id, SectionRequest request) {

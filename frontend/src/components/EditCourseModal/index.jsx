@@ -287,8 +287,6 @@ function EditCourseModal({
                   <option value="DRAFT">Nháp</option>
                   <option value="PENDING_APPROVAL">Chờ duyệt</option>
                   <option value="PUBLISHED">Đã duyệt</option>
-                  <option value="REJECTED">Bị từ chối</option>
-                  <option value="ARCHIVED">Lưu trữ</option>
                 </select>
               </div>
 
@@ -302,7 +300,6 @@ function EditCourseModal({
                 >
                   <option value="PUBLIC">Công khai</option>
                   <option value="PRIVATE">Riêng tư</option>
-                  <option value="UNLISTED">Không liệt kê</option>
                 </select>
               </div>
             </>

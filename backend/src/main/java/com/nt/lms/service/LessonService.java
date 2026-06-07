@@ -1,6 +1,5 @@
 package com.nt.lms.service;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,7 +42,6 @@ public class LessonService {
     AssignmentRepository assignmentRepository;
     LessonResourceRepository lessonResourceRepository;
     UserRepository userRepository;
-    EmailNotificationService emailNotificationService;
     FileStorageService fileStorageService;
 
     public LessonResponse createLesson(LessonCreationRequest request) {
@@ -76,24 +74,6 @@ public class LessonService {
         }
 
         triggerCreateNotifications(lesson, request.getLessonType());
-
-        return toLessonResponse(lesson);
-    }
-
-    public List<LessonResponse> getLessonsBySection(String sectionId) {
-        if (!sectionRepository.existsById(sectionId)) {
-            throw new AppException(ErrorCode.SECTION_NOT_EXISTED);
-        }
-
-        return lessonRepository.findBySectionIdOrderByOrderIndexAsc(sectionId)
-                .stream()
-                .map(this::toLessonResponse)
-                .toList();
-    }
-
-    public LessonResponse getLessonById(String lessonId) {
-        Lesson lesson = lessonRepository.findById(lessonId)
-                .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
 
         return toLessonResponse(lesson);
     }
@@ -275,7 +255,6 @@ public class LessonService {
                 .course(course)
                 .lesson(lesson)
                 .quizScope("LESSON")
-                .passingScore(BigDecimal.valueOf(50))
                 .timeLimitMinutes(null)
                 .maxAttempts(1)
                 .isPublished(true)
@@ -301,9 +280,6 @@ public class LessonService {
         quiz.setLesson(lesson);
         quiz.setQuizScope("LESSON");
         quiz.setTimeLimitMinutes(null);
-        if (quiz.getPassingScore() == null) {
-            quiz.setPassingScore(BigDecimal.valueOf(50));
-        }
         if (quiz.getMaxAttempts() == null) {
             quiz.setMaxAttempts(1);
         }
@@ -334,9 +310,6 @@ public class LessonService {
                                 ? "ESSAY"
                                 : request.getAssignmentType().trim()
                 )
-                .maxScore(BigDecimal.TEN)
-                .dueAt(null)
-                .allowLateSubmit(false)
                 .createdBy(currentUser)
                 .build();
 
@@ -367,12 +340,6 @@ public class LessonService {
                         ? "ESSAY"
                         : request.getAssignmentType().trim()
         );
-        if (assignment.getMaxScore() == null) {
-            assignment.setMaxScore(BigDecimal.TEN);
-        }
-        if (assignment.getAllowLateSubmit() == null) {
-            assignment.setAllowLateSubmit(false);
-        }
         if (assignment.getCreatedBy() == null) {
             assignment.setCreatedBy(currentUser);
         }
@@ -385,10 +352,6 @@ public class LessonService {
             return;
         }
 
-        if (lessonType == LessonType.ASSIGNMENT) {
-            assignmentRepository.findByLessonId(lesson.getId())
-                    .ifPresent(emailNotificationService::sendNewAssignmentPublished);
-        }
     }
 
     private void triggerUpdateNotifications(
@@ -400,10 +363,6 @@ public class LessonService {
             return;
         }
 
-        if (currentType == LessonType.ASSIGNMENT || previousType == LessonType.ASSIGNMENT) {
-            assignmentRepository.findByLessonId(lesson.getId())
-                    .ifPresent(emailNotificationService::sendNewAssignmentPublished);
-        }
     }
 
     private void validateCreateRequest(LessonCreationRequest request) {

@@ -319,10 +319,9 @@ public class AiLearningService {
 				"content", Map.of("type", "string"),
 				"explanation", Map.of("type", "string"),
 				"questionType", Map.of("type", "string", "enum", List.of("SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE")),
-				"points", Map.of("type", "integer"),
 				"orderIndex", Map.of("type", "integer"),
 				"answers", Map.of("type", "array", "items", answerSchema)));
-		questionSchema.put("required", List.of("content", "explanation", "questionType", "points", "orderIndex", "answers"));
+		questionSchema.put("required", List.of("content", "explanation", "questionType", "orderIndex", "answers"));
 		questionSchema.put("additionalProperties", false);
 
 		Map<String, Object> schema = new LinkedHashMap<>();
@@ -360,7 +359,6 @@ public class AiLearningService {
 					.content(item.path("content").asText(""))
 					.explanation(item.path("explanation").asText(""))
 					.questionType(item.path("questionType").asText("SINGLE_CHOICE"))
-					.points(item.path("points").asInt(1))
 					.orderIndex(item.path("orderIndex").asInt(index))
 					.answers(answers)
 					.build());
@@ -403,7 +401,6 @@ public class AiLearningService {
 					.content(item.path("content").asText(""))
 					.explanation(item.path("explanation").asText(""))
 					.questionType(item.path("questionType").asText("SINGLE_CHOICE"))
-					.points(item.path("points").asInt(1))
 					.orderIndex(item.path("orderIndex").asInt(index))
 					.answers(answers)
 					.build());
@@ -738,12 +735,6 @@ public class AiLearningService {
 				.append(safeText(toPlainText(assignment.getDescription())))
 				.append("\n");
 		builder.append("Loại bài tập: ").append(safeText(assignment.getAssignmentType())).append("\n");
-		if (assignment.getMaxScore() != null) {
-			builder.append("Điểm tối đa: ").append(assignment.getMaxScore()).append("\n");
-		}
-		if (assignment.getDueAt() != null) {
-			builder.append("Hạn nộp: ").append(assignment.getDueAt()).append("\n");
-		}
 	}
 
 	private String safeText(String value) {

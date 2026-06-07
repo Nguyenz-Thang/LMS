@@ -4,9 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
 @Entity
 @Table(name = "assignments")
 @Data
@@ -20,11 +17,11 @@ public class Assignment {
     @GeneratedValue(strategy = GenerationType.UUID)
     String id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id", nullable = false)
     Course course;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "lesson_id")
     Lesson lesson;
 
@@ -36,16 +33,7 @@ public class Assignment {
     @Column(name = "assignment_type")
     String assignmentType;
 
-    @Column(name = "max_score")
-    BigDecimal maxScore;
-
-    @Column(name = "due_at")
-    LocalDateTime dueAt;
-
-    @Column(name = "allow_late_submit")
-    Boolean allowLateSubmit;
-
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     User createdBy;
 }

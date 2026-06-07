@@ -21,7 +21,6 @@ public class NotificationSettingService {
 
     UserRepository userRepository;
     UserNotificationSettingRepository notificationSettingRepository;
-    EmailNotificationService emailNotificationService;
 
     public NotificationSettingResponse getMySettings() {
         User user = getCurrentUser();
@@ -56,12 +55,6 @@ public class NotificationSettingService {
                                 .newAssignmentEmail(true)
                                 .weeklyProgressEmail(true)
                                 .build()));
-    }
-
-    public String sendMyTestEmail() {
-        User user = getCurrentUser();
-        emailNotificationService.sendManualTestEmail(user);
-        return "Đã gửi email test tới " + user.getEmail();
     }
 
     private NotificationSettingResponse toResponse(UserNotificationSetting settings) {

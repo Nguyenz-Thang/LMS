@@ -11,5 +11,7 @@ public interface PaymentRepository extends JpaRepository<Payment, String> {
     Optional<Payment> findFirstByUserIdAndCourseIdAndStatusOrderByCreatedAtDesc(
             String userId, String courseId, PaymentStatus status);
 
+    boolean existsByUserId(String userId);
+
     boolean existsBySepayTransactionId(String sepayTransactionId);
 }

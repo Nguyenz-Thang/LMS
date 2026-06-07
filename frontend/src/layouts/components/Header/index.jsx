@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell } from "lucide-react";
+import { Bell, LayoutDashboard } from "lucide-react";
 import { AuthContext } from "../../../context/AuthContext";
 import styles from "./Header.module.scss";
 import logo from "../../../assets/img/logo.png";
@@ -250,7 +250,8 @@ export default function Header() {
       <div className={styles.right}>
         {canOpenAdmin ? (
           <Link to="/admin/courses" className={styles.adminLink}>
-            Trang quản trị
+            <LayoutDashboard size={17} />
+            <span>Trang quản trị</span>
           </Link>
         ) : null}
 

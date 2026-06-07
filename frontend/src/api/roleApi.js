@@ -5,11 +5,6 @@ export async function getAllRoles() {
   return res?.data;
 }
 
-export async function getRole(roleName) {
-  const res = await api.get(`/roles/${roleName}`);
-  return res?.data;
-}
-
 export async function createRole(payload) {
   const res = await api.post("/roles", payload);
   return res?.data;

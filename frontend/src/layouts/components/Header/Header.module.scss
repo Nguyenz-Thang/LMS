@@ -74,22 +74,26 @@
 
 .adminLink {
   height: 36px;
-  border: 1px solid #2563eb;
-  border-radius: 6px;
-  background: #2563eb;
-  color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f2937;
   display: inline-flex;
   align-items: center;
+  gap: 9px;
   padding: 0 12px;
   text-decoration: none;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .adminLink:hover {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .iconButton {

@@ -8,6 +8,7 @@ import com.nt.lms.dto.response.CategoryResponse;
 import com.nt.lms.entity.Category;
 import com.nt.lms.mapper.CategoryMapper;
 import com.nt.lms.repository.CategoryRepository;
+import com.nt.lms.repository.CourseRepository;
 import com.nt.lms.exception.AppException;
 import com.nt.lms.exception.ErrorCode;
 
@@ -18,6 +19,7 @@ import java.util.List;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final CourseRepository courseRepository;
     private final CategoryMapper categoryMapper;
 
     public CategoryResponse create(CategoryRequest request) {
@@ -36,13 +38,6 @@ public class CategoryService {
                 .toList();
     }
 
-    public CategoryResponse getById(String id) {
-        Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
-
-        return categoryMapper.toCategoryResponse(category);
-    }
-
     public CategoryResponse update(String id, CategoryRequest request) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
@@ -54,6 +49,9 @@ public class CategoryService {
     public void delete(String id) {
         if (!categoryRepository.existsById(id)) {
             throw new AppException(ErrorCode.CATEGORY_NOT_FOUND);
+        }
+        if (courseRepository.existsByCategoryId(id)) {
+            throw new AppException(ErrorCode.CATEGORY_IN_USE);
         }
         categoryRepository.deleteById(id);
     }

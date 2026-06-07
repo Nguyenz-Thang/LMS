@@ -2,11 +2,11 @@ import { useContext, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   BarChart3,
-  BookOpenCheck,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
+  FileCheck2,
   FolderKanban,
   Library,
   ShieldCheck,
@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { AuthContext } from "../../../../context/AuthContext";
+import logo from "../../../../assets/img/logo.png";
 import styles from "./AdminSidebar.module.scss";
 
 export default function AdminSidebar() {
@@ -39,6 +40,12 @@ export default function AdminSidebar() {
           label: "Quản lý quiz",
           to: "/admin/quizzes",
           icon: ClipboardCheck,
+          roles: ["ADMIN", "INSTRUCTOR"],
+        },
+        {
+          label: "Quản lý bài nộp",
+          to: "/admin/assignments",
+          icon: FileCheck2,
           roles: ["ADMIN", "INSTRUCTOR"],
         },
         {
@@ -79,7 +86,7 @@ export default function AdminSidebar() {
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
       <div className={styles.head}>
         <div className={styles.sectionTitle}>
-          <BookOpenCheck size={18} />
+          <img src={logo} alt="LMS Logo" className={styles.sectionLogo} />
           <span>LMS Admin</span>
         </div>
 

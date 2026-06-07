@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-import java.math.BigDecimal;
 import java.util.Set;
 
 @Entity
@@ -20,11 +19,11 @@ public class Quiz {
     @GeneratedValue(strategy = GenerationType.UUID)
     String id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id")
     Course course;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "lesson_id")
     Lesson lesson;
 
@@ -35,9 +34,6 @@ public class Quiz {
 
     @Column(name = "quiz_scope")
     String quizScope;
-
-    @Column(name = "passing_score")
-    BigDecimal passingScore;
 
     @Column(name = "time_limit_minutes")
     Integer timeLimitMinutes;
@@ -52,7 +48,7 @@ public class Quiz {
     @Column(name = "created_source")
     String createdSource;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     User createdBy;
     @OneToMany(mappedBy = "quiz")

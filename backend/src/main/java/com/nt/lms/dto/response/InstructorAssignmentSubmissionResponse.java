@@ -26,7 +26,6 @@ public class InstructorAssignmentSubmissionResponse {
     LocalDateTime submittedAt;
     String status;
     Double score;
-    Double maxScore;
     String feedback;
     String gradedByName;
     LocalDateTime gradedAt;

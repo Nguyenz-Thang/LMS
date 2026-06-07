@@ -11,8 +11,9 @@ export default function ProtectedRoute({ allowedRoles = [] }) {
   }
 
   if (allowedRoles.length > 0) {
-    const userRoles = user?.roles?.map((role) => role.name) || [];
-    const hasPermission = allowedRoles.some((role) => userRoles.includes(role));
+    const userRole =
+      user?.role?.name || user?.role || user?.roles?.[0]?.name || "";
+    const hasPermission = allowedRoles.includes(userRole);
 
     if (!hasPermission) {
       return <Navigate to="/unauthorized" replace />;

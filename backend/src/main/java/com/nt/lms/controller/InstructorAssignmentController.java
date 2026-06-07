@@ -2,6 +2,7 @@ package com.nt.lms.controller;
 
 import com.nt.lms.dto.request.GradeAssignmentSubmissionRequest;
 import com.nt.lms.dto.response.ApiResponse;
+import com.nt.lms.dto.response.InstructorAssignmentSummaryResponse;
 import com.nt.lms.dto.response.InstructorAssignmentSubmissionResponse;
 import com.nt.lms.service.InstructorAssignmentService;
 import java.util.List;
@@ -13,6 +14,14 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class InstructorAssignmentController {
     private final InstructorAssignmentService instructorAssignmentService;
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+    @GetMapping("/assignments/summary")
+    public ApiResponse<List<InstructorAssignmentSummaryResponse>> listAssignmentSummaries() {
+        return ApiResponse.<List<InstructorAssignmentSummaryResponse>>builder()
+                .result(instructorAssignmentService.listAssignmentSummaries())
+                .build();
+    }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
     @GetMapping("/assignments/{assignmentId}/submissions")

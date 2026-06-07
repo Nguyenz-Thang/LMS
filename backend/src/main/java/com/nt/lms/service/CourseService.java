@@ -6,11 +6,8 @@ import com.nt.lms.dto.response.CourseResponse;
 import com.nt.lms.dto.response.CurriculumLessonResponse;
 import com.nt.lms.dto.response.CurriculumSectionResponse;
 import com.nt.lms.dto.response.PageResponse;
-import com.nt.lms.entity.Assignment;
 import com.nt.lms.entity.Category;
 import com.nt.lms.entity.Course;
-import com.nt.lms.entity.Lesson;
-import com.nt.lms.entity.Quiz;
 import com.nt.lms.entity.Section;
 import com.nt.lms.entity.User;
 import com.nt.lms.enums.LessonType;
@@ -27,8 +24,12 @@ import com.nt.lms.repository.SectionRepository;
 import com.nt.lms.repository.UserRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -108,20 +109,42 @@ public class CourseService {
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
         ensureCanViewCourse(course);
 
-        List<Section> sections = sectionRepository.findByCourseOrderByOrderIndexAsc(course);
+        List<Section> sections = sectionRepository.findByCourseIdOrderByOrderIndexAsc(course.getId());
+        List<String> sectionIds = sections.stream().map(Section::getId).toList();
+        Map<String, List<LessonRepository.CurriculumLessonView>> lessonsBySection = sectionIds.isEmpty()
+                ? Collections.emptyMap()
+                : lessonRepository.findCurriculumLessonsBySectionIds(sectionIds).stream()
+                        .collect(Collectors.groupingBy(
+                                LessonRepository.CurriculumLessonView::getSectionId,
+                                LinkedHashMap::new,
+                                Collectors.toList()));
+        List<String> lessonIds = lessonsBySection.values().stream()
+                .flatMap(List::stream)
+                .map(LessonRepository.CurriculumLessonView::getId)
+                .toList();
+        Map<String, String> quizIdsByLesson = lessonIds.isEmpty()
+                ? Collections.emptyMap()
+                : quizRepository.findLessonQuizRefs(lessonIds).stream()
+                        .collect(Collectors.toMap(
+                                QuizRepository.LessonQuizRef::getLessonId,
+                                QuizRepository.LessonQuizRef::getId,
+                                (first, ignored) -> first));
+        Map<String, String> assignmentIdsByLesson = lessonIds.isEmpty()
+                ? Collections.emptyMap()
+                : assignmentRepository.findLessonAssignmentRefs(lessonIds).stream()
+                        .collect(Collectors.toMap(
+                                AssignmentRepository.LessonAssignmentRef::getLessonId,
+                                AssignmentRepository.LessonAssignmentRef::getId,
+                                (first, ignored) -> first));
 
         List<CurriculumSectionResponse> sectionResponses = sections.stream().map(section -> {
-            List<Lesson> lessons = lessonRepository.findBySectionOrderByOrderIndexAsc(section);
+            List<LessonRepository.CurriculumLessonView> lessons =
+                    lessonsBySection.getOrDefault(section.getId(), List.of());
 
             List<CurriculumLessonResponse> lessonResponses = lessons.stream()
                     .map(lesson -> {
-                        String quizId = quizRepository.findByLessonId(lesson.getId())
-                                .map(Quiz::getId)
-                                .orElse(null);
-
-                        String assignmentId = assignmentRepository.findByLessonId(lesson.getId())
-                                .map(Assignment::getId)
-                                .orElse(null);
+                        String quizId = quizIdsByLesson.get(lesson.getId());
+                        String assignmentId = assignmentIdsByLesson.get(lesson.getId());
 
                         LessonType lessonType;
                         if (quizId != null) {
@@ -138,12 +161,12 @@ public class CourseService {
                                 .id(lesson.getId())
                                 .title(lesson.getTitle())
                                 .description(lesson.getDescription())
-                                .content(lesson.getContent())
+                                .content(null)
                                 .videoUrl(lesson.getVideoUrl())
                                 .thumbnailUrl(lesson.getThumbnailUrl())
                                 .durationMinutes(lesson.getDurationMinutes())
-                                .isPreview(lesson.getIsPreview())
                                 .isPublished(lesson.getIsPublished())
+                                .isPreview(lesson.getIsPreview())
                                 .orderIndex(lesson.getOrderIndex())
                                 .lessonType(lessonType)
                                 .quizId(quizId)
@@ -153,7 +176,7 @@ public class CourseService {
                     .toList();
 
             int totalDurationMinutes = lessons.stream()
-                    .map(Lesson::getDurationMinutes)
+                    .map(LessonRepository.CurriculumLessonView::getDurationMinutes)
                     .filter(Objects::nonNull)
                     .mapToInt(Integer::intValue)
                     .sum();
@@ -268,18 +291,6 @@ public class CourseService {
                 .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
         course.setStatus("PUBLISHED");
         course.setVisibility("PUBLIC");
-
-        return mapToResponse(courseRepository.save(course));
-    }
-
-    public CourseResponse rejectCourse(String id) {
-        User currentUser = getCurrentUser();
-        ensureAdmin(currentUser);
-
-        Course course = courseRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.COURSE_NOT_EXISTED));
-        course.setStatus("REJECTED");
-        course.setVisibility("PRIVATE");
 
         return mapToResponse(courseRepository.save(course));
     }

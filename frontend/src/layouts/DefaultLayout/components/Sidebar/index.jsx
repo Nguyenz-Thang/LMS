@@ -11,7 +11,6 @@ import {
   Clock3,
   GraduationCap,
   LayoutDashboard,
-  MessageSquare,
   Trophy,
   User,
 } from "lucide-react";
@@ -57,11 +56,6 @@ export default function Sidebar() {
         label: "Kết quả quiz",
         to: "/quiz-results",
         icon: Trophy,
-      },
-      {
-        label: "Thảo luận",
-        to: "/discussions",
-        icon: MessageSquare,
       },
       {
         label: "Chatbot AI",

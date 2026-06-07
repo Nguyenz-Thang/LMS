@@ -10,11 +10,6 @@ export async function searchUsers(params = {}) {
   return res?.data;
 }
 
-export async function getUser(userId) {
-  const res = await api.get(`/users/${userId}`);
-  return res?.data;
-}
-
 export async function createUser(payload) {
   const res = await api.post("/users", payload);
   return res?.data;

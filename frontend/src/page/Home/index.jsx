@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   GraduationCap,
   Layers3,
-  MessageSquare,
   PlayCircle,
   Trophy,
 } from "lucide-react";
@@ -30,7 +29,7 @@ const experiences = [
   {
     title: "Quản lý dễ dàng",
     description:
-      "Giảng viên quản lý nội dung học tập, theo dõi bài nộp và hỗ trợ thảo luận.",
+      "Giảng viên quản lý nội dung học tập, theo dõi bài nộp và hỗ trợ bình luận trong bài học.",
     icon: GraduationCap,
   },
   {
@@ -149,7 +148,7 @@ export default function Home() {
           <h2>Mọi hoạt động học tập được kết nối trong một luồng liền mạch</h2>
           <p>
             Mỗi khóa học có thể bao gồm bài đọc, video, tài liệu, quiz, bài tập
-            và thảo luận. Học viên đi theo đúng thứ tự bài học, hoàn thành từng
+            và bình luận trong bài học. Học viên đi theo đúng thứ tự bài học, hoàn thành từng
             phần và mở khóa nội dung tiếp theo khi đủ điều kiện.
           </p>
 

@@ -30,6 +30,7 @@ public class UserController {
     UserService userService;
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     ApiResponse<UserResponse> createUser(@RequestBody @Valid UserCreationRequest request) {
         return ApiResponse.<UserResponse>builder()
                 .result(userService.createUser(request))
@@ -59,14 +60,6 @@ public class UserController {
     ) {
         return ApiResponse.<PageResponse<UserResponse>>builder()
                 .result(userService.searchUsers(keyword, role, page, size))
-                .build();
-    }
-
-    @GetMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
-    ApiResponse<UserResponse> getUser(@PathVariable("userId") String userId) {
-        return ApiResponse.<UserResponse>builder()
-                .result(userService.getUser(userId))
                 .build();
     }
 
