@@ -2156,6 +2156,12 @@
   }
 }
 
+.quizReviewLocked {
+  .quizAnswerNote {
+    display: none;
+  }
+}
+
 .quizAnswerNote {
   margin: 0;
   color: #334155;
@@ -2164,6 +2170,27 @@
   strong {
     color: #0f172a;
   }
+}
+
+.quizPassNote,
+.quizFailNote {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+
+.quizPassNote {
+  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.quizFailNote {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
 }
 
 .quizExplanationContent {

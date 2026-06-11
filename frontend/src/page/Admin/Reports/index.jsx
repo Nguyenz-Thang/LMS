@@ -4,12 +4,11 @@ import {
   ChartColumn,
   Clock3,
   Download,
-  Filter,
   GraduationCap,
+  Search,
   RefreshCw,
   Trophy,
   Users,
-  X,
 } from "lucide-react";
 import { getCourses } from "../../../api/courseApi";
 import { useReportApi } from "../../../api/reportApi";
@@ -24,6 +23,8 @@ const emptyFilters = {
   instructorId: "",
   status: "",
 };
+
+const tablePageSize = 10;
 
 function formatPercent(value) {
   return `${Number(value || 0).toFixed(0)}%`;
@@ -53,6 +54,106 @@ function getDisplayName(user) {
 
 function getRoleName(user) {
   return user?.role?.name || user?.roleName || "";
+}
+
+function normalizeSearch(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function containsKeyword(item, fields, keyword) {
+  const normalizedKeyword = normalizeSearch(keyword);
+  if (!normalizedKeyword) return true;
+
+  return fields
+    .map((field) => (typeof field === "function" ? field(item) : item?.[field]))
+    .some((value) => normalizeSearch(value).includes(normalizedKeyword));
+}
+
+function paginateRows(rows, page, pageSize = tablePageSize) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+
+  return {
+    page: safePage,
+    totalPages,
+    rows: rows.slice(startIndex, startIndex + pageSize),
+    startIndex,
+  };
+}
+
+function TableSearch({ value, onChange, placeholder }) {
+  return (
+    <label className={styles.tableSearch}>
+      <Search size={16} />
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+      />
+    </label>
+  );
+}
+
+function SectionFilters({ children, onApply, onReset }) {
+  return (
+    <div className={styles.sectionFilters}>
+      {children}
+      <button type="button" className={styles.miniApplyBtn} onClick={onApply}>
+        Áp dụng
+      </button>
+      <button type="button" className={styles.miniClearBtn} onClick={onReset}>
+        Đặt lại
+      </button>
+    </div>
+  );
+}
+
+function DateInput({ label, value, onChange }) {
+  return (
+    <label>
+      <span>{label}</span>
+      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function Pagination({ page, totalPages, totalItems, startIndex, visibleCount, onPageChange }) {
+  if (totalItems <= tablePageSize) return null;
+
+  const endIndex = Math.min(startIndex + visibleCount, totalItems);
+
+  return (
+    <div className={styles.pagination}>
+      <span>
+        Hiển thị {startIndex + 1}-{endIndex} / {totalItems}
+      </span>
+      <div>
+        <button
+          type="button"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+        >
+          Trước
+        </button>
+        <strong>
+          {page}/{totalPages}
+        </strong>
+        <button
+          type="button"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= totalPages}
+        >
+          Sau
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function pickPageContent(response) {
@@ -191,20 +292,47 @@ ${sheets.map((sheet) => buildWorksheet(sheet.name, sheet.rows, sheet.columns)).j
 export default function Reports() {
   const { getDashboard } = useReportApi();
   const [dashboard, setDashboard] = useState(null);
-  const [filters, setFilters] = useState(emptyFilters);
+  const filters = emptyFilters;
   const [loading, setLoading] = useState(true);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [errorText, setErrorText] = useState("");
   const [courses, setCourses] = useState([]);
   const [learners, setLearners] = useState([]);
   const [instructors, setInstructors] = useState([]);
+  const [reportLearners, setReportLearners] = useState([]);
+  const [reportCourses, setReportCourses] = useState([]);
+  const [reportInstructors, setReportInstructors] = useState([]);
+  const [learnerTableFilters, setLearnerTableFilters] = useState({
+    fromDate: "",
+    toDate: "",
+    status: "",
+  });
+  const [courseTableFilters, setCourseTableFilters] = useState({
+    fromDate: "",
+    toDate: "",
+    instructorId: "",
+  });
+  const [instructorTableFilters, setInstructorTableFilters] = useState({
+    fromDate: "",
+    toDate: "",
+  });
+  const [learnerSearch, setLearnerSearch] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
+  const [instructorSearch, setInstructorSearch] = useState("");
+  const [learnerPage, setLearnerPage] = useState(1);
+  const [coursePage, setCoursePage] = useState(1);
+  const [instructorPage, setInstructorPage] = useState(1);
 
   const fetchDashboard = async (nextFilters = filters) => {
     try {
       setLoading(true);
       setErrorText("");
       const res = await getDashboard(nextFilters);
-      setDashboard(res?.result || null);
+      const data = res?.result || null;
+      setDashboard(data);
+      setReportLearners(data?.learners || []);
+      setReportCourses(data?.topCourses || []);
+      setReportInstructors(data?.topInstructors || []);
     } catch (error) {
       setErrorText(
         error?.body?.message ||
@@ -245,11 +373,6 @@ export default function Reports() {
     fetchFilterOptions();
   }, []);
 
-  const activeFilterCount = useMemo(
-    () => Object.values(filters).filter((value) => String(value || "").trim()).length,
-    [filters],
-  );
-
   const summaryCards = useMemo(() => {
     const summary = dashboard?.summary || {};
     return [
@@ -262,20 +385,83 @@ export default function Reports() {
     ];
   }, [dashboard]);
 
-  const handleFilterChange = (event) => {
-    const { name, value } = event.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
+  const fetchSectionData = async (section, sectionFilters) => {
+    try {
+      const res = await getDashboard({ ...emptyFilters, ...sectionFilters });
+      const data = res?.result || null;
+
+      if (section === "learners") {
+        setReportLearners(data?.learners || []);
+      }
+      if (section === "courses") {
+        setReportCourses(data?.topCourses || []);
+      }
+      if (section === "instructors") {
+        setReportInstructors(data?.topInstructors || []);
+      }
+    } catch (error) {
+      setErrorText(
+        error?.body?.message ||
+          error?.message ||
+          "Không tải được dữ liệu báo cáo.",
+      );
+    }
   };
 
-  const handleApplyFilters = (event) => {
-    event.preventDefault();
-    fetchDashboard(filters);
-  };
+  const filteredReportLearners = useMemo(
+    () =>
+      reportLearners.filter((learner) =>
+        containsKeyword(
+          learner,
+          ["learnerName", "username", "courseTitle", "instructorName", "status"],
+          learnerSearch,
+        ),
+      ),
+    [reportLearners, learnerSearch],
+  );
 
-  const handleResetFilters = () => {
-    setFilters(emptyFilters);
-    fetchDashboard(emptyFilters);
-  };
+  const filteredReportCourses = useMemo(
+    () =>
+      reportCourses.filter((course) =>
+        containsKeyword(course, ["courseTitle", "instructorName"], courseSearch),
+      ),
+    [reportCourses, courseSearch],
+  );
+
+  const filteredReportInstructors = useMemo(
+    () =>
+      reportInstructors.filter((instructor) =>
+        containsKeyword(instructor, ["instructorName"], instructorSearch),
+      ),
+    [reportInstructors, instructorSearch],
+  );
+
+  const learnerPageData = useMemo(
+    () => paginateRows(filteredReportLearners, learnerPage),
+    [filteredReportLearners, learnerPage],
+  );
+
+  const coursePageData = useMemo(
+    () => paginateRows(filteredReportCourses, coursePage),
+    [filteredReportCourses, coursePage],
+  );
+
+  const instructorPageData = useMemo(
+    () => paginateRows(filteredReportInstructors, instructorPage),
+    [filteredReportInstructors, instructorPage],
+  );
+
+  useEffect(() => {
+    setLearnerPage(1);
+  }, [learnerSearch, dashboard]);
+
+  useEffect(() => {
+    setCoursePage(1);
+  }, [courseSearch, dashboard]);
+
+  useEffect(() => {
+    setInstructorPage(1);
+  }, [instructorSearch, dashboard]);
 
   const handleExportExcel = () => {
     if (!dashboard) return;
@@ -461,107 +647,6 @@ export default function Reports() {
         </div>
       </div>
 
-      <form className={styles.filterPanel} onSubmit={handleApplyFilters}>
-        <div className={styles.filterTitle}>
-          <Filter size={17} />
-          <strong>Bộ lọc thống kê</strong>
-          {activeFilterCount > 0 ? <span>{activeFilterCount} điều kiện</span> : null}
-        </div>
-
-        <div className={styles.filterGrid}>
-          <label>
-            <span>Từ ngày</span>
-            <input
-              type="date"
-              name="fromDate"
-              value={filters.fromDate}
-              onChange={handleFilterChange}
-            />
-          </label>
-
-          <label>
-            <span>Đến ngày</span>
-            <input
-              type="date"
-              name="toDate"
-              value={filters.toDate}
-              onChange={handleFilterChange}
-            />
-          </label>
-
-          <label>
-            <span>Khóa học</span>
-            <select name="courseId" value={filters.courseId} onChange={handleFilterChange}>
-              <option value="">Tất cả khóa học</option>
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Học viên</span>
-            <select name="learnerId" value={filters.learnerId} onChange={handleFilterChange}>
-              <option value="">Tất cả học viên</option>
-              {learners.map((learner) => (
-                <option key={learner.id} value={learner.id}>
-                  {getDisplayName(learner)} ({learner.username})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Giảng viên</span>
-            <select
-              name="instructorId"
-              value={filters.instructorId}
-              onChange={handleFilterChange}
-              disabled={dashboard?.scope !== "ADMIN"}
-            >
-              <option value="">
-                {dashboard?.scope === "ADMIN" ? "Tất cả giảng viên" : "Giảng viên hiện tại"}
-              </option>
-              {instructors
-                .filter((user) => getRoleName(user) === "INSTRUCTOR" || !getRoleName(user))
-                .map((instructor) => (
-                  <option key={instructor.id} value={instructor.id}>
-                    {getDisplayName(instructor)} ({instructor.username})
-                  </option>
-                ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Trạng thái</span>
-            <select name="status" value={filters.status} onChange={handleFilterChange}>
-              <option value="">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang học</option>
-              <option value="COMPLETED">Hoàn thành</option>
-              <option value="CANCELLED">Đã hủy</option>
-            </select>
-          </label>
-        </div>
-
-        <div className={styles.filterActions}>
-          <button type="submit" className={styles.applyBtn} disabled={loading}>
-            Áp dụng
-          </button>
-          <button
-            type="button"
-            className={styles.clearBtn}
-            onClick={handleResetFilters}
-            disabled={loading || activeFilterCount === 0}
-          >
-            <X size={15} />
-            <span>Đặt lại</span>
-          </button>
-          {optionsLoading ? <span className={styles.optionHint}>Đang tải danh sách lọc...</span> : null}
-        </div>
-      </form>
-
       {loading ? (
         <div className={styles.stateBox}>Đang tải báo cáo...</div>
       ) : errorText ? (
@@ -589,6 +674,51 @@ export default function Reports() {
                 <h2>Học viên</h2>
                 <span>Danh sách ghi danh phù hợp với bộ lọc hiện tại</span>
               </div>
+              <TableSearch
+                value={learnerSearch}
+                onChange={setLearnerSearch}
+                placeholder="Tìm học viên, khóa học..."
+              />
+              <SectionFilters
+                onApply={() => fetchSectionData("learners", learnerTableFilters)}
+                onReset={() => {
+                  const nextFilters = { fromDate: "", toDate: "", status: "" };
+                  setLearnerTableFilters(nextFilters);
+                  fetchSectionData("learners", nextFilters);
+                }}
+              >
+                <DateInput
+                  label="Từ ngày"
+                  value={learnerTableFilters.fromDate}
+                  onChange={(value) =>
+                    setLearnerTableFilters((prev) => ({ ...prev, fromDate: value }))
+                  }
+                />
+                <DateInput
+                  label="Đến ngày"
+                  value={learnerTableFilters.toDate}
+                  onChange={(value) =>
+                    setLearnerTableFilters((prev) => ({ ...prev, toDate: value }))
+                  }
+                />
+                <label>
+                  <span>Trạng thái</span>
+                  <select
+                    value={learnerTableFilters.status}
+                    onChange={(event) =>
+                      setLearnerTableFilters((prev) => ({
+                        ...prev,
+                        status: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Tất cả</option>
+                    <option value="ACTIVE">Đang học</option>
+                    <option value="COMPLETED">Hoàn thành</option>
+                    <option value="CANCELLED">Đã hủy</option>
+                  </select>
+                </label>
+              </SectionFilters>
             </div>
 
             <div className={styles.tableWrap}>
@@ -608,14 +738,14 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(dashboard.learners || []).length === 0 ? (
+                  {filteredReportLearners.length === 0 ? (
                     <tr>
                       <td colSpan="10" className={styles.emptyCell}>
                         Không có học viên phù hợp với bộ lọc.
                       </td>
                     </tr>
                   ) : (
-                    dashboard.learners.map((learner) => (
+                    learnerPageData.rows.map((learner) => (
                       <tr key={`${learner.courseId}-${learner.userId}`}>
                         <td>
                           <strong>{learner.learnerName}</strong>
@@ -638,6 +768,14 @@ export default function Reports() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              page={learnerPageData.page}
+              totalPages={learnerPageData.totalPages}
+              totalItems={filteredReportLearners.length}
+              startIndex={learnerPageData.startIndex}
+              visibleCount={learnerPageData.rows.length}
+              onPageChange={setLearnerPage}
+            />
           </div>
 
           <div className={styles.tablePanel}>
@@ -646,6 +784,58 @@ export default function Reports() {
                 <h2>Khóa học</h2>
                 <span>Số liệu theo bộ lọc hiện tại</span>
               </div>
+              <TableSearch
+                value={courseSearch}
+                onChange={setCourseSearch}
+                placeholder="Tìm khóa học, giảng viên..."
+              />
+              <SectionFilters
+                onApply={() => fetchSectionData("courses", courseTableFilters)}
+                onReset={() => {
+                  const nextFilters = { fromDate: "", toDate: "", instructorId: "" };
+                  setCourseTableFilters(nextFilters);
+                  fetchSectionData("courses", nextFilters);
+                }}
+              >
+                <DateInput
+                  label="Từ ngày"
+                  value={courseTableFilters.fromDate}
+                  onChange={(value) =>
+                    setCourseTableFilters((prev) => ({ ...prev, fromDate: value }))
+                  }
+                />
+                <DateInput
+                  label="Đến ngày"
+                  value={courseTableFilters.toDate}
+                  onChange={(value) =>
+                    setCourseTableFilters((prev) => ({ ...prev, toDate: value }))
+                  }
+                />
+                <label>
+                  <span>Giảng viên</span>
+                  <select
+                    value={courseTableFilters.instructorId}
+                    onChange={(event) =>
+                      setCourseTableFilters((prev) => ({
+                        ...prev,
+                        instructorId: event.target.value,
+                      }))
+                    }
+                    disabled={dashboard?.scope !== "ADMIN"}
+                  >
+                    <option value="">
+                      {dashboard?.scope === "ADMIN" ? "Tất cả" : "Hiện tại"}
+                    </option>
+                    {instructors
+                      .filter((user) => getRoleName(user) === "INSTRUCTOR" || !getRoleName(user))
+                      .map((instructor) => (
+                        <option key={instructor.id} value={instructor.id}>
+                          {getDisplayName(instructor)}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </SectionFilters>
             </div>
 
             <div className={styles.tableWrap}>
@@ -663,14 +853,14 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(dashboard.topCourses || []).length === 0 ? (
+                  {filteredReportCourses.length === 0 ? (
                     <tr>
                       <td colSpan="8" className={styles.emptyCell}>
                         Không có khóa học phù hợp với bộ lọc.
                       </td>
                     </tr>
                   ) : (
-                    dashboard.topCourses.map((course) => (
+                    coursePageData.rows.map((course) => (
                       <tr key={course.courseId}>
                         <td>{course.courseTitle}</td>
                         <td>{course.instructorName || "Chưa có"}</td>
@@ -686,6 +876,14 @@ export default function Reports() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              page={coursePageData.page}
+              totalPages={coursePageData.totalPages}
+              totalItems={filteredReportCourses.length}
+              startIndex={coursePageData.startIndex}
+              visibleCount={coursePageData.rows.length}
+              onPageChange={setCoursePage}
+            />
           </div>
 
           {dashboard.scope === "ADMIN" ? (
@@ -695,6 +893,34 @@ export default function Reports() {
                   <h2>Giảng viên</h2>
                   <span>Theo quy mô lớp học và tiến độ trung bình</span>
                 </div>
+                <TableSearch
+                  value={instructorSearch}
+                  onChange={setInstructorSearch}
+                  placeholder="Tìm giảng viên..."
+                />
+                <SectionFilters
+                  onApply={() => fetchSectionData("instructors", instructorTableFilters)}
+                  onReset={() => {
+                    const nextFilters = { fromDate: "", toDate: "" };
+                    setInstructorTableFilters(nextFilters);
+                    fetchSectionData("instructors", nextFilters);
+                  }}
+                >
+                  <DateInput
+                    label="Từ ngày"
+                    value={instructorTableFilters.fromDate}
+                    onChange={(value) =>
+                      setInstructorTableFilters((prev) => ({ ...prev, fromDate: value }))
+                    }
+                  />
+                  <DateInput
+                    label="Đến ngày"
+                    value={instructorTableFilters.toDate}
+                    onChange={(value) =>
+                      setInstructorTableFilters((prev) => ({ ...prev, toDate: value }))
+                    }
+                  />
+                </SectionFilters>
               </div>
 
               <div className={styles.tableWrap}>
@@ -708,14 +934,14 @@ export default function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(dashboard.topInstructors || []).length === 0 ? (
+                    {filteredReportInstructors.length === 0 ? (
                       <tr>
                         <td colSpan="4" className={styles.emptyCell}>
                           Không có dữ liệu giảng viên trong phạm vi này.
                         </td>
                       </tr>
                     ) : (
-                      dashboard.topInstructors.map((instructor) => (
+                      instructorPageData.rows.map((instructor) => (
                         <tr key={instructor.instructorId}>
                           <td>{instructor.instructorName}</td>
                           <td>{instructor.courseCount || 0}</td>
@@ -727,6 +953,14 @@ export default function Reports() {
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                page={instructorPageData.page}
+                totalPages={instructorPageData.totalPages}
+                totalItems={filteredReportInstructors.length}
+                startIndex={instructorPageData.startIndex}
+                visibleCount={instructorPageData.rows.length}
+                onPageChange={setInstructorPage}
+              />
             </div>
           ) : null}
         </>

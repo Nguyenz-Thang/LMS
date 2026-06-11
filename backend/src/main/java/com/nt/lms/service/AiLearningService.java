@@ -226,7 +226,7 @@ public class AiLearningService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Yêu cầu tạo quiz không được để trống");
 		}
 
-		String instruction = "Tạo một bài quiz độc lập từ yêu cầu sau của người học: \"" + prompt.trim() + "\".\n"
+		String instruction = "Tạo một bài luyện tập từ yêu cầu sau của người học: \"" + prompt.trim() + "\".\n"
 				+ "Nếu người học không nêu số câu, tạo 5 câu. Nếu có số câu, giới hạn trong khoảng 3 đến 10 câu. "
 				+ "Ưu tiên câu hỏi SINGLE_CHOICE, chỉ dùng MULTIPLE_CHOICE khi thật sự cần nhiều đáp án đúng. "
 				+ "Mỗi câu SINGLE_CHOICE hoặc MULTIPLE_CHOICE có đúng 4 đáp án. "

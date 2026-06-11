@@ -24,6 +24,8 @@ public class AdminQuizAttemptResponse {
     private Double score;
     private Double totalScore;
     private Double scorePercent;
+    private Integer passingScore;
+    private Boolean passed;
     private LocalDateTime startedAt;
     private LocalDateTime submittedAt;
 }

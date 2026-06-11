@@ -138,7 +138,6 @@ function AppRoutes() {
           <Route element={<AdminLayout />}>
             <Route element={<MainContent />}>
               <Route path="/admin/courses" element={<CoursesManagement />} />
-              <Route path="/admin/categories" element={<Category />} />
               <Route
                 path="/admin/courses/:id"
                 element={<CourseDetailManagement />}
@@ -157,15 +156,23 @@ function AppRoutes() {
                 path="/admin/quizzes/:quizId/edit"
                 element={<QuizEditor />}
               />
-              <Route path="/admin/roles" element={<RoleManagement />} />
-              <Route path="/admin/users" element={<UserManagement />} />
-              <Route path="/admin/reports" element={<Reports />} />
-              <Route path="/admin/revenue" element={<RevenueManagement />} />
               <Route path="/admin/assignments" element={<AssignmentManagement />} />
               <Route
                 path="/admin/assignments/:assignmentId/submissions"
                 element={<AssignmentSubmissions />}
               />
+            </Route>
+          </Route>
+        </Route>
+
+        <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
+          <Route element={<AdminLayout />}>
+            <Route element={<MainContent />}>
+              <Route path="/admin/categories" element={<Category />} />
+              <Route path="/admin/roles" element={<RoleManagement />} />
+              <Route path="/admin/users" element={<UserManagement />} />
+              <Route path="/admin/reports" element={<Reports />} />
+              <Route path="/admin/revenue" element={<RevenueManagement />} />
             </Route>
           </Route>
         </Route>

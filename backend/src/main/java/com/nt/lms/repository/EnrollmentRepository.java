@@ -11,19 +11,19 @@ import java.util.Optional;
 
 public interface EnrollmentRepository extends JpaRepository<Enrollment, String> {
 
-    @Query(value = """
-            select count(*) > 0
-            from enrollments
-            where user_id = :userId
-              and course_id = :courseId
-            """, nativeQuery = true)
+    @Query("""
+            select case when count(enrollment) > 0 then true else false end
+            from Enrollment enrollment
+            where enrollment.user.id = :userId
+              and enrollment.course.id = :courseId
+            """)
     boolean existsByUserIdAndCourseId(@Param("userId") String userId, @Param("courseId") String courseId);
 
-    @Query(value = """
-            select count(*) > 0
-            from enrollments
-            where user_id = :userId
-            """, nativeQuery = true)
+    @Query("""
+            select case when count(enrollment) > 0 then true else false end
+            from Enrollment enrollment
+            where enrollment.user.id = :userId
+            """)
     boolean existsByUserId(@Param("userId") String userId);
 
     @Query(value = """

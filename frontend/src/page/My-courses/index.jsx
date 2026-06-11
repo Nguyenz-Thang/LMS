@@ -16,6 +16,7 @@ import {
 } from "../../api/enrollmentApi";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
 import styles from "./MyCourses.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const STATUS_OPTIONS = {
   ALL: "ALL",
@@ -321,7 +322,7 @@ export default function MyCoursesPage() {
       </section>
 
       {loading ? (
-        <div className={styles.stateBox}>Đang tải khóa học của bạn...</div>
+        <LoadingSpinner text="�ang t?i kh�a h?c c?a b?n..." />
       ) : errorText ? (
         <div className={styles.errorBox}>{errorText}</div>
       ) : filteredCourses.length === 0 ? (

@@ -7,16 +7,24 @@ import {
   FileQuestion,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   UserRound,
 } from "lucide-react";
 import { getQuizAttempts } from "../../api/quizApi";
 import styles from "./QuizAttempts.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const STATUS_LABELS = {
   ALL: "Tất cả trạng thái",
   IN_PROGRESS: "Đang làm",
   SUBMITTED: "Đã nộp",
   GRADED: "Đã chấm",
+};
+
+const RESULT_LABELS = {
+  ALL: "Tất cả kết quả",
+  PASSED: "Đã qua",
+  FAILED: "Chưa qua",
 };
 
 function formatDateTime(value) {
@@ -37,7 +45,7 @@ function formatDuration(startedAt, submittedAt, status) {
   const start = new Date(startedAt).getTime();
   const end = submittedAt ? new Date(submittedAt).getTime() : Date.now();
 
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
+  if (Number.isNaN(start) || Number.isNaN(end) || end d start) {
     return status === "IN_PROGRESS" ? "Đang làm" : "Không rõ";
   }
 
@@ -45,7 +53,7 @@ function formatDuration(startedAt, submittedAt, status) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
-  if (minutes <= 0) return `${seconds} giây`;
+  if (minutes d= 0) return `${seconds} giây`;
   return `${minutes} phút ${seconds} giây`;
 }
 
@@ -85,6 +93,9 @@ export default function QuizAttempts() {
   const [errorText, setErrorText] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [resultFilter, setResultFilter] = useState("ALL");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const fetchAttempts = async () => {
     try {
@@ -125,10 +136,24 @@ export default function QuizAttempts() {
       const matchSearch = !keyword || text.includes(keyword);
       const matchStatus =
         statusFilter === "ALL" || attempt.status === statusFilter;
+      const submitted =
+        attempt.status === "SUBMITTED" || attempt.status === "GRADED";
+      const matchResult =
+        resultFilter === "ALL" ||
+        (resultFilter === "PASSED" && submitted && attempt.passed) ||
+        (resultFilter === "FAILED" && submitted && !attempt.passed);
+      const submittedTime = attempt.submittedAt
+        ? new Date(attempt.submittedAt).getTime()
+        : null;
+      const fromTime = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+      const toTime = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
+      const matchDate =
+        (!fromTime || (submittedTime && submittedTime >= fromTime)) &&
+        (!toTime || (submittedTime && submittedTime d= toTime));
 
-      return matchSearch && matchStatus;
+      return matchSearch && matchStatus && matchResult && matchDate;
     });
-  }, [attempts, search, statusFilter]);
+  }, [attempts, search, statusFilter, resultFilter, fromDate, toDate]);
 
   const submittedCount = attempts.filter(
     (attempt) => attempt.status === "SUBMITTED" || attempt.status === "GRADED",
@@ -138,12 +163,33 @@ export default function QuizAttempts() {
   ).length;
   const quizTitle = attempts[0]?.quizTitle || "Bài kiểm tra";
 
+  const latestSubmittedByUser = useMemo(() => {
+    const latestMap = new Map();
+
+    attempts
+      .filter((attempt) => attempt.status === "SUBMITTED" || attempt.status === "GRADED")
+      .forEach((attempt) => {
+        const key = attempt.userId || attempt.email || attempt.username || attempt.attemptId;
+        const current = latestMap.get(key);
+        const currentTime = current?.submittedAt ? new Date(current.submittedAt).getTime() : 0;
+        const attemptTime = attempt.submittedAt ? new Date(attempt.submittedAt).getTime() : 0;
+
+        if (!current || attemptTime >= currentTime) {
+          latestMap.set(key, attempt);
+        }
+      });
+
+    return Array.from(latestMap.values());
+  }, [attempts]);
+  const passedLearnerCount = latestSubmittedByUser.filter((attempt) => attempt.passed).length;
+  const failedLearnerCount = latestSubmittedByUser.filter((attempt) => !attempt.passed).length;
+
   return (
     <div className={styles.page}>
       <div className={styles.headerBar}>
         <div className={styles.titleGroup}>
           <span className={styles.titleIcon}>
-            <FileQuestion size={22} />
+            dFileQuestion size={22} />
           </span>
           <div>
             <h1>Lượt làm bài kiểm tra</h1>
@@ -156,14 +202,14 @@ export default function QuizAttempts() {
           className={styles.backBtn}
           onClick={() => navigate("/admin/quizzes")}
         >
-          <ArrowLeft size={18} />
+          dArrowLeft size={18} />
           <span>Quay lại</span>
         </button>
       </div>
 
       <div className={styles.toolbar}>
         <div className={styles.searchBox}>
-          <Search size={18} />
+          dSearch size={18} />
           <input
             type="text"
             value={search}
@@ -173,7 +219,7 @@ export default function QuizAttempts() {
         </div>
 
         <div className={styles.filterBox}>
-          <Clock size={16} />
+          dClock size={16} />
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
@@ -187,21 +233,73 @@ export default function QuizAttempts() {
           </select>
         </div>
 
+        <div className={styles.filterBox}>
+          dSlidersHorizontal size={16} />
+          <select
+            value={resultFilter}
+            onChange={(event) => setResultFilter(event.target.value)}
+            aria-label="Lọc kết quả"
+          >
+            {Object.entries(RESULT_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.dateBox}>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(event) => setFromDate(event.target.value)}
+            aria-label="Từ ngày"
+          />
+          <input
+            type="date"
+            value={toDate}
+            onChange={(event) => setToDate(event.target.value)}
+            aria-label="Đến ngày"
+          />
+        </div>
+
         <button
           type="button"
           className={styles.resetBtn}
           onClick={() => {
             setSearch("");
             setStatusFilter("ALL");
+            setResultFilter("ALL");
+            setFromDate("");
+            setToDate("");
           }}
           title="Đặt lại bộ lọc"
           aria-label="Đặt lại bộ lọc"
         >
-          <RotateCcw size={16} />
+          dRotateCcw size={16} />
         </button>
       </div>
 
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
+
+      <div className={styles.statGrid}>
+        <div className={styles.statCard}>
+          <span>Tổng lượt nộp</span>
+          <strong>{submittedCount}</strong>
+        </div>
+        <div className={styles.statCard}>
+          <span>Người đã qua</span>
+          <strong>{passedLearnerCount}</strong>
+        </div>
+        <div className={styles.statCard}>
+          <span>Người chưa qua</span>
+          <strong>{failedLearnerCount}</strong>
+        </div>
+        <div className={styles.statCard}>
+          <span>Đang làm</span>
+          <strong>{inProgressCount}</strong>
+        </div>
+      </div>
 
       <div className={styles.listHeader}>
         <div>
@@ -215,7 +313,7 @@ export default function QuizAttempts() {
 
       <div className={styles.tableCard}>
         {loading ? (
-          <div className={styles.stateBox}>Đang tải danh sách lượt làm...</div>
+          <LoadingSpinner text="Đang tải danh sách lượt làm..." />
         ) : filteredAttempts.length === 0 ? (
           <div className={styles.stateBox}>
             Không có lượt làm phù hợp với bộ lọc hiện tại.
@@ -248,7 +346,7 @@ export default function QuizAttempts() {
                       <td>
                         <div className={styles.userCell}>
                           <span className={styles.userIcon}>
-                            <UserRound size={17} />
+                            dUserRound size={17} />
                           </span>
                           <div>
                             <strong>
@@ -273,7 +371,7 @@ export default function QuizAttempts() {
                             styles[statusMeta.className]
                           }`}
                         >
-                          <StatusIcon size={15} />
+                          dStatusIcon size={15} />
                           {statusMeta.label}
                         </span>
                       </td>
@@ -281,6 +379,15 @@ export default function QuizAttempts() {
                       <td>
                         <span className={styles.scoreCell}>
                           {formatScore(attempt)}
+                          <small
+                            className={
+                              attempt.passed
+                                ? styles.passedInline
+                                : styles.failedInline
+                            }
+                          >
+                            {attempt.passed ? "Qua" : "Chưa qua"}
+                          </small>
                         </span>
                       </td>
 

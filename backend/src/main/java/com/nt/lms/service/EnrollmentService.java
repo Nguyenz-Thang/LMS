@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.nt.lms.dto.request.EnrollmentRequest;
@@ -63,8 +64,17 @@ public class EnrollmentService {
 
     @Transactional(readOnly = true)
     public List<EnrollmentResponse> getAllEnrollments() {
+        User currentUser = getCurrentUser();
+        boolean isAdmin = hasRole(currentUser, "ADMIN");
+        boolean isInstructor = hasRole(currentUser, "INSTRUCTOR");
+
+        if (!isAdmin && !isInstructor) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
         return enrollmentRepository.findAll()
                 .stream()
+                .filter(enrollment -> isAdmin || isInstructorEnrollment(enrollment, currentUser))
                 .map(enrollmentMapper::toEnrollmentResponse)
                 .toList();
     }
@@ -256,6 +266,18 @@ public class EnrollmentService {
 
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+    }
+
+    private boolean hasRole(User user, String roleName) {
+        return user.getRoles() != null
+                && user.getRoles().stream().anyMatch(role -> roleName.equals(role.getName()));
+    }
+
+    private boolean isInstructorEnrollment(Enrollment enrollment, User instructor) {
+        return enrollment.getCourse() != null
+                && enrollment.getCourse().getInstructor() != null
+                && instructor != null
+                && Objects.equals(enrollment.getCourse().getInstructor().getId(), instructor.getId());
     }
 
     private boolean requiresPayment(Course course) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import styles from "./Learning.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 import { useLearningApi } from "../../api/learningApi";
 import LearningSidebar from "./components/LearningSidebar";
 import LearningContent from "./components/LearningContent";
@@ -402,7 +403,7 @@ export default function Learning() {
   };
 
   if (loading) {
-    return <div className={styles.stateBox}>Đang tải trang học tập...</div>;
+    return <LoadingSpinner text="Đang tải trang học tập..." />;
   }
 
   if (errorText) {

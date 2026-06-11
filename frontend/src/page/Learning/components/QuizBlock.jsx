@@ -16,6 +16,12 @@ function formatScore(score, totalScore) {
   return `${Math.round(Number(score) || 0)}/${Math.round(Number(totalScore) || 0)}`;
 }
 
+function formatPassingScore(quizData) {
+  return `${Math.round(Number(quizData?.passingScore) || 0)}/${Math.round(
+    Number(quizData?.totalScore) || 0,
+  )}`;
+}
+
 function buildSelections(questions = []) {
   return questions.reduce((acc, question) => {
     acc[question.id] = getQuestionSelectedIds(question);
@@ -105,6 +111,7 @@ export default function QuizBlock({
   const activeQuestion = questions[safeQuestionIndex] || null;
   const submitted =
     quizData?.attemptStatus === "SUBMITTED" || quizData?.attemptStatus === "GRADED";
+  const canReviewAnswers = submitted && Boolean(quizData?.passed);
   const canAnswer = quizData?.attemptStatus === "IN_PROGRESS";
   const answeredCount = questions.filter(
     (question) => (selectedByQuestion[question.id] || []).length > 0,
@@ -243,8 +250,8 @@ export default function QuizBlock({
           const optionClasses = [
             styles.quizOptionSimple,
             checked ? styles.quizOptionSimpleSelected : "",
-            submitted && isCorrectOption ? styles.quizOptionSimpleCorrect : "",
-            submitted && checked && !isCorrectOption ? styles.quizOptionSimpleWrong : "",
+            canReviewAnswers && isCorrectOption ? styles.quizOptionSimpleCorrect : "",
+            canReviewAnswers && checked && !isCorrectOption ? styles.quizOptionSimpleWrong : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -272,14 +279,30 @@ export default function QuizBlock({
       </div>
 
       {submitted ? (
-        <div className={styles.quizExplanationPanel}>
+        <div
+          className={`${styles.quizExplanationPanel} ${
+            canReviewAnswers ? "" : styles.quizReviewLocked
+          }`}
+        >
+          <p
+            className={
+              quizData.passed
+                ? styles.quizPassNote
+                : styles.quizFailNote
+            }
+          >
+            {quizData.passed
+              ? "Bạn đã đạt yêu cầu và bài tiếp theo đã được mở."
+              : `Bạn chưa đạt. Cần đúng tối thiểu ${formatPassingScore(quizData)} để mở bài tiếp theo.`}
+          </p>
+
           <p className={styles.quizAnswerNote}>
             {activeQuestion.correct
               ? "Bạn đã chọn đáp án đúng."
               : "Đáp án của câu này chưa đúng."}
           </p>
 
-          {!activeQuestion.correct ? (
+          {canReviewAnswers && !activeQuestion.correct ? (
             <p className={styles.quizAnswerNote}>
               Đáp án đúng:{" "}
               <strong>
@@ -290,7 +313,7 @@ export default function QuizBlock({
             </p>
           ) : null}
 
-          {activeQuestion.explanation ? (
+          {canReviewAnswers && activeQuestion.explanation ? (
             <>
               <h4>Giải thích</h4>
               <div
@@ -341,6 +364,17 @@ export default function QuizBlock({
             disabled={!allAnswered || savingQuiz}
           >
             {savingQuiz ? "Đang nộp..." : "Nộp bài"}
+          </button>
+        ) : null}
+
+        {submitted && !quizData.passed ? (
+          <button
+            type="button"
+            className={styles.quizPrimaryBtn}
+            onClick={handleStartQuiz}
+            disabled={startingQuiz || savingQuiz}
+          >
+            {startingQuiz ? "Đang mở..." : "Làm lại"}
           </button>
         ) : null}
       </div>

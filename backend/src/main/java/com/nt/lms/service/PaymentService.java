@@ -97,8 +97,12 @@ public class PaymentService {
         }
 
         if (!requiresPayment(course)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
+            throw new AppException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Khóa học này chưa có giá thanh toán hợp lệ.");
         }
+
+        validateSepayConfig();
 
         Payment payment = paymentRepository
                 .findFirstByUserIdAndCourseIdAndStatusOrderByCreatedAtDesc(
@@ -300,8 +304,7 @@ public class PaymentService {
         }
 
         LocalDateTime expiredBefore = LocalDateTime.now().minusMinutes(pendingExpireMinutes);
-        List<Payment> expiredPayments = paymentRepository.findAll().stream()
-                .filter(payment -> payment.getStatus() == PaymentStatus.PENDING)
+        List<Payment> expiredPayments = paymentRepository.findByStatus(PaymentStatus.PENDING).stream()
                 .filter(payment -> payment.getCreatedAt() != null)
                 .filter(payment -> payment.getCreatedAt().isBefore(expiredBefore))
                 .peek(payment -> payment.setStatus(PaymentStatus.CANCELLED))
@@ -399,6 +402,11 @@ public class PaymentService {
     }
 
     private String buildQrUrl(Payment payment) {
+        if (payment.getAmount() == null || payment.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Số tiền thanh toán không hợp lệ.");
+        }
         String addInfo = encode(payment.getPaymentCode());
         String encodedName = encode(payment.getAccountName());
         String amount = String.valueOf(payment.getAmount().longValue());
@@ -606,6 +614,24 @@ public class PaymentService {
         return Boolean.TRUE.equals(course.getPaid())
                 && course.getPrice() != null
                 && course.getPrice().compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    private void validateSepayConfig() {
+        List<String> missingFields = new ArrayList<>();
+        if (bankCode == null || bankCode.isBlank()) {
+            missingFields.add("mã ngân hàng");
+        }
+        if (accountNumber == null || accountNumber.isBlank()) {
+            missingFields.add("số tài khoản");
+        }
+        if (accountName == null || accountName.isBlank()) {
+            missingFields.add("tên tài khoản");
+        }
+        if (!missingFields.isEmpty()) {
+            throw new AppException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Chưa cấu hình thông tin thanh toán: " + String.join(", ", missingFields) + ".");
+        }
     }
 
     private User getCurrentUser() {

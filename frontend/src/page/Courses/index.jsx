@@ -5,6 +5,7 @@ import styles from "./Courses.module.scss";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
 import { useLearningApi } from "../../api/learningApi";
 import CourseShowcaseCard from "../../components/CourseShowcaseCard";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const PAGE_SIZE = 8;
 
@@ -139,7 +140,7 @@ export default function Courses() {
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
       {loading ? (
-        <div className={styles.stateBox}>Đang tải danh sách khóa học...</div>
+        <LoadingSpinner text="�ang t?i danh s�ch kh�a h?c..." />
       ) : visibleCourses.length === 0 ? (
         <div className={styles.stateBox}>
           Không có khóa học phù hợp với từ khóa hiện tại.

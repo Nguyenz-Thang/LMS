@@ -11,6 +11,7 @@ import {
   getMyProgressDashboard,
 } from "../../api/enrollmentApi";
 import styles from "./Progress.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const MONTH_LABELS = [
@@ -212,7 +213,7 @@ export default function ProgressPage() {
       </section>
 
       {loading ? (
-        <div className={styles.stateBox}>Đang tải tiến độ học tập...</div>
+        <LoadingSpinner text="Đang tải tiến độ học tập..." />
       ) : errorText ? (
         <div className={styles.errorBox}>{errorText}</div>
       ) : (

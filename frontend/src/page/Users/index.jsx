@@ -21,6 +21,7 @@ import {
 import { getAllRoles } from "../../api/roleApi";
 import { LMS_BASE_URL } from "../../api/courseApi";
 import styles from "./Users.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const INITIAL_FORM = {
   username: "",
@@ -376,9 +377,7 @@ export default function UserManagement() {
 
       <div className={styles.tableCard}>
         {loading ? (
-          <div className={styles.stateBox}>
-            Đang tải danh sách người dùng...
-          </div>
+          <LoadingSpinner text="Đang tải danh sách người dùng..." />
         ) : filteredUsers.length === 0 ? (
           <div className={styles.stateBox}>
             Không có người dùng phù hợp với bộ lọc hiện tại.
@@ -590,9 +589,7 @@ export default function UserManagement() {
                 <span>Vai trò</span>
                 <div className={styles.rolePicker}>
                   {loadingRoles ? (
-                    <div className={styles.roleLoading}>
-                      Đang tải vai trò...
-                    </div>
+                    <LoadingSpinner text="Đang tải vai trò..." compact />
                   ) : roles.length === 0 ? (
                     <div className={styles.roleLoading}>Không có vai trò.</div>
                   ) : (

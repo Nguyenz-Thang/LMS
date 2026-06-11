@@ -1,11 +1,13 @@
 package com.nt.lms.exception;
 
 import com.nt.lms.dto.response.ApiResponse;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.server.ResponseStatusException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -38,6 +40,25 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.builder()
                         .code(errorCode.getCode())
                         .message(errorCode.getMessage())
+                        .build());
+    }
+
+    @ExceptionHandler(value = ResponseStatusException.class)
+    ResponseEntity<ApiResponse> handlingResponseStatusException(ResponseStatusException exception) {
+        return ResponseEntity.status(exception.getStatusCode())
+                .body(ApiResponse.builder()
+                        .code(exception.getStatusCode().value())
+                        .message(exception.getReason() == null ? "Yêu cầu không hợp lệ" : exception.getReason())
+                        .build());
+    }
+
+    @ExceptionHandler(value = DataIntegrityViolationException.class)
+    ResponseEntity<ApiResponse> handlingDataIntegrityViolation(DataIntegrityViolationException exception) {
+        ErrorCode errorCode = ErrorCode.INVALID_REQUEST;
+        return ResponseEntity.status(errorCode.getStatusCode())
+                .body(ApiResponse.builder()
+                        .code(errorCode.getCode())
+                        .message("Dữ liệu không hợp lệ hoặc đã tồn tại, vui lòng kiểm tra lại.")
                         .build());
     }
 

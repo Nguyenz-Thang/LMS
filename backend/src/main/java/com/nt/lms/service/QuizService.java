@@ -65,6 +65,7 @@ public class QuizService {
                 .lesson(lesson)
                 .maxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null))
                 .timeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes(), lesson != null))
+                .passingScore(resolvePassingScore(request.getPassingScore(), request.getQuestions().size()))
                 .isPublished(false)
                 .quizScope(lesson != null ? "LESSON" : "INDEPENDENT")
                 .createdSource("MANUAL")
@@ -91,6 +92,7 @@ public class QuizService {
                 .lessonId(quiz.getLesson() != null ? quiz.getLesson().getId() : null)
                 .maxAttempts(quiz.getMaxAttempts())
                 .timeLimitMinutes(quiz.getTimeLimitMinutes())
+                .passingScore(resolvePassingScore(quiz, questions.size()))
                 .isPublished(quiz.getIsPublished())
                 .questions(
                         questions.stream().map(q -> {
@@ -152,6 +154,7 @@ public class QuizService {
         quiz.setLesson(lesson);
         quiz.setMaxAttempts(resolveMaxAttempts(request.getMaxAttempts(), lesson != null));
         quiz.setTimeLimitMinutes(resolveTimeLimitMinutes(request.getTimeLimitMinutes(), lesson != null));
+        quiz.setPassingScore(resolvePassingScore(request.getPassingScore(), request.getQuestions().size()));
         quiz.setQuizScope(lesson != null ? "LESSON" : "INDEPENDENT");
         if (quiz.getCreatedSource() == null || quiz.getCreatedSource().isBlank()) {
             quiz.setCreatedSource("MANUAL");
@@ -211,6 +214,11 @@ public class QuizService {
         }
 
         if (request.getTimeLimitMinutes() != null && request.getTimeLimitMinutes() < 0) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        if (request.getPassingScore() != null
+                && (request.getPassingScore() < 1 || request.getPassingScore() > request.getQuestions().size())) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
@@ -350,6 +358,7 @@ public class QuizService {
                             .lessonId(q.getLesson() != null ? q.getLesson().getId() : null)
                             .maxAttempts(q.getMaxAttempts())
                             .timeLimitMinutes(q.getTimeLimitMinutes())
+                            .passingScore(resolvePassingScore(q, null))
                             .isPublished(q.getIsPublished())
                             .attemptCount(attemptCount)
                             .questions(null)
@@ -397,7 +406,7 @@ public class QuizService {
 
     private Integer resolveMaxAttempts(Integer requestedMaxAttempts, boolean lessonLinked) {
         if (lessonLinked) {
-            return 1;
+            return null;
         }
 
         if (requestedMaxAttempts == null || requestedMaxAttempts < 1) {
@@ -419,10 +428,28 @@ public class QuizService {
         return requestedTimeLimitMinutes;
     }
 
+    private Integer resolvePassingScore(Integer requestedPassingScore, int questionCount) {
+        if (requestedPassingScore == null || requestedPassingScore <= 0) {
+            return questionCount;
+        }
+
+        return Math.min(requestedPassingScore, questionCount);
+    }
+
+    private Integer resolvePassingScore(Quiz quiz, Integer questionCount) {
+        int totalQuestions = questionCount != null
+                ? questionCount
+                : questionRepository.findByQuizIdOrderByOrderIndexAsc(quiz.getId()).size();
+        return resolvePassingScore(quiz.getPassingScore(), totalQuestions);
+    }
+
     private AdminQuizAttemptResponse buildAdminAttemptResponse(Quiz quiz, QuizAttempt attempt) {
         User user = attempt.getUser();
         double totalScore = safeDouble(attempt.getTotalScore());
         double score = safeDouble(attempt.getScore());
+        int passingScore = resolvePassingScore(quiz, (int) Math.round(totalScore));
+        boolean submitted = attempt.getStatus() != null
+                && !"IN_PROGRESS".equalsIgnoreCase(attempt.getStatus().name());
 
         return AdminQuizAttemptResponse.builder()
                 .attemptId(attempt.getId())
@@ -437,6 +464,8 @@ public class QuizService {
                 .score(score)
                 .totalScore(totalScore)
                 .scorePercent(totalScore <= 0 ? 0.0 : roundTwoDecimals((score * 100.0) / totalScore))
+                .passingScore(passingScore)
+                .passed(submitted && totalScore > 0 && score >= passingScore)
                 .startedAt(attempt.getStartedAt())
                 .submittedAt(attempt.getSubmittedAt())
                 .build();

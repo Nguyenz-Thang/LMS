@@ -1,0 +1,40 @@
+.loadingState {
+  width: 100%;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: 24px;
+  color: #475569;
+  text-align: center;
+}
+
+.compact {
+  min-height: 72px;
+  padding: 16px;
+}
+
+.spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background:
+    radial-gradient(farthest-side, #256176 94%, #0000) top / 9px 9px no-repeat,
+    conic-gradient(#0000 30%, #256176);
+  -webkit-mask: radial-gradient(farthest-side, #0000 calc(100% - 9px), #000 0);
+  mask: radial-gradient(farthest-side, #0000 calc(100% - 9px), #000 0);
+  animation: spinner-rounded-comet-anim 1s infinite linear;
+}
+
+.text {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@keyframes spinner-rounded-comet-anim {
+  100% {
+    transform: rotate(1turn);
+  }
+}

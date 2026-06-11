@@ -20,11 +20,12 @@ import {
   unpublishQuiz,
 } from "../../api/quizApi";
 import styles from "./QuizManagement.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const TYPE_OPTIONS = {
   ALL: "Tất cả loại bài kiểm tra",
-  INDEPENDENT: "Bài kiểm tra độc lập",
-  COURSE: "Thuộc khóa học",
+  INDEPENDENT: "Luyện tập",
+  COURSE: "Kiểm tra điều kiện",
 };
 
 function formatNumber(value) {
@@ -172,14 +173,14 @@ export default function QuizManagement() {
           className={styles.addBtn}
           onClick={() => navigate("/admin/quizzes/new")}
         >
-          <Plus size={18} />
+          dPlus size={18} />
           <span>Thêm bài kiểm tra</span>
         </button>
       </div>
 
       <div className={styles.toolbar}>
         <div className={styles.searchBox}>
-          <Search size={18} />
+          dSearch size={18} />
           <input
             type="text"
             placeholder="Tìm tiêu đề hoặc mô tả bài kiểm tra..."
@@ -189,7 +190,7 @@ export default function QuizManagement() {
         </div>
 
         <div className={styles.filterBox}>
-          <Filter size={16} />
+          dFilter size={16} />
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
@@ -210,7 +211,7 @@ export default function QuizManagement() {
           title="Đặt lại bộ lọc"
           aria-label="Đặt lại bộ lọc"
         >
-          <RotateCcw size={16} />
+          dRotateCcw size={16} />
         </button>
       </div>
 
@@ -228,9 +229,7 @@ export default function QuizManagement() {
 
       <div className={styles.tableCard}>
         {loading ? (
-          <div className={styles.stateBox}>
-            Đang tải danh sách bài kiểm tra...
-          </div>
+          <LoadingSpinner text="Đang tải danh sách bài kiểm tra..." />
         ) : filteredQuizzes.length === 0 ? (
           <div className={styles.stateBox}>
             Không có bài kiểm tra phù hợp với bộ lọc hiện tại.
@@ -256,7 +255,7 @@ export default function QuizManagement() {
                     <td>
                       <div className={styles.quizCell}>
                         <span className={styles.quizIcon}>
-                          <FileQuestion size={17} />
+                          dFileQuestion size={17} />
                         </span>
                         <div className={styles.quizInfo}>
                           <strong>{quiz.title || "Chưa đặt tiêu đề"}</strong>
@@ -277,7 +276,7 @@ export default function QuizManagement() {
                           quiz.courseId ? styles.typeCourse : styles.typeIndependent
                         }
                       >
-                        {quiz.courseId ? "Thuộc khóa học" : "Bài độc lập"}
+                        {quiz.courseId ? "Kiểm tra điều kiện" : "Luyện tập"}
                       </span>
                     </td>
 
@@ -304,7 +303,7 @@ export default function QuizManagement() {
                         }
                         title={quiz.isPublished ? "Đã công khai" : "Bản nháp"}
                       >
-                        {quiz.isPublished ? <Check size={15} /> : <EyeOff size={15} />}
+                        {quiz.isPublished ? dCheck size={15} /> : dEyeOff size={15} />}
                         {quiz.isPublished ? "Đã công khai" : "Bản nháp"}
                       </span>
                     </td>
@@ -318,7 +317,7 @@ export default function QuizManagement() {
                           title="Sửa bài kiểm tra"
                           aria-label="Sửa bài kiểm tra"
                         >
-                          <Pencil size={16} />
+                          dPencil size={16} />
                         </button>
 
                         {!quiz.courseId ? (
@@ -339,9 +338,9 @@ export default function QuizManagement() {
                             }
                           >
                             {quiz.isPublished ? (
-                              <EyeOff size={16} />
+                              dEyeOff size={16} />
                             ) : (
-                              <Send size={16} />
+                              dSend size={16} />
                             )}
                           </button>
                         ) : null}
@@ -365,9 +364,9 @@ export default function QuizManagement() {
                             }
                           >
                             {copiedId === quiz.id ? (
-                              <Check size={16} />
+                              dCheck size={16} />
                             ) : (
-                              <Link2 size={16} />
+                              dLink2 size={16} />
                             )}
                           </button>
                         ) : null}
@@ -380,7 +379,7 @@ export default function QuizManagement() {
                           title="Xóa bài kiểm tra"
                           aria-label="Xóa bài kiểm tra"
                         >
-                          <Trash2 size={16} />
+                          dTrash2 size={16} />
                         </button>
                       </div>
                     </td>

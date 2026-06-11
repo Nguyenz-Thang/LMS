@@ -17,6 +17,7 @@ public class LearningQuizResponse {
     private String quizScope;
     private Integer timeLimitMinutes;
     private Integer maxAttempts;
+    private Integer passingScore;
 
     private String attemptId;
     private Integer attemptNo;

@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.AccessLevel;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,6 +31,7 @@ public class EnrollmentController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
     public ApiResponse<List<EnrollmentResponse>> getAllEnrollments() {
         return ApiResponse.<List<EnrollmentResponse>>builder()
                 .result(enrollmentService.getAllEnrollments())

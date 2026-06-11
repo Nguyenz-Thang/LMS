@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import api from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
+import LoadingSpinner from "../../components/LoadingSpinner";
 import styles from "./Profile.module.scss";
 
 const BACKEND_BASE_URL = "http://localhost:8080/lms";
@@ -249,7 +250,7 @@ export default function Profile() {
   );
 
   if (loading) {
-    return <div className={styles.loading}>Đang tải thông tin cá nhân...</div>;
+    return <LoadingSpinner text="Đang tải thông tin cá nhân..." />;
   }
 
   return (

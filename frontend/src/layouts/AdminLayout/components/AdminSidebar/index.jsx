@@ -34,7 +34,7 @@ export default function AdminSidebar() {
           label: "Quản lý danh mục",
           to: "/admin/categories",
           icon: Library,
-          roles: ["ADMIN", "INSTRUCTOR"],
+          roles: ["ADMIN"],
         },
         {
           label: "Quản lý quiz",
@@ -58,13 +58,13 @@ export default function AdminSidebar() {
           label: "Quản lý doanh thu",
           to: "/admin/revenue",
           icon: CircleDollarSign,
-          roles: ["ADMIN", "INSTRUCTOR"],
+          roles: ["ADMIN"],
         },
         {
           label: "Báo cáo - thống kê",
           to: "/admin/reports",
           icon: BarChart3,
-          roles: ["ADMIN", "INSTRUCTOR"],
+          roles: ["ADMIN"],
         },
         {
           label: "Quản lý người dùng",

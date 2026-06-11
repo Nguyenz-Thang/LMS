@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import styles from "./CourseDetail.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
 import { useLearningApi } from "../../api/learningApi";
 import { createCoursePayment, getPayment } from "../../api/paymentApi";
@@ -69,6 +70,20 @@ function formatPrice(course) {
 function formatPaymentAmount(payment) {
   const amount = Number(payment?.amount || 0);
   return `${amount.toLocaleString("vi-VN")} ${payment?.currency || "VND"}`;
+}
+
+function getPaymentStatusText(status) {
+  switch (status) {
+    case "PAID":
+      return "Đã thanh toán";
+    case "FAILED":
+      return "Thanh toán lỗi";
+    case "CANCELLED":
+      return "Mã thanh toán đã hết hạn";
+    case "PENDING":
+    default:
+      return "Đang chờ chuyển khoản";
+  }
 }
 
 function getLessonIcon(lessonType) {
@@ -149,6 +164,13 @@ export default function CourseDetail() {
         if (nextPayment.status === "PAID") {
           window.clearInterval(timer);
           await startCourse();
+        } else if (["FAILED", "CANCELLED"].includes(nextPayment.status)) {
+          window.clearInterval(timer);
+          setPaymentError(
+            nextPayment.status === "FAILED"
+              ? "Thanh toán không hợp lệ hoặc không khớp số tiền/nội dung. Vui lòng tạo lại mã thanh toán."
+              : "Mã thanh toán đã hết hạn. Vui lòng tạo lại mã thanh toán.",
+          );
         }
       } catch {
         // Keep the payment dialog open while waiting for the next poll.
@@ -333,7 +355,7 @@ export default function CourseDetail() {
   };
 
   if (loading) {
-    return <div className={styles.stateBox}>Đang tải chi tiết khóa học...</div>;
+    return <LoadingSpinner text="Đang tải chi tiết khóa học..." />;
   }
 
   if (errorText) {
@@ -564,7 +586,7 @@ export default function CourseDetail() {
                 <div className={styles.paymentInfo}>
                   <div>
                     <span>Trạng thái</span>
-                    <strong>{payment.status === "PAID" ? "Đã thanh toán" : "Đang chờ chuyển khoản"}</strong>
+                    <strong>{getPaymentStatusText(payment.status)}</strong>
                   </div>
                   <div>
                     <span>Ngân hàng</span>

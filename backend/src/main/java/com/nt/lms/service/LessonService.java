@@ -2,8 +2,10 @@ package com.nt.lms.service;
 
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.nt.lms.dto.request.LessonCreationRequest;
@@ -43,6 +45,7 @@ public class LessonService {
     LessonResourceRepository lessonResourceRepository;
     UserRepository userRepository;
     FileStorageService fileStorageService;
+    EntityManager entityManager;
 
     public LessonResponse createLesson(LessonCreationRequest request) {
         validateCreateRequest(request);
@@ -122,24 +125,27 @@ public class LessonService {
         return toLessonResponse(lesson);
     }
 
+    @Transactional
     public void deleteLessonById(String lessonId) {
         Lesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
 
-        // Nếu FK trong DB đã ON DELETE CASCADE/SET NULL thì vẫn nên xóa tường minh cho rõ logic service
-        quizRepository.findByLessonId(lessonId)
-                .ifPresent(quizRepository::delete);
+        List<String> lessonResourceUrls = lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lessonId)
+                .stream()
+                .map(LessonResource::getFileUrl)
+                .filter(url -> url != null && !url.isBlank())
+                .toList();
+        if (hasLearningRelatedData(lessonId)) {
+            throw new AppException(
+                    ErrorCode.LESSON_HAS_RELATED_DATA,
+                    "Không thể xóa bài học này vì đã có dữ liệu học tập liên quan. "
+                            + "Bạn nên giữ lại hoặc chuyển bài học sang trạng thái nháp để bảo toàn dữ liệu.");
+        }
 
-        assignmentRepository.findByLessonId(lessonId)
-                .ifPresent(assignmentRepository::delete);
-
-        lessonResourceRepository.findByLessonIdOrderByCreatedAtAsc(lessonId)
-                .forEach(resource -> {
-                    lessonResourceRepository.delete(resource);
-                    fileStorageService.deleteByPublicUrl(resource.getFileUrl());
-                });
-
+        deleteLessonContentChildren(lessonId);
         lessonRepository.delete(lesson);
+
+        lessonResourceUrls.forEach(fileStorageService::deleteByPublicUrl);
     }
 
     public List<LearningLessonResourceResponse> getLessonResources(String lessonId) {
@@ -450,6 +456,59 @@ public class LessonService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private boolean hasLearningRelatedData(String lessonId) {
+        return countByLessonId("select count(*) from lesson_progress where lesson_id = :lessonId", lessonId) > 0
+                || countByLessonId("select count(*) from lesson_notes where lesson_id = :lessonId", lessonId) > 0
+                || countByLessonId("select count(*) from discussion_topics where lesson_id = :lessonId", lessonId) > 0
+                || countByLessonId("select count(*) from chatbot_conversations where lesson_id = :lessonId", lessonId) > 0
+                || countByLessonId("""
+                        select count(*)
+                        from quiz_attempts qa
+                        join quizzes q on q.id = qa.quiz_id
+                        where q.lesson_id = :lessonId
+                        """, lessonId) > 0
+                || countByLessonId("""
+                        select count(*)
+                        from assignment_submissions sub
+                        join assignments a on a.id = sub.assignment_id
+                        where a.lesson_id = :lessonId
+                        """, lessonId) > 0;
+    }
+
+    private void deleteLessonContentChildren(String lessonId) {
+        executeDelete("""
+                delete from quiz_options
+                where question_id in (
+                    select qq.id
+                    from quiz_questions qq
+                    join quizzes q on q.id = qq.quiz_id
+                    where q.lesson_id = :lessonId
+                )
+                """, lessonId);
+        executeDelete("""
+                delete from quiz_questions
+                where quiz_id in (
+                    select id from quizzes where lesson_id = :lessonId
+                )
+                """, lessonId);
+        executeDelete("delete from quizzes where lesson_id = :lessonId", lessonId);
+        executeDelete("delete from lesson_resources where lesson_id = :lessonId", lessonId);
+        executeDelete("delete from assignments where lesson_id = :lessonId", lessonId);
+    }
+
+    private long countByLessonId(String sql, String lessonId) {
+        Object result = entityManager.createNativeQuery(sql)
+                .setParameter("lessonId", lessonId)
+                .getSingleResult();
+        return result instanceof Number number ? number.longValue() : 0L;
+    }
+
+    private void executeDelete(String sql, String lessonId) {
+        entityManager.createNativeQuery(sql)
+                .setParameter("lessonId", lessonId)
+                .executeUpdate();
     }
 
     private String trimToNull(String value) {

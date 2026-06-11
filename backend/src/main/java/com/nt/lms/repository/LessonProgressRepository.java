@@ -11,19 +11,19 @@ import java.util.Optional;
 
 public interface LessonProgressRepository extends JpaRepository<LessonProgress, String> {
 
-    @Query(value = """
-            select count(*) > 0
-            from lesson_progress
-            where user_id = :userId
-              and lesson_id = :lessonId
-            """, nativeQuery = true)
+    @Query("""
+            select case when count(progress) > 0 then true else false end
+            from LessonProgress progress
+            where progress.user.id = :userId
+              and progress.lesson.id = :lessonId
+            """)
     boolean existsByUserIdAndLessonId(@Param("userId") String userId, @Param("lessonId") String lessonId);
 
-    @Query(value = """
-            select count(*) > 0
-            from lesson_progress
-            where user_id = :userId
-            """, nativeQuery = true)
+    @Query("""
+            select case when count(progress) > 0 then true else false end
+            from LessonProgress progress
+            where progress.user.id = :userId
+            """)
     boolean existsByUserId(@Param("userId") String userId);
 
     @Query(value = """

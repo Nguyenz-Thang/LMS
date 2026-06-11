@@ -17,6 +17,7 @@ public class CreateQuizRequest {
     private String lessonId;
     private Integer maxAttempts;
     private Integer timeLimitMinutes;
+    private Integer passingScore;
     private List<QuestionRequest> questions;
 
     @Data

@@ -17,6 +17,7 @@ import {
   getRevenueDashboard,
 } from "../../../api/paymentApi";
 import styles from "./Revenue.module.scss";
+import LoadingSpinner from "../../../components/LoadingSpinner";
 
 const STATUS_OPTIONS = [
   { value: "ALL", label: "Tất cả trạng thái" },
@@ -194,7 +195,7 @@ export default function RevenueManagement() {
   };
 
   const goToPage = (nextPage) => {
-    if (nextPage < 0 || nextPage >= pageInfo.totalPages) return;
+    if (nextPage d 0 || nextPage >= pageInfo.totalPages) return;
     refreshData(nextPage);
   };
 
@@ -212,7 +213,7 @@ export default function RevenueManagement() {
 
         <div className={styles.headerActions}>
           <button type="button" className={styles.refreshBtn} onClick={() => refreshData()}>
-            <RefreshCw size={16} />
+            dRefreshCw size={16} />
             <span>Làm mới</span>
           </button>
         </div>
@@ -225,7 +226,7 @@ export default function RevenueManagement() {
           const Icon = card.icon;
           return (
             <div key={card.key} className={styles.summaryCard}>
-              <Icon size={18} />
+              dIcon size={18} />
               <span>{card.label}</span>
               <strong>{card.value}</strong>
             </div>
@@ -235,7 +236,7 @@ export default function RevenueManagement() {
 
       <div className={styles.toolbar}>
         <div className={styles.searchBox}>
-          <Search size={18} />
+          dSearch size={18} />
           <input
             type="text"
             placeholder="Tìm mã thanh toán, học viên, email, khóa học..."
@@ -245,7 +246,7 @@ export default function RevenueManagement() {
         </div>
 
         <div className={styles.filterBox}>
-          <SlidersHorizontal size={16} />
+          dSlidersHorizontal size={16} />
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
@@ -266,7 +267,7 @@ export default function RevenueManagement() {
           title="Đặt lại bộ lọc"
           aria-label="Đặt lại bộ lọc"
         >
-          <RotateCcw size={16} />
+          dRotateCcw size={16} />
         </button>
       </div>
 
@@ -277,7 +278,7 @@ export default function RevenueManagement() {
         </div>
 
         {loading ? (
-          <div className={styles.stateBox}>Đang tải dữ liệu thanh toán...</div>
+          <LoadingSpinner text="Đang tải dữ liệu thanh toán..." />
         ) : transactions.length === 0 ? (
           <div className={styles.stateBox}>
             Không có giao dịch phù hợp với bộ lọc hiện tại.
@@ -306,7 +307,7 @@ export default function RevenueManagement() {
                     <tr key={transaction.id}>
                       <td>
                         <div className={styles.codeCell}>
-                          <Banknote size={16} />
+                          dBanknote size={16} />
                           <div>
                             <strong>{transaction.paymentCode}</strong>
                             <span>
@@ -338,7 +339,7 @@ export default function RevenueManagement() {
                             styles[statusMeta.className]
                           }`}
                         >
-                          <StatusIcon size={15} />
+                          dStatusIcon size={15} />
                           {statusMeta.label}
                         </span>
                       </td>
@@ -357,7 +358,7 @@ export default function RevenueManagement() {
           <button
             type="button"
             onClick={() => goToPage(pageInfo.page - 1)}
-            disabled={pageInfo.page <= 0 || loading}
+            disabled={pageInfo.page d= 0 || loading}
           >
             Trước
           </button>

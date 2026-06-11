@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useLearningApi } from "../../api/learningApi";
 import styles from "./Quizzes.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const FILTER_OPTIONS = {
   ALL: "ALL",
@@ -229,7 +230,7 @@ export default function Quizzes() {
         </div>
       </section>
 
-      {loading ? <div className={styles.stateBox}>Đang tải bài kiểm tra...</div> : null}
+      {loading ? <LoadingSpinner text="Đang tải bài kiểm tra..." /> : null}
       {!loading && errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
       {!loading && !errorText ? (

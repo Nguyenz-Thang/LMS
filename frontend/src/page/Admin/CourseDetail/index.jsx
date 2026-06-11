@@ -20,6 +20,7 @@ import {
   Trash2,
 } from "lucide-react";
 import styles from "./CourseDetail.module.scss";
+import LoadingSpinner from "../../../components/LoadingSpinner";
 import AddSectionModal from "../../../components/AddSectionModal";
 import EditSectionModal from "../../../components/EditSectionModal";
 import DeleteSectionModal from "../../../components/DeleteSectionModal";
@@ -266,7 +267,7 @@ export default function CourseDetail() {
   };
 
   if (loading) {
-    return <div className={styles.stateBox}>Đang tải chi tiết khóa học...</div>;
+    return <LoadingSpinner text="Đang tải chi tiết khóa học..." />;
   }
 
   if (errorText) {
@@ -515,7 +516,6 @@ export default function CourseDetail() {
                           <th>Bài học</th>
                           <th>Loại</th>
                           <th>Thời lượng</th>
-                          <th>Trạng thái</th>
                           <th>Thao tác</th>
                         </tr>
                       </thead>
@@ -569,18 +569,6 @@ export default function CourseDetail() {
                                 <Clock3 size={14} />
                                 {formatDuration(lesson.durationMinutes)}
                               </span>
-                            </td>
-
-                            <td>
-                              <div className={styles.lessonStatusGroup}>
-                                {!lesson.isPublished ? (
-                                  <span className={styles.draftBadge}>Nháp</span>
-                                ) : (
-                                  <span className={styles.publishedBadge}>
-                                    Đã xuất bản
-                                  </span>
-                                )}
-                              </div>
                             </td>
 
                             <td>

@@ -255,7 +255,7 @@ public class LearningQuizService {
         attempt.setStatus(QuizAttemptStatus.SUBMITTED);
         quizAttemptRepository.save(attempt);
 
-        boolean passed = allAnswered;
+        boolean passed = allAnswered && earnedScore >= resolvePassingScore(attempt.getQuiz(), questions.size());
         Lesson lesson = resolveQuizLesson(attempt.getQuiz());
         if (passed && lesson != null) {
             markLessonCompleted(currentUser, lesson);
@@ -379,6 +379,14 @@ public class LearningQuizService {
         Map<String, QuizAttemptAnswer> answerMap = answers.stream()
                 .collect(Collectors.toMap(a -> a.getQuestion().getId(), a -> a, (a, b) -> a));
 
+        int passingScore = resolvePassingScore(quiz, questions.size());
+        boolean passed = false;
+        if (attempt != null && attempt.getStatus() != QuizAttemptStatus.IN_PROGRESS) {
+            boolean allAnswered = !questions.isEmpty()
+                    && questions.stream().allMatch(question -> hasAnsweredQuestion(question, answerMap.get(question.getId())));
+            passed = allAnswered && safeScore(attempt) >= passingScore;
+        }
+
         List<LearningQuizQuestionResponse> questionResponses = new ArrayList<>();
 
         for (Question question : questions) {
@@ -403,7 +411,7 @@ public class LearningQuizService {
                     .id(question.getId())
                     .questionText(question.getContent())
                     .questionType(question.getQuestionType())
-                    .explanation(question.getExplanation())
+                    .explanation(passed ? question.getExplanation() : null)
                     .orderIndex(safeInt(question.getOrderIndex()))
                     .selectedOptionId(
                             answer != null && answer.getSelectedOption() != null
@@ -411,20 +419,13 @@ public class LearningQuizService {
                                     : null
                     )
                     .selectedOptionIds(extractSelectedOptionIds(answer))
-                    .correctOptionId(firstCorrectOption != null ? firstCorrectOption.getId() : null)
-                    .correctOptionText(firstCorrectOption != null ? firstCorrectOption.getOptionText() : null)
-                    .correctOptionIds(correctOptions.stream().map(QuizOption::getId).toList())
-                    .correctOptionTexts(correctOptions.stream().map(QuizOption::getOptionText).toList())
-                    .correct(answer != null ? answer.getIsCorrect() : null)
+                    .correctOptionId(passed && firstCorrectOption != null ? firstCorrectOption.getId() : null)
+                    .correctOptionText(passed && firstCorrectOption != null ? firstCorrectOption.getOptionText() : null)
+                    .correctOptionIds(passed ? correctOptions.stream().map(QuizOption::getId).toList() : List.of())
+                    .correctOptionTexts(passed ? correctOptions.stream().map(QuizOption::getOptionText).toList() : List.of())
+                    .correct(passed && answer != null ? answer.getIsCorrect() : null)
                     .options(optionResponses)
                     .build());
-        }
-
-        boolean passed = false;
-        if (attempt != null && attempt.getStatus() != QuizAttemptStatus.IN_PROGRESS) {
-            boolean allAnswered = !questions.isEmpty()
-                    && questions.stream().allMatch(question -> hasAnsweredQuestion(question, answerMap.get(question.getId())));
-            passed = allAnswered;
         }
 
         return LearningQuizResponse.builder()
@@ -434,6 +435,7 @@ public class LearningQuizService {
                 .quizScope(quiz.getQuizScope() != null ? String.valueOf(quiz.getQuizScope()) : null)
                 .timeLimitMinutes(quiz.getTimeLimitMinutes())
                 .maxAttempts(quiz.getMaxAttempts())
+                .passingScore(passingScore)
                 .attemptId(attempt != null ? attempt.getId() : null)
                 .attemptNo(attempt != null ? attempt.getAttemptNo() : null)
                 .attemptStatus(attempt != null && attempt.getStatus() != null ? attempt.getStatus().name() : null)
@@ -449,7 +451,7 @@ public class LearningQuizService {
     private void validateQuizAccess(User currentUser, Quiz quiz) {
         if (isIndependentQuiz(quiz)) {
             if (!canAccessIndependentQuiz(currentUser, quiz)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Quiz độc lập này chưa được publish");
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bài luyện tập này chưa được publish");
             }
             return;
         }
@@ -530,7 +532,11 @@ public class LearningQuizService {
             return false;
         }
 
-        return safeTotalScore(attempt) > 0 && calculateScorePercent(attempt) >= 100.0;
+        if (safeTotalScore(attempt) <= 0) {
+            return false;
+        }
+
+        return safeScore(attempt) >= resolvePassingScore(attempt.getQuiz(), (int) Math.round(safeTotalScore(attempt)));
     }
 
     private boolean isAttemptTimeExpired(QuizAttempt attempt) {
@@ -631,6 +637,17 @@ public class LearningQuizService {
                 .stream()
                 .mapToDouble(q -> 1.0)
                 .sum();
+    }
+
+    private int resolvePassingScore(Quiz quiz, int questionCount) {
+        int safeQuestionCount = Math.max(0, questionCount);
+        Integer requestedPassingScore = quiz != null ? quiz.getPassingScore() : null;
+
+        if (requestedPassingScore == null || requestedPassingScore <= 0) {
+            return safeQuestionCount;
+        }
+
+        return Math.min(requestedPassingScore, safeQuestionCount);
     }
 
     private double safeDouble(Number value) {

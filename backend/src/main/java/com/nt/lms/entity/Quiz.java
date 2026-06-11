@@ -41,6 +41,9 @@ public class Quiz {
     @Column(name = "max_attempts")
     Integer maxAttempts;
 
+    @Column(name = "passing_score")
+    Integer passingScore;
+
     @Column(name = "is_published", nullable = false)
     @Builder.Default
     Boolean isPublished = false;

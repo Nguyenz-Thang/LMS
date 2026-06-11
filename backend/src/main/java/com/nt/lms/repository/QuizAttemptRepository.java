@@ -41,11 +41,11 @@ public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, String
             """, nativeQuery = true)
     long countByQuizIdAndUserId(@Param("quizId") String quizId, @Param("userId") String userId);
 
-    @Query(value = """
-            select count(*) > 0
-            from quiz_attempts
-            where user_id = :userId
-            """, nativeQuery = true)
+    @Query("""
+            select case when count(attempt) > 0 then true else false end
+            from QuizAttempt attempt
+            where attempt.user.id = :userId
+            """)
     boolean existsByUserId(@Param("userId") String userId);
 
     @Query(value = """
@@ -55,11 +55,11 @@ public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, String
             """, nativeQuery = true)
     long countByQuizId(@Param("quizId") String quizId);
 
-    @Query(value = """
-            select count(*) > 0
-            from quiz_attempts
-            where quiz_id = :quizId
-            """, nativeQuery = true)
+    @Query("""
+            select case when count(attempt) > 0 then true else false end
+            from QuizAttempt attempt
+            where attempt.quiz.id = :quizId
+            """)
     boolean existsByQuizId(@Param("quizId") String quizId);
 
     @Query(value = """

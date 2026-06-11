@@ -39,6 +39,7 @@ public enum ErrorCode {
     CATEGORY_IN_USE(2006, "Danh mục đang được sử dụng bởi khóa học", HttpStatus.BAD_REQUEST),
     USER_HAS_RELATED_DATA(2007, "Người dùng này đã có dữ liệu liên quan", HttpStatus.BAD_REQUEST),
     QUIZ_HAS_ATTEMPTS(2008, "Bài kiểm tra này đã có lượt làm", HttpStatus.BAD_REQUEST),
+    LESSON_HAS_RELATED_DATA(2009, "Bài học này đã có dữ liệu học tập liên quan", HttpStatus.BAD_REQUEST),
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

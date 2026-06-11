@@ -592,7 +592,8 @@ public class LearningService {
 								|| (answer.getAnswerText() != null && !answer.getAnswerText().isBlank())
 				);
 			});
-			boolean passed = allQuestionsAnswered;
+			int passingScore = resolvePassingScore(quiz, questions.size());
+			boolean passed = allQuestionsAnswered && safeDouble(attempt.getScore()) >= passingScore;
 
 			if (!submitted || !passed) {
 				return false;
@@ -619,6 +620,17 @@ public class LearningService {
 
 	private double safeDouble(Number value) {
 		return value == null ? 0.0 : value.doubleValue();
+	}
+
+	private int resolvePassingScore(Quiz quiz, int questionCount) {
+		int safeQuestionCount = Math.max(0, questionCount);
+		Integer requestedPassingScore = quiz != null ? quiz.getPassingScore() : null;
+
+		if (requestedPassingScore == null || requestedPassingScore <= 0) {
+			return safeQuestionCount;
+		}
+
+		return Math.min(requestedPassingScore, safeQuestionCount);
 	}
 
 	private List<LearningBlockResponse> buildLearningBlocks(Lesson lesson, List<LessonResource> resources) {

@@ -67,12 +67,13 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 220px 44px;
+  grid-template-columns: minmax(260px, 1fr) 220px 220px 280px 44px;
   gap: 10px;
 }
 
 .searchBox,
 .filterBox,
+.dateBox,
 .resetBtn {
   height: 42px;
   border: 1px solid #dbe3ef;
@@ -89,14 +90,51 @@
   color: #64748b;
 }
 
+.dateBox {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 0 8px;
+  align-items: center;
+}
+
 .searchBox input,
-.filterBox select {
+.filterBox select,
+.dateBox input {
   width: 100%;
   border: none;
   outline: none;
   background: transparent;
   color: #0f172a;
   font-size: 14px;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.statCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+
+  span {
+    display: block;
+    margin-bottom: 6px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  strong {
+    color: #0f172a;
+    font-size: 24px;
+    font-weight: 800;
+  }
 }
 
 .resetBtn {
@@ -244,6 +282,26 @@
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.scoreCell {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 6px 9px;
+}
+
+.passedInline,
+.failedInline {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.passedInline {
+  color: #047857;
+}
+
+.failedInline {
+  color: #dc2626;
 }
 
 .correctCell,

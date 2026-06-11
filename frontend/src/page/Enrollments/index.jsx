@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Ban,
@@ -19,7 +19,9 @@ import {
 } from "../../api/enrollmentApi";
 import { searchUsers } from "../../api/userApi";
 import { getCourses, LMS_BASE_URL } from "../../api/courseApi";
+import { AuthContext } from "../../context/AuthContext";
 import styles from "./Enrollments.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const INITIAL_FORM = {
   userId: "",
@@ -139,6 +141,8 @@ function buildImageUrl(value) {
 
 export default function EnrollmentManagement() {
   const navigate = useNavigate();
+  const { hasRole } = useContext(AuthContext);
+  const canCreateEnrollment = hasRole("ADMIN");
 
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -387,15 +391,17 @@ export default function EnrollmentManagement() {
           <p>Theo dõi học viên đã đăng ký khóa học và tiến độ học tập.</p>
         </div>
 
-        <button type="button" className={styles.addBtn} onClick={openCreateModal}>
-          <Plus size={18} />
-          <span>Thêm học viên</span>
-        </button>
+        {canCreateEnrollment ? (
+          <button type="button" className={styles.addBtn} onClick={openCreateModal}>
+            dPlus size={18} />
+            <span>Thêm học viên</span>
+          </button>
+        ) : null}
       </div>
 
       <div className={styles.toolbar}>
         <div className={styles.searchBox}>
-          <Search size={18} />
+          dSearch size={18} />
           <input
             type="text"
             placeholder="Tìm học viên, email, khóa học hoặc mã..."
@@ -405,7 +411,7 @@ export default function EnrollmentManagement() {
         </div>
 
         <div className={styles.filterBox}>
-          <SlidersHorizontal size={16} />
+          dSlidersHorizontal size={16} />
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
@@ -426,7 +432,7 @@ export default function EnrollmentManagement() {
           title="Đặt lại bộ lọc"
           aria-label="Đặt lại bộ lọc"
         >
-          <RotateCcw size={16} />
+          dRotateCcw size={16} />
         </button>
       </div>
 
@@ -443,9 +449,7 @@ export default function EnrollmentManagement() {
 
       <div className={styles.tableCard}>
         {loading ? (
-          <div className={styles.stateBox}>
-            Đang tải danh sách đăng ký học...
-          </div>
+          <LoadingSpinner text="Đang tải danh sách đăng ký học..." />
         ) : filteredEnrollments.length === 0 ? (
           <div className={styles.stateBox}>
             Không có đăng ký học phù hợp với bộ lọc hiện tại.
@@ -477,12 +481,12 @@ export default function EnrollmentManagement() {
                         <div className={styles.userCell}>
                           <span className={styles.userIcon}>
                             {enrollment.avatar ? (
-                              <img
+                              dimg
                                 src={buildImageUrl(enrollment.avatar)}
                                 alt={enrollment.fullName || enrollment.username}
                               />
                             ) : (
-                              <UserRound size={17} />
+                              dUserRound size={17} />
                             )}
                           </span>
                           <div>
@@ -496,7 +500,7 @@ export default function EnrollmentManagement() {
 
                       <td>
                         <div className={styles.courseCell}>
-                          <img
+                          dimg
                             src={getImageSrc(enrollment.courseThumbnailUrl)}
                             alt={enrollment.courseTitle}
                             className={styles.thumb}
@@ -514,7 +518,7 @@ export default function EnrollmentManagement() {
                             styles[statusMeta.className]
                           }`}
                         >
-                          <StatusIcon size={15} />
+                          dStatusIcon size={15} />
                           {statusMeta.label}
                         </span>
                       </td>
@@ -533,14 +537,14 @@ export default function EnrollmentManagement() {
 
                       <td>
                         <span className={styles.timeCell}>
-                          <CalendarDays size={14} />
+                          dCalendarDays size={14} />
                           {formatDateTime(enrollment.enrolledAt)}
                         </span>
                       </td>
 
                       <td>
                         <span className={styles.timeCell}>
-                          <CalendarDays size={14} />
+                          dCalendarDays size={14} />
                           {formatDateTime(enrollment.lastAccessedAt)}
                         </span>
                       </td>
@@ -554,7 +558,7 @@ export default function EnrollmentManagement() {
                             title="Xem khóa học"
                             aria-label="Xem khóa học"
                           >
-                            <Eye size={16} />
+                            dEye size={16} />
                           </button>
                         </div>
                       </td>
@@ -584,11 +588,11 @@ export default function EnrollmentManagement() {
                 title="Đóng"
                 aria-label="Đóng"
               >
-                <X size={17} />
+                dX size={17} />
               </button>
             </div>
 
-            <form className={styles.form} onSubmit={handleAddEnrollment}>
+            dform className={styles.form} onSubmit={handleAddEnrollment}>
               {modalErrorText ? (
                 <div className={styles.modalError}>{modalErrorText}</div>
               ) : null}
@@ -596,7 +600,7 @@ export default function EnrollmentManagement() {
               <div className={styles.formGroup}>
                 <span>Học viên</span>
                 <div className={styles.searchSelect}>
-                  <Search size={16} />
+                  dSearch size={16} />
                   <input
                     value={studentKeyword}
                     onChange={(event) => {
@@ -611,7 +615,7 @@ export default function EnrollmentManagement() {
 
                 {selectedStudent ? (
                   <div className={styles.selectedItem}>
-                    <UserRound size={16} />
+                    dUserRound size={16} />
                     <div>
                       <strong>
                         {selectedStudent.fullName || selectedStudent.username}
@@ -636,7 +640,7 @@ export default function EnrollmentManagement() {
                           onClick={() => handleSelectStudent(student)}
                           disabled={saving}
                         >
-                          <UserRound size={16} />
+                          dUserRound size={16} />
                           <div>
                             <strong>{student.fullName || student.username}</strong>
                             <span>{student.email || student.username}</span>
@@ -651,7 +655,7 @@ export default function EnrollmentManagement() {
               <div className={styles.formGroup}>
                 <span>Khóa học</span>
                 <div className={styles.searchSelect}>
-                  <Search size={16} />
+                  dSearch size={16} />
                   <input
                     value={courseKeyword}
                     onChange={(event) => {
@@ -670,7 +674,7 @@ export default function EnrollmentManagement() {
 
                 {selectedCourse ? (
                   <div className={styles.selectedItem}>
-                    <BookOpen size={16} />
+                    dBookOpen size={16} />
                     <div>
                       <strong>{selectedCourse.title}</strong>
                       <span>
@@ -699,7 +703,7 @@ export default function EnrollmentManagement() {
                           onClick={() => handleSelectCourse(course)}
                           disabled={saving}
                         >
-                          <BookOpen size={16} />
+                          dBookOpen size={16} />
                           <div>
                             <strong>{course.title}</strong>
                             <span>
@@ -744,7 +748,7 @@ export default function EnrollmentManagement() {
                   {saving ? "Đang thêm..." : "Thêm học viên"}
                 </button>
               </div>
-            </form>
+            d/form>
           </div>
         </div>
       ) : null}

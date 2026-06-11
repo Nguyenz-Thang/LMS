@@ -11,6 +11,7 @@ import {
   FileQuestion,
 } from "lucide-react";
 import styles from "./QuizEditor.module.scss";
+import LoadingSpinner from "../../components/LoadingSpinner";
 import { createQuiz, getQuiz, updateQuiz } from "../../api/quizApi";
 
 const QUESTION_TYPES = {
@@ -145,6 +146,7 @@ export default function QuizEditor() {
     lessonId: lessonIdFromQuery,
     maxAttempts: 1,
     timeLimitMinutes: 0,
+    passingScore: 1,
     questions: [createEmptyQuestion()],
   });
 
@@ -162,6 +164,7 @@ export default function QuizEditor() {
         lessonId: lessonIdFromQuery,
         maxAttempts: 1,
         timeLimitMinutes: 0,
+        passingScore: 1,
         questions: [createEmptyQuestion()],
       });
       return;
@@ -185,6 +188,9 @@ export default function QuizEditor() {
         lessonId: data?.lessonId || "",
         maxAttempts: Number(data?.maxAttempts) || 1,
         timeLimitMinutes: Number(data?.timeLimitMinutes) || 0,
+        passingScore:
+          Number(data?.passingScore) ||
+          (Array.isArray(data?.questions) ? data.questions.length : 1),
         questions:
           Array.isArray(data?.questions) && data.questions.length > 0
             ? data.questions.map((q, index) => normalizeQuestion(q, index))
@@ -385,6 +391,11 @@ export default function QuizEditor() {
       return "Quiz phải có ít nhất 1 câu hỏi.";
     }
 
+    const passingScore = Number(form.passingScore) || 0;
+    if (passingScore < 1 || passingScore > form.questions.length) {
+      return `Số câu đúng tối thiểu phải từ 1 đến ${form.questions.length}.`;
+    }
+
     for (let i = 0; i < form.questions.length; i += 1) {
       const question = form.questions[i];
 
@@ -426,13 +437,17 @@ export default function QuizEditor() {
     courseId: form.courseId || null,
     lessonId: form.lessonId || null,
     maxAttempts: form.lessonId
-      ? 1
+      ? null
       : Math.max(1, Number(form.maxAttempts) || 1),
     timeLimitMinutes: form.lessonId
       ? null
       : Math.max(0, Number(form.timeLimitMinutes) || 0) > 0
         ? Math.max(0, Number(form.timeLimitMinutes) || 0)
         : null,
+    passingScore: Math.min(
+      form.questions.length,
+      Math.max(1, Number(form.passingScore) || form.questions.length),
+    ),
     questions: form.questions.map((question, index) => ({
       content: question.content.trim(),
       explanation: question.explanation?.trim() || "",
@@ -479,7 +494,7 @@ export default function QuizEditor() {
   };
 
   if (loading) {
-    return <div className={styles.stateBox}>Đang tải quiz...</div>;
+    return <LoadingSpinner text="�ang t?i quiz..." />;
   }
 
   return (
@@ -505,7 +520,7 @@ export default function QuizEditor() {
           <p>
             {form.courseId
               ? "Quiz này đang được gắn với một khóa học."
-              : "Quiz độc lập, không thuộc khóa học nào."}
+              : "Bài luyện tập, không thuộc khóa học nào."}
           </p>
         </div>
       </div>
@@ -532,6 +547,20 @@ export default function QuizEditor() {
               value={form.description}
               onChange={handleQuizChange}
               placeholder="Nhập mô tả quiz..."
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="passingScore">Số câu đúng tối thiểu để đạt</label>
+            <input
+              id="passingScore"
+              name="passingScore"
+              type="number"
+              min="1"
+              max={Math.max(1, form.questions.length)}
+              value={form.passingScore}
+              onChange={handleQuizChange}
+              placeholder={`Tối đa ${form.questions.length} câu`}
             />
           </div>
 
