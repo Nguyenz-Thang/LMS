@@ -140,7 +140,7 @@ export default function Courses() {
       {errorText ? <div className={styles.errorBox}>{errorText}</div> : null}
 
       {loading ? (
-        <LoadingSpinner text="�ang t?i danh s�ch kh�a h?c..." />
+        <LoadingSpinner text="Đang tải danh sách khóa học..." />
       ) : visibleCourses.length === 0 ? (
         <div className={styles.stateBox}>
           Không có khóa học phù hợp với từ khóa hiện tại.

@@ -36,25 +36,51 @@
   white-space: nowrap;
 }
 
-.search {
+.contactStrip {
   flex: 1;
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
 
-  input {
-    width: 420px;
-    max-width: 100%;
-    height: 38px;
-    border: 1px solid #d1d5db;
-    border-radius: 999px;
-    padding: 0 16px;
-    font-size: 14px;
+.contactPill,
+.notificationButton {
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 6px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 
-    &:focus {
-      outline: none;
-      border-color: #9ca3af;
-    }
+  &:hover {
+    background: #e9edf2;
+    border-color: #e2e8f0;
   }
+}
+
+.contactIcon,
+.notificationIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ff5a66;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .right {
@@ -96,27 +122,10 @@
   border-color: #cbd5e1;
 }
 
-.iconButton {
+.notificationButton {
   position: relative;
-  width: 38px;
-  height: 38px;
-  border: 1px solid #e5e7eb;
-  border-radius: 50%;
-  background: #fff7ed;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  border: 1px solid transparent;
   cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    transform 0.2s ease,
-    background 0.2s ease;
-
-  &:hover {
-    border-color: #fdba74;
-    background: #ffedd5;
-    transform: translateY(-1px);
-  }
 }
 
 .icon {
@@ -383,7 +392,7 @@
     padding: 0 14px;
   }
 
-  .search {
+  .contactStrip {
     display: none;
   }
 

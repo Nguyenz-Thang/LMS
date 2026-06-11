@@ -45,7 +45,7 @@ function formatDuration(startedAt, submittedAt, status) {
   const start = new Date(startedAt).getTime();
   const end = submittedAt ? new Date(submittedAt).getTime() : Date.now();
 
-  if (Number.isNaN(start) || Number.isNaN(end) || end d start) {
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
     return status === "IN_PROGRESS" ? "Đang làm" : "Không rõ";
   }
 
@@ -53,7 +53,7 @@ function formatDuration(startedAt, submittedAt, status) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
-  if (minutes d= 0) return `${seconds} giây`;
+  if (minutes <= 0) return `${seconds} giây`;
   return `${minutes} phút ${seconds} giây`;
 }
 
@@ -149,7 +149,7 @@ export default function QuizAttempts() {
       const toTime = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
       const matchDate =
         (!fromTime || (submittedTime && submittedTime >= fromTime)) &&
-        (!toTime || (submittedTime && submittedTime d= toTime));
+        (!toTime || (submittedTime && submittedTime <= toTime));
 
       return matchSearch && matchStatus && matchResult && matchDate;
     });
@@ -189,7 +189,7 @@ export default function QuizAttempts() {
       <div className={styles.headerBar}>
         <div className={styles.titleGroup}>
           <span className={styles.titleIcon}>
-            dFileQuestion size={22} />
+            <FileQuestion size={22} />
           </span>
           <div>
             <h1>Lượt làm bài kiểm tra</h1>
@@ -202,14 +202,14 @@ export default function QuizAttempts() {
           className={styles.backBtn}
           onClick={() => navigate("/admin/quizzes")}
         >
-          dArrowLeft size={18} />
+          <ArrowLeft size={18} />
           <span>Quay lại</span>
         </button>
       </div>
 
       <div className={styles.toolbar}>
         <div className={styles.searchBox}>
-          dSearch size={18} />
+          <Search size={18} />
           <input
             type="text"
             value={search}
@@ -219,7 +219,7 @@ export default function QuizAttempts() {
         </div>
 
         <div className={styles.filterBox}>
-          dClock size={16} />
+          <Clock size={16} />
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
@@ -234,7 +234,7 @@ export default function QuizAttempts() {
         </div>
 
         <div className={styles.filterBox}>
-          dSlidersHorizontal size={16} />
+          <SlidersHorizontal size={16} />
           <select
             value={resultFilter}
             onChange={(event) => setResultFilter(event.target.value)}
@@ -276,7 +276,7 @@ export default function QuizAttempts() {
           title="Đặt lại bộ lọc"
           aria-label="Đặt lại bộ lọc"
         >
-          dRotateCcw size={16} />
+          <RotateCcw size={16} />
         </button>
       </div>
 
@@ -346,7 +346,7 @@ export default function QuizAttempts() {
                       <td>
                         <div className={styles.userCell}>
                           <span className={styles.userIcon}>
-                            dUserRound size={17} />
+                            <UserRound size={17} />
                           </span>
                           <div>
                             <strong>
@@ -371,7 +371,7 @@ export default function QuizAttempts() {
                             styles[statusMeta.className]
                           }`}
                         >
-                          dStatusIcon size={15} />
+                          <StatusIcon size={15} />
                           {statusMeta.label}
                         </span>
                       </td>

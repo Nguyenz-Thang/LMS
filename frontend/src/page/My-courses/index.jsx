@@ -322,7 +322,7 @@ export default function MyCoursesPage() {
       </section>
 
       {loading ? (
-        <LoadingSpinner text="�ang t?i kh�a h?c c?a b?n..." />
+        <LoadingSpinner text="Đang tải khóa học của bạn..." />
       ) : errorText ? (
         <div className={styles.errorBox}>{errorText}</div>
       ) : filteredCourses.length === 0 ? (

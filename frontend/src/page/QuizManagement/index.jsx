@@ -173,14 +173,14 @@ export default function QuizManagement() {
           className={styles.addBtn}
           onClick={() => navigate("/admin/quizzes/new")}
         >
-          dPlus size={18} />
+          <Plus size={18} />
           <span>Thêm bài kiểm tra</span>
         </button>
       </div>
 
       <div className={styles.toolbar}>
         <div className={styles.searchBox}>
-          dSearch size={18} />
+          <Search size={18} />
           <input
             type="text"
             placeholder="Tìm tiêu đề hoặc mô tả bài kiểm tra..."
@@ -190,7 +190,7 @@ export default function QuizManagement() {
         </div>
 
         <div className={styles.filterBox}>
-          dFilter size={16} />
+          <Filter size={16} />
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
@@ -211,7 +211,7 @@ export default function QuizManagement() {
           title="Đặt lại bộ lọc"
           aria-label="Đặt lại bộ lọc"
         >
-          dRotateCcw size={16} />
+          <RotateCcw size={16} />
         </button>
       </div>
 
@@ -255,7 +255,7 @@ export default function QuizManagement() {
                     <td>
                       <div className={styles.quizCell}>
                         <span className={styles.quizIcon}>
-                          dFileQuestion size={17} />
+                          <FileQuestion size={17} />
                         </span>
                         <div className={styles.quizInfo}>
                           <strong>{quiz.title || "Chưa đặt tiêu đề"}</strong>
@@ -303,7 +303,7 @@ export default function QuizManagement() {
                         }
                         title={quiz.isPublished ? "Đã công khai" : "Bản nháp"}
                       >
-                        {quiz.isPublished ? dCheck size={15} /> : dEyeOff size={15} />}
+                        {quiz.isPublished ? <Check size={15} /> : <EyeOff size={15} />}
                         {quiz.isPublished ? "Đã công khai" : "Bản nháp"}
                       </span>
                     </td>
@@ -317,7 +317,7 @@ export default function QuizManagement() {
                           title="Sửa bài kiểm tra"
                           aria-label="Sửa bài kiểm tra"
                         >
-                          dPencil size={16} />
+                          <Pencil size={16} />
                         </button>
 
                         {!quiz.courseId ? (
@@ -338,9 +338,9 @@ export default function QuizManagement() {
                             }
                           >
                             {quiz.isPublished ? (
-                              dEyeOff size={16} />
+                              <EyeOff size={16} />
                             ) : (
-                              dSend size={16} />
+                              <Send size={16} />
                             )}
                           </button>
                         ) : null}
@@ -364,9 +364,9 @@ export default function QuizManagement() {
                             }
                           >
                             {copiedId === quiz.id ? (
-                              dCheck size={16} />
+                              <Check size={16} />
                             ) : (
-                              dLink2 size={16} />
+                              <Link2 size={16} />
                             )}
                           </button>
                         ) : null}
@@ -379,7 +379,7 @@ export default function QuizManagement() {
                           title="Xóa bài kiểm tra"
                           aria-label="Xóa bài kiểm tra"
                         >
-                          dTrash2 size={16} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>

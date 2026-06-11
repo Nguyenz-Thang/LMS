@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell, LayoutDashboard } from "lucide-react";
+import { Bell, LayoutDashboard, Mail, Phone } from "lucide-react";
 import { AuthContext } from "../../../context/AuthContext";
 import styles from "./Header.module.scss";
 import logo from "../../../assets/img/logo.png";
@@ -243,8 +243,20 @@ export default function Header() {
         <span className={styles.title}>HỆ THỐNG QUẢN LÝ HỌC TẬP</span>
       </Link>
 
-      <div className={styles.search}>
-        <input placeholder="Tìm kiếm..." />
+      <div className={styles.contactStrip} aria-label="Thông tin liên hệ">
+        <a href="tel:0865416387" className={styles.contactPill}>
+          <span className={styles.contactIcon}>
+            <Phone size={16} />
+          </span>
+          <span>08 6541 6387</span>
+        </a>
+
+        <a href="mailto:tatthang204@gmail.com" className={styles.contactPill}>
+          <span className={styles.contactIcon}>
+            <Mail size={16} />
+          </span>
+          <span>tatthang204@gmail.com</span>
+        </a>
       </div>
 
       <div className={styles.right}>
@@ -260,7 +272,7 @@ export default function Header() {
         <div className={styles.notificationWrap} ref={notificationRef}>
           <button
             type="button"
-            className={styles.iconButton}
+            className={styles.notificationButton}
             aria-label="Thông báo"
             aria-haspopup="menu"
             aria-expanded={notificationOpen}
@@ -272,7 +284,10 @@ export default function Header() {
               }
             }}
           >
-            <Bell size={17} />
+            <span className={styles.notificationIcon}>
+              <Bell size={16} />
+            </span>
+            <span>Thông báo</span>
             {unreadCount > 0 ? (
               <span className={styles.badge}>
                 {unreadCount > 9 ? "9+" : unreadCount}

@@ -494,7 +494,7 @@ export default function QuizEditor() {
   };
 
   if (loading) {
-    return <LoadingSpinner text="�ang t?i quiz..." />;
+    return <LoadingSpinner text="Đang tải quiz..." />;
   }
 
   return (
