@@ -1,10 +1,9 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { Save, Upload, X } from "lucide-react";
 import Modal from "../Modal";
 import styles from "./EditCourseModal.module.scss";
 import { LMS_BASE_URL, useCourseApi } from "../../api/courseApi";
-import { AuthContext } from "../../context/AuthContext";
 
 function EditCourseModal({
   isOpen,
@@ -14,15 +13,14 @@ function EditCourseModal({
   categories = [],
 }) {
   const { updateCourse, uploadCourseImage } = useCourseApi();
-  const { hasRole } = useContext(AuthContext);
-  const isAdmin = hasRole("ADMIN");
+  const isAdmin = true;
 
   const [form, setForm] = useState({
     title: "",
     description: "",
     thumbnailUrl: "",
     categoryId: "",
-    status: "DRAFT",
+    status: "PUBLISHED",
     visibility: "PUBLIC",
     level: "BEGINNER",
     estimatedHours: 0,

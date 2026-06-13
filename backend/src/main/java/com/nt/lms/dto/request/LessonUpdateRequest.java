@@ -14,6 +14,8 @@ public class LessonUpdateRequest {
     String description;
     String content;
     String videoUrl;
+    String videoTranscript;
+    String videoTranscriptSource;
     String thumbnailUrl;
     Integer durationMinutes;
     Boolean isPublished;

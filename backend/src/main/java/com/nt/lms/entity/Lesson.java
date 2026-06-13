@@ -32,6 +32,16 @@ public class Lesson {
     @Column(name = "video_url")
     String videoUrl;
 
+    @Lob
+    @Column(name = "video_transcript", columnDefinition = "LONGTEXT")
+    String videoTranscript;
+
+    @Column(name = "video_transcript_source")
+    String videoTranscriptSource;
+
+    @Column(name = "video_transcript_updated_at")
+    LocalDateTime videoTranscriptUpdatedAt;
+
     @Column(name = "thumbnail_url")
     String thumbnailUrl;
 

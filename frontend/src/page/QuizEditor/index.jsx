@@ -564,12 +564,7 @@ export default function QuizEditor() {
             />
           </div>
 
-          {form.lessonId ? (
-            <div className={styles.inlineInfo}>
-              Quiz này được tạo từ lesson. Hệ thống sẽ tự gán liên kết bài học,
-              bạn không cần nhập `lessonId`.
-            </div>
-          ) : (
+          {!form.lessonId ? (
             <div className={styles.formGroup}>
               <label htmlFor="maxAttempts">Số lần được làm</label>
               <input
@@ -582,7 +577,7 @@ export default function QuizEditor() {
                 placeholder="Nhập số lần được làm"
               />
             </div>
-          )}
+          ) : null}
 
           {!form.lessonId ? (
           <div className={styles.formGroup}>

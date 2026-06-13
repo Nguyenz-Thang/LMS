@@ -58,7 +58,6 @@ public class CourseService {
 
     public CourseResponse createCourse(CourseRequest request) {
         User currentUser = getCurrentUser();
-        boolean isAdmin = hasRole(currentUser, "ADMIN");
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_EXISTED));
@@ -69,8 +68,8 @@ public class CourseService {
                 .thumbnailUrl(request.getThumbnailUrl())
                 .instructor(currentUser)
                 .category(category)
-                .status(isAdmin ? defaultStatus(request.getStatus()) : "PENDING_APPROVAL")
-                .visibility(isAdmin ? defaultVisibility(request.getVisibility()) : "PRIVATE")
+                .status(defaultStatus(request.getStatus()))
+                .visibility(defaultVisibility(request.getVisibility()))
                 .level(request.getLevel() == null ? "BEGINNER" : request.getLevel())
                 .estimatedHours(request.getEstimatedHours() == null ? 0 : request.getEstimatedHours())
                 .price(normalizePrice(request.getPrice()))
@@ -79,9 +78,6 @@ public class CourseService {
                 .build();
 
         Course savedCourse = courseRepository.save(course);
-        if (!isAdmin) {
-            appNotificationService.notifyCoursePendingApproval(savedCourse);
-        }
         return mapToResponse(savedCourse);
     }
 
@@ -268,16 +264,11 @@ public class CourseService {
             course.setPaid(Boolean.TRUE.equals(request.getPaid()) && isPositive(course.getPrice()));
         }
 
-        if (isAdmin) {
-            if (request.getStatus() != null) {
-                course.setStatus(request.getStatus());
-            }
-            if (request.getVisibility() != null) {
-                course.setVisibility(request.getVisibility());
-            }
-        } else {
-            course.setStatus("PENDING_APPROVAL");
-            course.setVisibility("PRIVATE");
+        if (request.getStatus() != null) {
+            course.setStatus(defaultStatus(request.getStatus()));
+        }
+        if (request.getVisibility() != null) {
+            course.setVisibility(defaultVisibility(request.getVisibility()));
         }
 
         return mapToResponse(courseRepository.save(course));
@@ -437,7 +428,7 @@ public class CourseService {
     }
 
     private String defaultStatus(String status) {
-        return status == null || status.isBlank() ? "DRAFT" : status.trim();
+        return status == null || status.isBlank() ? "PUBLISHED" : status.trim();
     }
 
     private String defaultVisibility(String visibility) {

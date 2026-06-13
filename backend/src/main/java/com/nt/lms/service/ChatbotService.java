@@ -74,6 +74,7 @@ public class ChatbotService {
 	private final ObjectMapper objectMapper;
 
 	private static final int CONTEXT_TEXT_LIMIT = 1200;
+	private static final int VIDEO_TRANSCRIPT_CONTEXT_LIMIT = 3500;
 	private static final int RECOMMENDED_COURSE_LIMIT = 3;
 
 	@Value("${lms.frontend-base-url:http://localhost:5173}")
@@ -217,6 +218,11 @@ public class ChatbotService {
 			builder.append("Nội dung bài học: ").append(limit(toPlainText(lesson.getContent()), CONTEXT_TEXT_LIMIT)).append("\n");
 			if (StringUtils.hasText(lesson.getVideoUrl())) {
 				builder.append("Video bài học: ").append(limit(lesson.getVideoUrl(), 500)).append("\n");
+			}
+			if (StringUtils.hasText(lesson.getVideoTranscript())) {
+				builder.append("Noi dung transcript video:\n")
+						.append(limit(toPlainText(lesson.getVideoTranscript()), VIDEO_TRANSCRIPT_CONTEXT_LIMIT))
+						.append("\n");
 			}
 			quizRepository.findFirstByLessonId(lesson.getId())
 					.ifPresent(quiz -> {

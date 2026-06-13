@@ -4,9 +4,11 @@ import java.util.List;
 
 import com.nt.lms.dto.request.LessonCreationRequest;
 import com.nt.lms.dto.request.LessonUpdateRequest;
+import com.nt.lms.dto.request.YouTubeTranscriptRequest;
 import com.nt.lms.dto.response.ApiResponse;
 import com.nt.lms.dto.response.LearningLessonResourceResponse;
 import com.nt.lms.dto.response.LessonResponse;
+import com.nt.lms.dto.response.YouTubeTranscriptResponse;
 import com.nt.lms.service.LessonService;
 
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,14 @@ public class LessonController {
     public ApiResponse<LessonResponse> create(@RequestBody LessonCreationRequest request) {
         return ApiResponse.<LessonResponse>builder()
                 .result(lessonService.createLesson(request))
+                .build();
+    }
+
+    @PostMapping("/youtube-transcript")
+    public ApiResponse<YouTubeTranscriptResponse> fetchYouTubeTranscript(
+            @RequestBody YouTubeTranscriptRequest request) {
+        return ApiResponse.<YouTubeTranscriptResponse>builder()
+                .result(lessonService.fetchYouTubeTranscript(request))
                 .build();
     }
 

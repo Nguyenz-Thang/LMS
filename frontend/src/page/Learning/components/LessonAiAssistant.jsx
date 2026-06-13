@@ -13,14 +13,44 @@ function normalizeMessages(messages = []) {
 }
 
 function renderMessageContent(content = "") {
-  const urlPattern = /(https?:\/\/[^\s]+)/g;
-  return content.split(urlPattern).map((part, index) => {
+  const lines = normalizeMessageLines(content).split(/\r?\n/);
+
+  return lines.map((line, lineIndex) => (
+    <span key={`line-${lineIndex}`} className={styles.aiMessageLine}>
+      {renderInlineContent(line)}
+    </span>
+  ));
+}
+
+function normalizeMessageLines(content = "") {
+  return content
+    .replace(/\s+(?=(?:Tóm tắt|Nội dung chính|Ví dụ|Lưu ý|Gợi ý|Bước|Kết luận):)/g, "\n\n")
+    .replace(/([.!?])\s+(?=[A-ZÀ-ỴĐ])/g, "$1\n\n")
+    .replace(/\s+(?=\d+\.\s)/g, "\n")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function renderInlineContent(content = "") {
+  const tokenPattern = /(https?:\/\/[^\s]+|\*\*[^*]+\*\*)/g;
+  return content.split(tokenPattern).map((part, index) => {
     if (part.startsWith("http://") || part.startsWith("https://")) {
+      const cleanUrl = part.replace(/[.,)]$/, "");
+      const trailingText = part.slice(cleanUrl.length);
+
       return (
-        <a key={`${part}-${index}`} href={part} target="_blank" rel="noreferrer">
-          {part}
-        </a>
+        <span key={`${part}-${index}`}>
+          <a href={cleanUrl} target="_blank" rel="noreferrer">
+            {cleanUrl}
+          </a>
+          {trailingText}
+        </span>
       );
+    }
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
     }
     return part;
   });
@@ -177,7 +207,9 @@ export default function LessonAiAssistant({ lessonData, learningApi }) {
                     }
                   >
                     <strong>{message.role === "user" ? "Bạn" : "AI"}</strong>
-                    <p>{renderMessageContent(message.content)}</p>
+                    <div className={styles.aiMessageContent}>
+                      {renderMessageContent(message.content)}
+                    </div>
                   </div>
                 ))
               )}

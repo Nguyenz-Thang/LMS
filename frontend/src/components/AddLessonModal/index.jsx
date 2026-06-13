@@ -51,7 +51,8 @@ function AddLessonModal({
   section,
   nextOrderIndex = 1,
 }) {
-  const { createLesson, uploadLessonResources } = useLessonApi();
+  const { createLesson, fetchYouTubeTranscript, uploadLessonResources } =
+    useLessonApi();
   const quillRef = useRef(null);
 
   const initialForm = useMemo(
@@ -61,6 +62,8 @@ function AddLessonModal({
       lessonType: "VIDEO",
       content: "",
       videoUrl: "",
+      videoTranscript: "",
+      videoTranscriptSource: "",
       durationMinutes: 0,
       isPublished: true,
       orderIndex: nextOrderIndex,
@@ -78,6 +81,7 @@ function AddLessonModal({
   const [form, setForm] = useState(initialForm);
   const [resourceFiles, setResourceFiles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingTranscript, setLoadingTranscript] = useState(false);
   const [errorText, setErrorText] = useState("");
   function resolveUploadedImageUrl(data) {
     const raw =
@@ -207,7 +211,34 @@ function AddLessonModal({
               ? ""
               : Number(value)
             : value,
+      ...(name === "videoTranscript" ? { videoTranscriptSource: "MANUAL" } : {}),
     }));
+  };
+
+  const handleFetchTranscript = async () => {
+    if (!form.videoUrl.trim()) {
+      setErrorText("Vui lòng nhập Video URL trước khi lấy transcript.");
+      return;
+    }
+
+    try {
+      setLoadingTranscript(true);
+      setErrorText("");
+      const res = await fetchYouTubeTranscript(form.videoUrl.trim());
+      setForm((prev) => ({
+        ...prev,
+        videoTranscript: res?.result?.transcript || "",
+        videoTranscriptSource: res?.result?.source || "YOUTUBE_CAPTION",
+      }));
+    } catch (error) {
+      setErrorText(
+        error?.body?.message ||
+          error?.message ||
+          "Không lấy được transcript từ YouTube.",
+      );
+    } finally {
+      setLoadingTranscript(false);
+    }
   };
 
   const handleReadingContentChange = (value) => {
@@ -272,6 +303,10 @@ function AddLessonModal({
         lessonType: form.lessonType,
         content: form.lessonType === "READING" ? form.content : "",
         videoUrl: form.lessonType === "VIDEO" ? form.videoUrl.trim() : "",
+        videoTranscript:
+          form.lessonType === "VIDEO" ? form.videoTranscript.trim() : "",
+        videoTranscriptSource:
+          form.lessonType === "VIDEO" ? form.videoTranscriptSource : "",
         thumbnailUrl: "",
         durationMinutes: Number(form.durationMinutes) || 0,
         isPublished: form.isPublished,
@@ -362,16 +397,38 @@ function AddLessonModal({
           </div>
 
           {form.lessonType === "VIDEO" && (
-            <div className={styles.formGroup}>
-              <label htmlFor="videoUrl">Video URL</label>
-              <input
-                id="videoUrl"
-                name="videoUrl"
-                value={form.videoUrl}
-                onChange={handleChange}
-                placeholder="https://..."
-              />
-            </div>
+            <>
+              <div className={styles.formGroup}>
+                <label htmlFor="videoUrl">Video URL</label>
+                <input
+                  id="videoUrl"
+                  name="videoUrl"
+                  value={form.videoUrl}
+                  onChange={handleChange}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="videoTranscript">Transcript video cho AI (tùy chọn)</label>
+                <button
+                  type="button"
+                  className={styles.submitBtn}
+                  onClick={handleFetchTranscript}
+                  disabled={loadingTranscript || loading}
+                >
+                  {loadingTranscript ? "Đang lấy transcript..." : "Lấy transcript từ YouTube"}
+                </button>
+                <textarea
+                  id="videoTranscript"
+                  name="videoTranscript"
+                  rows="4"
+                  value={form.videoTranscript}
+                  onChange={handleChange}
+                  placeholder="Có thể dán phụ đề/nội dung video nếu hệ thống không lấy được transcript..."
+                />
+              </div>
+            </>
           )}
 
           {form.lessonType === "READING" && (

@@ -1,5 +1,6 @@
 package com.nt.lms.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
@@ -10,8 +11,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.nt.lms.dto.request.LessonCreationRequest;
 import com.nt.lms.dto.request.LessonUpdateRequest;
+import com.nt.lms.dto.request.YouTubeTranscriptRequest;
 import com.nt.lms.dto.response.LearningLessonResourceResponse;
 import com.nt.lms.dto.response.LessonResponse;
+import com.nt.lms.dto.response.YouTubeTranscriptResponse;
 import com.nt.lms.entity.Assignment;
 import com.nt.lms.entity.Course;
 import com.nt.lms.entity.Lesson;
@@ -45,6 +48,7 @@ public class LessonService {
     LessonResourceRepository lessonResourceRepository;
     UserRepository userRepository;
     FileStorageService fileStorageService;
+    YouTubeTranscriptService youTubeTranscriptService;
     EntityManager entityManager;
 
     public LessonResponse createLesson(LessonCreationRequest request) {
@@ -65,6 +69,13 @@ public class LessonService {
                 .orderIndex(defaultInt(request.getOrderIndex(), 1))
                 .section(section)
                 .build();
+        syncVideoTranscript(
+                lesson,
+                request.getLessonType(),
+                request.getVideoUrl(),
+                request.getVideoTranscript(),
+                request.getVideoTranscriptSource(),
+                true);
 
         lesson = lessonRepository.save(lesson);
 
@@ -88,6 +99,7 @@ public class LessonService {
                 .orElseThrow(() -> new AppException(ErrorCode.LESSON_NOT_EXISTED));
         boolean wasPublished = Boolean.TRUE.equals(lesson.getIsPublished());
         LessonType previousType = resolveLessonType(lesson);
+        String previousVideoUrl = lesson.getVideoUrl();
 
         Section section = sectionRepository.findById(request.getSectionId())
                 .orElseThrow(() -> new AppException(ErrorCode.SECTION_NOT_EXISTED));
@@ -102,6 +114,14 @@ public class LessonService {
         lesson.setIsPreview(defaultBoolean(request.getIsPreview(), false));
         lesson.setOrderIndex(defaultInt(request.getOrderIndex(), 1));
         lesson.setSection(section);
+        boolean videoUrlChanged = !String.valueOf(previousVideoUrl).equals(String.valueOf(lesson.getVideoUrl()));
+        syncVideoTranscript(
+                lesson,
+                request.getLessonType(),
+                request.getVideoUrl(),
+                request.getVideoTranscript(),
+                request.getVideoTranscriptSource(),
+                videoUrlChanged);
 
         lesson = lessonRepository.save(lesson);
 
@@ -201,6 +221,26 @@ public class LessonService {
         fileStorageService.deleteByPublicUrl(resource.getFileUrl());
     }
 
+    public YouTubeTranscriptResponse fetchYouTubeTranscript(YouTubeTranscriptRequest request) {
+        if (request == null || isBlank(request.getVideoUrl())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        YouTubeTranscriptService.TranscriptResult result =
+                youTubeTranscriptService.resolveTranscript(request.getVideoUrl(), null);
+        if (isBlank(result.text())) {
+            throw new AppException(
+                    ErrorCode.INVALID_REQUEST,
+                    "Không lấy được transcript từ YouTube. Hãy kiểm tra video có phụ đề công khai hay không.");
+        }
+
+        return YouTubeTranscriptResponse.builder()
+                .videoUrl(request.getVideoUrl().trim())
+                .transcript(result.text())
+                .source(result.source())
+                .build();
+    }
+
     private LessonResponse toLessonResponse(Lesson lesson) {
         String quizId = quizRepository.findByLessonId(lesson.getId())
                 .map(Quiz::getId)
@@ -216,6 +256,8 @@ public class LessonService {
                 .description(lesson.getDescription())
                 .content(lesson.getContent())
                 .videoUrl(lesson.getVideoUrl())
+                .videoTranscript(lesson.getVideoTranscript())
+                .videoTranscriptSource(lesson.getVideoTranscriptSource())
                 .thumbnailUrl(lesson.getThumbnailUrl())
                 .durationMinutes(lesson.getDurationMinutes())
                 .isPublished(lesson.getIsPublished())
@@ -226,6 +268,38 @@ public class LessonService {
                 .quizId(quizId)
                 .assignmentId(assignmentId)
                 .build();
+    }
+
+    private void syncVideoTranscript(
+            Lesson lesson,
+            LessonType lessonType,
+            String videoUrl,
+            String manualTranscript,
+            String transcriptSource,
+            boolean shouldRefreshFromUrl) {
+        if (lessonType != LessonType.VIDEO) {
+            lesson.setVideoTranscript(null);
+            lesson.setVideoTranscriptSource(null);
+            lesson.setVideoTranscriptUpdatedAt(null);
+            return;
+        }
+
+        if (!shouldRefreshFromUrl && isBlank(manualTranscript) && !isBlank(lesson.getVideoTranscript())) {
+            return;
+        }
+
+        if (!isBlank(manualTranscript)) {
+            lesson.setVideoTranscript(trimToNull(manualTranscript));
+            lesson.setVideoTranscriptSource(isBlank(transcriptSource) ? "MANUAL" : transcriptSource.trim());
+            lesson.setVideoTranscriptUpdatedAt(LocalDateTime.now());
+            return;
+        }
+
+        YouTubeTranscriptService.TranscriptResult result =
+                youTubeTranscriptService.resolveTranscript(videoUrl, null);
+        lesson.setVideoTranscript(trimToNull(result.text()));
+        lesson.setVideoTranscriptSource(trimToNull(result.source()));
+        lesson.setVideoTranscriptUpdatedAt(isBlank(result.text()) ? null : LocalDateTime.now());
     }
 
     private LearningLessonResourceResponse toResourceResponse(LessonResource resource) {

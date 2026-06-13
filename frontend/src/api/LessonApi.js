@@ -44,6 +44,20 @@ export function useLessonApi() {
     [authedFetch],
   );
 
+  const fetchYouTubeTranscript = useCallback(
+    async (videoUrl) =>
+      toJson(
+        await authedFetch(`${BASE}/youtube-transcript`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ videoUrl }),
+        }),
+      ),
+    [authedFetch],
+  );
+
   const getLessonResources = useCallback(
     async (lessonId) =>
       toJson(await authedFetch(`${BASE}/${lessonId}/resources`)),
@@ -81,6 +95,7 @@ export function useLessonApi() {
     createLesson,
     updateLesson,
     deleteLesson,
+    fetchYouTubeTranscript,
     getLessonResources,
     uploadLessonResources,
     deleteLessonResource,

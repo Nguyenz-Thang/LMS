@@ -443,7 +443,6 @@ export default function Courses() {
                               )
                             }
                             disabled={
-                              !hasRole("ADMIN") ||
                               quickSavingKey === `${course.id}-status`
                             }
                             title="Đổi trạng thái"
@@ -477,7 +476,6 @@ export default function Courses() {
                               )
                             }
                             disabled={
-                              !hasRole("ADMIN") ||
                               quickSavingKey === `${course.id}-visibility`
                             }
                             title="Đổi hiển thị"

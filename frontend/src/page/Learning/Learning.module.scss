@@ -790,12 +790,12 @@
     font-weight: 800;
   }
 
-  p {
+  p,
+  .aiMessageContent {
     margin: 0;
     color: inherit;
     font-size: 14px;
     line-height: 1.65;
-    white-space: pre-wrap;
     word-break: break-word;
   }
 
@@ -805,6 +805,16 @@
     text-decoration: underline;
     word-break: break-all;
   }
+}
+
+.aiMessageContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aiMessageLine {
+  white-space: pre-wrap;
 }
 
 .aiMessageUser {

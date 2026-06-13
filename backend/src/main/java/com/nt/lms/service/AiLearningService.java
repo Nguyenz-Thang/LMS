@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.nt.lms.dto.request.AiLessonAssistantRequest;
 import com.nt.lms.dto.response.AiLessonAssistantResponse;
-import com.nt.lms.dto.response.AiQuizDraftResponse;
 import com.nt.lms.entity.Lesson;
 import com.nt.lms.entity.LessonResource;
 import com.nt.lms.entity.Assignment;
@@ -62,9 +61,9 @@ public class AiLearningService {
 
 	private static final int LESSON_CONTEXT_LIMIT = 6000;
 	private static final int LESSON_TEXT_LIMIT = 1200;
+	private static final int VIDEO_TRANSCRIPT_CONTEXT_LIMIT = 3500;
 	private static final int CHAT_HISTORY_LIMIT = 12;
 	private static final int CHAT_HISTORY_CONTENT_LIMIT = 900;
-	private static final int QUIZ_OUTPUT_TOKEN_LIMIT = 6000;
 	private static final int ASSISTANT_OUTPUT_TOKEN_LIMIT = 2200;
 	private static final long[] OPENAI_RETRY_DELAYS_MS = {800L, 1600L};
 
@@ -127,40 +126,6 @@ public class AiLearningService {
 				.build();
 	}
 
-	public AiQuizDraftResponse generateQuizDraftFromLesson(String lessonId, Object request, String username) {
-		validateApiKey();
-		Lesson lesson = getLessonOrThrow(lessonId);
-		getUserOrThrow(username);
-
-		int questionCount = 5;
-		String difficulty = "MEDIUM";
-		boolean includeExplanation = true;
-
-		Map<String, Object> schema = createQuizDraftSchema();
-		String lessonContext = buildLessonContext(lesson);
-		String instruction = "Hãy sinh ra " + questionCount + " câu hỏi quiz từ nội dung bài học. "
-				+ "Độ khó mong muốn: " + difficulty + ". "
-				+ "Tất cả câu hỏi phải bám sát nội dung bài học, không được suy đoán ngoài phạm vi bài. "
-				+ "Mỗi câu hỏi phải có ít nhất 2 đáp án. "
-				+ "SINGLE_CHOICE và TRUE_FALSE phải có đúng 1 đáp án đúng. "
-				+ "MULTIPLE_CHOICE phải có ít nhất 1 đáp án đúng. "
-				+ (includeExplanation
-						? "Bắt buộc viết explanation ngắn gọn, rõ ràng cho mỗi câu hỏi."
-						: "Nếu không cần, explanation để chuỗi rỗng.");
-
-		JsonNode responseNode = callOpenAiApi(
-				buildOpenAiChatRequest(
-						"Bạn là trợ lý tạo quiz cho hệ thống LMS. Đầu ra phải là JSON hợp lệ và bám sát bài học.\n\n"
-								+ "Đây là ngữ cảnh bài học:\n" + lessonContext,
-						List.of(message("user", instruction)),
-						schema,
-						"quiz_draft_response",
-						QUIZ_OUTPUT_TOKEN_LIMIT));
-
-		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
-		return mapQuizDraftResponse(lesson, payload);
-	}
-
 	public AiLessonAssistantResponse answerSmartChat(
 			String messageText,
 			List<AiLessonAssistantRequest.ChatHistoryItem> history,
@@ -220,36 +185,6 @@ public class AiLearningService {
 				.build();
 	}
 
-	public AiQuizDraftResponse generateStandaloneQuizDraft(String prompt, String systemContext) {
-		validateApiKey();
-		if (!StringUtils.hasText(prompt)) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Yêu cầu tạo quiz không được để trống");
-		}
-
-		String instruction = "Tạo một bài luyện tập từ yêu cầu sau của người học: \"" + prompt.trim() + "\".\n"
-				+ "Nếu người học không nêu số câu, tạo 5 câu. Nếu có số câu, giới hạn trong khoảng 3 đến 10 câu. "
-				+ "Ưu tiên câu hỏi SINGLE_CHOICE, chỉ dùng MULTIPLE_CHOICE khi thật sự cần nhiều đáp án đúng. "
-				+ "Mỗi câu SINGLE_CHOICE hoặc MULTIPLE_CHOICE có đúng 4 đáp án. "
-				+ "Nội dung phải phù hợp để lưu thành bài quiz trong hệ thống LMS. "
-				+ "Mỗi câu phải có explanation gồm 2 phần: giải thích đáp án đúng và một ví dụ ngắn minh họa thực tế. "
-				+ "Explanation tối đa 500 ký tự, không viết quá dài để tránh JSON bị cắt.";
-
-		JsonNode responseNode = callOpenAiApi(
-				buildOpenAiChatRequest(
-						"Bạn là trợ lý tạo quiz cho hệ thống LMS. "
-								+ "Đầu ra phải là JSON hợp lệ theo schema. "
-								+ "Không viết markdown, không giải thích ngoài JSON. "
-								+ "Tạo quiz bằng tiếng Việt, đáp án rõ ràng, không nhập nhằng.\n\n"
-								+ "Ngữ cảnh tổng quan nếu cần:\n" + (systemContext == null ? "" : systemContext),
-						List.of(message("user", instruction)),
-						createQuizDraftSchema(),
-						"standalone_quiz_draft_response",
-						QUIZ_OUTPUT_TOKEN_LIMIT));
-
-		JsonNode payload = parseJsonPayload(extractOutputText(responseNode));
-		return mapStandaloneQuizDraftResponse(payload);
-	}
-
 	private String buildDisplayAnswer(String answer, List<String> suggestedQuestions) {
 		String trimmedAnswer = StringUtils.hasText(answer) ? answer.trim() : "";
 		if (trimmedAnswer.matches("(?is).*dưới đây là\\s*(một số\\s*)?(các\\s*)?(câu hỏi|bài tập|gợi ý).*:?\\s*$")
@@ -302,117 +237,6 @@ public class AiLearningService {
 
 		input.add(message("user", request.getMessage().trim()));
 		return input;
-	}
-
-	private Map<String, Object> createQuizDraftSchema() {
-		Map<String, Object> answerSchema = new LinkedHashMap<>();
-		answerSchema.put("type", "object");
-		answerSchema.put("properties", Map.of(
-				"content", Map.of("type", "string"),
-				"isCorrect", Map.of("type", "boolean")));
-		answerSchema.put("required", List.of("content", "isCorrect"));
-		answerSchema.put("additionalProperties", false);
-
-		Map<String, Object> questionSchema = new LinkedHashMap<>();
-		questionSchema.put("type", "object");
-		questionSchema.put("properties", Map.of(
-				"content", Map.of("type", "string"),
-				"explanation", Map.of("type", "string"),
-				"questionType", Map.of("type", "string", "enum", List.of("SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE")),
-				"orderIndex", Map.of("type", "integer"),
-				"answers", Map.of("type", "array", "items", answerSchema)));
-		questionSchema.put("required", List.of("content", "explanation", "questionType", "orderIndex", "answers"));
-		questionSchema.put("additionalProperties", false);
-
-		Map<String, Object> schema = new LinkedHashMap<>();
-		schema.put("type", "object");
-		schema.put("properties", Map.of(
-				"title", Map.of("type", "string"),
-				"description", Map.of("type", "string"),
-				"questions", Map.of("type", "array", "items", questionSchema)));
-		schema.put("required", List.of("title", "description", "questions"));
-		schema.put("additionalProperties", false);
-		return schema;
-	}
-
-	private AiQuizDraftResponse mapQuizDraftResponse(Lesson lesson, JsonNode payload) {
-		JsonNode questionsNode = payload.path("questions");
-		if (!questionsNode.isArray() || questionsNode.isEmpty()) {
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI không tạo được bộ câu hỏi hợp lệ");
-		}
-
-		List<AiQuizDraftResponse.QuestionDraft> questions = new ArrayList<>();
-		int index = 0;
-		for (JsonNode item : questionsNode) {
-			List<AiQuizDraftResponse.AnswerDraft> answers = new ArrayList<>();
-			JsonNode answersNode = item.path("answers");
-			if (answersNode.isArray()) {
-				for (JsonNode answerNode : answersNode) {
-					answers.add(AiQuizDraftResponse.AnswerDraft.builder()
-							.content(answerNode.path("content").asText(""))
-							.isCorrect(answerNode.path("isCorrect").asBoolean(false))
-							.build());
-				}
-			}
-
-			questions.add(AiQuizDraftResponse.QuestionDraft.builder()
-					.content(item.path("content").asText(""))
-					.explanation(item.path("explanation").asText(""))
-					.questionType(item.path("questionType").asText("SINGLE_CHOICE"))
-					.orderIndex(item.path("orderIndex").asInt(index))
-					.answers(answers)
-					.build());
-			index++;
-		}
-
-		return AiQuizDraftResponse.builder()
-				.title(payload.path("title").asText(lesson.getTitle() + " - Quiz"))
-				.description(payload.path("description").asText("Quiz được sinh từ nội dung bài học"))
-				.courseId(lesson.getSection() != null && lesson.getSection().getCourse() != null
-						? lesson.getSection().getCourse().getId()
-						: null)
-				.lessonId(lesson.getId())
-				.questions(questions)
-				.model(getNormalizedModel())
-				.build();
-	}
-
-	private AiQuizDraftResponse mapStandaloneQuizDraftResponse(JsonNode payload) {
-		JsonNode questionsNode = payload.path("questions");
-		if (!questionsNode.isArray() || questionsNode.isEmpty()) {
-			throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "AI không tạo được bộ câu hỏi hợp lệ");
-		}
-
-		List<AiQuizDraftResponse.QuestionDraft> questions = new ArrayList<>();
-		int index = 0;
-		for (JsonNode item : questionsNode) {
-			List<AiQuizDraftResponse.AnswerDraft> answers = new ArrayList<>();
-			JsonNode answersNode = item.path("answers");
-			if (answersNode.isArray()) {
-				for (JsonNode answerNode : answersNode) {
-					answers.add(AiQuizDraftResponse.AnswerDraft.builder()
-							.content(answerNode.path("content").asText(""))
-							.isCorrect(answerNode.path("isCorrect").asBoolean(false))
-							.build());
-				}
-			}
-
-			questions.add(AiQuizDraftResponse.QuestionDraft.builder()
-					.content(item.path("content").asText(""))
-					.explanation(item.path("explanation").asText(""))
-					.questionType(item.path("questionType").asText("SINGLE_CHOICE"))
-					.orderIndex(item.path("orderIndex").asInt(index))
-					.answers(answers)
-					.build());
-			index++;
-		}
-
-		return AiQuizDraftResponse.builder()
-				.title(payload.path("title").asText("Quiz ôn tập"))
-				.description(payload.path("description").asText("Quiz được tạo tự động từ chatbot AI"))
-				.questions(questions)
-				.model(getNormalizedModel())
-				.build();
 	}
 
 	private Lesson getLessonOrThrow(String lessonId) {
@@ -654,6 +478,11 @@ public class AiLearningService {
 
 		if (StringUtils.hasText(lesson.getVideoUrl())) {
 			builder.append("Video URL: ").append(safeText(lesson.getVideoUrl())).append("\n");
+		}
+		if (StringUtils.hasText(lesson.getVideoTranscript())) {
+			builder.append("Noi dung transcript video: ")
+					.append(limitText(toPlainText(lesson.getVideoTranscript()), VIDEO_TRANSCRIPT_CONTEXT_LIMIT))
+					.append("\n");
 		}
 
 		quizRepository.findFirstByLessonId(lesson.getId())

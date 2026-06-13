@@ -49,6 +49,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   const navigate = useNavigate();
   const {
     updateLesson,
+    fetchYouTubeTranscript,
     getLessonResources,
     uploadLessonResources,
     deleteLessonResource,
@@ -60,6 +61,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
     description: "",
     content: "",
     videoUrl: "",
+    videoTranscript: "",
+    videoTranscriptSource: "",
     durationMinutes: 0,
     isPublished: true,
     orderIndex: 1,
@@ -72,6 +75,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   });
 
   const [loading, setLoading] = useState(false);
+  const [loadingTranscript, setLoadingTranscript] = useState(false);
   const [resourceFiles, setResourceFiles] = useState([]);
   const [resources, setResources] = useState([]);
   const [errorText, setErrorText] = useState("");
@@ -190,6 +194,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       description: lesson.description || "",
       content: lesson.content || "",
       videoUrl: lesson.videoUrl || "",
+      videoTranscript: lesson.videoTranscript || "",
+      videoTranscriptSource: lesson.videoTranscriptSource || "",
       durationMinutes: lesson.durationMinutes ?? 0,
       isPublished: lesson.isPublished ?? true,
       orderIndex: lesson.orderIndex || 1,
@@ -235,17 +241,25 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
         [name]: nextValue,
       };
 
+      if (name === "videoTranscript") {
+        nextForm.videoTranscriptSource = "MANUAL";
+      }
+
       if (name === "lessonType") {
         const nextType = value;
 
         if (nextType !== "VIDEO") {
           nextForm.videoUrl = "";
+          nextForm.videoTranscript = "";
+          nextForm.videoTranscriptSource = "";
           nextForm.durationMinutes = 0;
         }
 
         if (nextType === "QUIZ") {
           nextForm.content = "";
           nextForm.videoUrl = "";
+          nextForm.videoTranscript = "";
+          nextForm.videoTranscriptSource = "";
           nextForm.durationMinutes = 0;
           nextForm.assignmentTitle = "";
           nextForm.assignmentDescription = "";
@@ -254,6 +268,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
         if (nextType === "READING") {
           nextForm.videoUrl = "";
+          nextForm.videoTranscript = "";
+          nextForm.videoTranscriptSource = "";
           nextForm.quizTitle = "";
           nextForm.quizDescription = "";
           nextForm.assignmentTitle = "";
@@ -263,6 +279,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
         if (nextType === "ASSIGNMENT") {
           nextForm.videoUrl = "";
+          nextForm.videoTranscript = "";
+          nextForm.videoTranscriptSource = "";
           nextForm.durationMinutes = 0;
           nextForm.quizTitle = "";
           nextForm.quizDescription = "";
@@ -294,6 +312,32 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
       ...prev,
       description: value,
     }));
+  };
+
+  const handleFetchTranscript = async () => {
+    if (!form.videoUrl.trim()) {
+      setErrorText("Vui lòng nhập Video URL trước khi lấy transcript.");
+      return;
+    }
+
+    try {
+      setLoadingTranscript(true);
+      setErrorText("");
+      const res = await fetchYouTubeTranscript(form.videoUrl.trim());
+      setForm((prev) => ({
+        ...prev,
+        videoTranscript: res?.result?.transcript || "",
+        videoTranscriptSource: res?.result?.source || "YOUTUBE_CAPTION",
+      }));
+    } catch (error) {
+      setErrorText(
+        error?.body?.message ||
+          error?.message ||
+          "Không lấy được transcript từ YouTube.",
+      );
+    } finally {
+      setLoadingTranscript(false);
+    }
   };
 
   const handleResourceFilesChange = (e) => {
@@ -381,6 +425,8 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
         return {
           ...basePayload,
           videoUrl: form.videoUrl.trim(),
+          videoTranscript: form.videoTranscript.trim(),
+          videoTranscriptSource: form.videoTranscriptSource,
           durationMinutes: Number(form.durationMinutes) || 0,
         };
 
@@ -508,6 +554,26 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
                   name="videoUrl"
                   placeholder="https://..."
                   value={form.videoUrl}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="videoTranscript">Transcript video cho AI (tùy chọn)</label>
+                <button
+                  type="button"
+                  className={styles.submitBtn}
+                  onClick={handleFetchTranscript}
+                  disabled={loadingTranscript || loading}
+                >
+                  {loadingTranscript ? "Đang lấy transcript..." : "Lấy transcript từ YouTube"}
+                </button>
+                <textarea
+                  id="videoTranscript"
+                  name="videoTranscript"
+                  rows="4"
+                  placeholder="Có thể dán phụ đề/nội dung video nếu hệ thống không lấy được transcript..."
+                  value={form.videoTranscript}
                   onChange={handleChange}
                 />
               </div>
@@ -792,6 +858,8 @@ EditLessonModal.propTypes = {
     description: PropTypes.string,
     content: PropTypes.string,
     videoUrl: PropTypes.string,
+    videoTranscript: PropTypes.string,
+    videoTranscriptSource: PropTypes.string,
     thumbnailUrl: PropTypes.string,
     durationMinutes: PropTypes.number,
     isPublished: PropTypes.bool,

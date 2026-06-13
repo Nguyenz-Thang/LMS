@@ -32,6 +32,9 @@ openai:
   api-key: ${OPENAI_API_KEY:}
   base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   model: ${OPENAI_MODEL:gpt-4o-mini}
+transcript-api:
+  api-key: ${TRANSCRIPT_API_KEY:}
+  base-url: ${TRANSCRIPT_API_BASE_URL:https://transcriptapi.com}
 lms:
   frontend-base-url: ${LMS_FRONTEND_BASE_URL:http://localhost:5173}
   mail:

@@ -20,6 +20,8 @@ public class LearningLessonDetailResponse {
     private LocalDateTime updatedAt;
     private String content;
     private String videoUrl;
+    private String videoTranscript;
+    private String videoTranscriptSource;
     private String thumbnailUrl;
 
     private String lessonType;
