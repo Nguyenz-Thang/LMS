@@ -223,7 +223,7 @@
 .attemptRow {
   width: 100%;
   display: grid;
-  grid-template-columns: 120px repeat(4, minmax(0, 1fr)) 210px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) 210px;
   gap: 10px 14px;
   padding: 12px 0;
   border: none;

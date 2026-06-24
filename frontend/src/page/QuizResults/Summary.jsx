@@ -141,10 +141,6 @@ export default function QuizResultSummary() {
               <strong>{totalQuestions}</strong>
             </div>
             <div>
-              <span>Lần làm</span>
-              <strong>#{quizData.attemptNo || 1}</strong>
-            </div>
-            <div>
               <span>Thời gian làm</span>
               <strong>
                 {formatDuration(quizData.startedAt, quizData.submittedAt)}

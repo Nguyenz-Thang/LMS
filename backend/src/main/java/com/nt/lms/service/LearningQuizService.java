@@ -86,7 +86,7 @@ public class LearningQuizService {
                             .title(quiz.getTitle())
                             .description(quiz.getDescription())
                             .questionCount(questions.size())
-                            .maxAttempts(quiz.getMaxAttempts())
+                            .maxAttempts(null)
                             .timeLimitMinutes(quiz.getTimeLimitMinutes())
                             .published(Boolean.TRUE.equals(quiz.getIsPublished()))
                             .attemptCount(attempts.size())
@@ -157,10 +157,6 @@ public class LearningQuizService {
 
         int nextAttemptNo = latestAttempt == null ? 1 : (safeInt(latestAttempt.getAttemptNo()) + 1);
 
-        if (quiz.getMaxAttempts() != null && quiz.getMaxAttempts() > 0 && nextAttemptNo > quiz.getMaxAttempts()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bạn đã vượt quá số lượt làm quiz cho phép");
-        }
-
         QuizAttempt attempt = QuizAttempt.builder()
                 .quiz(quiz)
                 .user(currentUser)
@@ -187,10 +183,6 @@ public class LearningQuizService {
 
         if (attempt.getStatus() != QuizAttemptStatus.IN_PROGRESS) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quiz này đã nộp, không thể sửa đáp án");
-        }
-
-        if (isAttemptTimeExpired(attempt)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Đã hết thời gian làm bài");
         }
 
         Question question = questionRepository.findById(request.getQuestionId())
@@ -434,7 +426,7 @@ public class LearningQuizService {
                 .description(quiz.getDescription())
                 .quizScope(quiz.getQuizScope() != null ? String.valueOf(quiz.getQuizScope()) : null)
                 .timeLimitMinutes(quiz.getTimeLimitMinutes())
-                .maxAttempts(quiz.getMaxAttempts())
+                .maxAttempts(null)
                 .passingScore(passingScore)
                 .attemptId(attempt != null ? attempt.getId() : null)
                 .attemptNo(attempt != null ? attempt.getAttemptNo() : null)
@@ -537,15 +529,6 @@ public class LearningQuizService {
         }
 
         return safeScore(attempt) >= resolvePassingScore(attempt.getQuiz(), (int) Math.round(safeTotalScore(attempt)));
-    }
-
-    private boolean isAttemptTimeExpired(QuizAttempt attempt) {
-        Integer limitMinutes = attempt.getQuiz() != null ? attempt.getQuiz().getTimeLimitMinutes() : null;
-
-        return limitMinutes != null
-                && limitMinutes > 0
-                && attempt.getStartedAt() != null
-                && LocalDateTime.now().isAfter(attempt.getStartedAt().plusMinutes(limitMinutes));
     }
 
     private double calculateScorePercent(QuizAttempt attempt) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { CheckCircle2, CircleHelp, RotateCcw } from "lucide-react";
 import styles from "./StandaloneQuizPlayer.module.scss";
@@ -10,54 +10,6 @@ function formatScore(score, totalScore) {
 function formatPercent(score, totalScore) {
   if (!totalScore) return "0%";
   return `${Math.round(((score || 0) / totalScore) * 100)}%`;
-}
-
-function formatDuration(startedAt, submittedAt, status) {
-  if (!startedAt) return "Chưa bắt đầu";
-
-  const start = new Date(startedAt).getTime();
-  const end = submittedAt ? new Date(submittedAt).getTime() : Date.now();
-
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
-    return status === "IN_PROGRESS" ? "Đang làm" : "Không rõ";
-  }
-
-  const totalSeconds = Math.max(0, Math.round((end - start) / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  if (minutes <= 0) return `${seconds} giây`;
-  return `${minutes} phút ${seconds} giây`;
-}
-
-function formatTimeLimit(minutes) {
-  const safeMinutes = Number(minutes) || 0;
-  return safeMinutes > 0 ? `${safeMinutes} phút` : "Không giới hạn";
-}
-
-function formatClock(totalSeconds) {
-  const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function getRemainingSeconds(quizData) {
-  const limitMinutes = Number(quizData?.timeLimitMinutes) || 0;
-
-  if (
-    limitMinutes <= 0 ||
-    !quizData?.startedAt ||
-    quizData?.attemptStatus !== "IN_PROGRESS"
-  ) {
-    return null;
-  }
-
-  const startedAt = new Date(quizData.startedAt).getTime();
-  if (Number.isNaN(startedAt)) return null;
-
-  const deadline = startedAt + limitMinutes * 60 * 1000;
-  return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
 }
 
 function formatAttemptStatus(status) {
@@ -86,8 +38,6 @@ export default function StandaloneQuizPlayer({
   onRetake,
 }) {
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
-  const [timerTick, setTimerTick] = useState(0);
-  const autoSubmittedAttemptIdRef = useRef("");
 
   const questions = useMemo(() => quizData?.questions || [], [quizData]);
   const totalQuestions = questions.length;
@@ -106,45 +56,6 @@ export default function StandaloneQuizPlayer({
       : Boolean(item.selectedOptionId),
   ).length;
   const isLastQuestion = safeQuestionIndex === totalQuestions - 1;
-  const remainingSeconds = useMemo(
-    () => getRemainingSeconds(quizData),
-    [
-      quizData?.attemptStatus,
-      quizData?.startedAt,
-      quizData?.timeLimitMinutes,
-      timerTick,
-    ],
-  );
-
-  useEffect(() => {
-    if (!canAnswer || remainingSeconds === null) return undefined;
-
-    const intervalId = window.setInterval(() => {
-      setTimerTick(Date.now());
-    }, 1000);
-
-    return () => window.clearInterval(intervalId);
-  }, [canAnswer, remainingSeconds]);
-
-  useEffect(() => {
-    if (
-      remainingSeconds !== 0 ||
-      !canAnswer ||
-      !onSubmit ||
-      !quizData?.attemptId ||
-      autoSubmittedAttemptIdRef.current === quizData.attemptId
-    ) {
-      return;
-    }
-
-    autoSubmittedAttemptIdRef.current = quizData.attemptId;
-    onSubmit();
-  }, [
-    canAnswer,
-    onSubmit,
-    quizData?.attemptId,
-    remainingSeconds,
-  ]);
 
   const handleOptionClick = (question, optionId) => {
     if (!onSelectOption) return;
@@ -190,14 +101,6 @@ export default function StandaloneQuizPlayer({
             <div className={styles.summaryItem}>
               <span>Câu hỏi</span>
               <strong>{totalQuestions}</strong>
-            </div>
-            <div className={styles.summaryItem}>
-              <span>Số lần làm</span>
-              <strong>{quizData.maxAttempts ?? 1}</strong>
-            </div>
-            <div className={styles.summaryItem}>
-              <span>Thời gian</span>
-              <strong>{formatTimeLimit(quizData.timeLimitMinutes)}</strong>
             </div>
           </div>
         </div>
@@ -255,10 +158,6 @@ export default function StandaloneQuizPlayer({
 
         <div className={styles.headMeta}>
           <div className={styles.metaItem}>
-            <span>Lần làm</span>
-            <strong>#{quizData.attemptNo || 1}</strong>
-          </div>
-          <div className={styles.metaItem}>
             <span>Đã trả lời</span>
             <strong>
               {answeredCount}/{totalQuestions}
@@ -272,24 +171,6 @@ export default function StandaloneQuizPlayer({
             <span>Tỷ lệ đúng</span>
             <strong>
               {formatPercent(quizData.score || 0, quizData.totalScore || 0)}
-            </strong>
-          </div>
-          <div className={styles.metaItem}>
-            <span>{remainingSeconds !== null ? "Còn lại" : "Thời gian làm"}</span>
-            <strong
-              className={
-                remainingSeconds !== null && remainingSeconds <= 60
-                  ? styles.timeDanger
-                  : ""
-              }
-            >
-              {remainingSeconds !== null
-                ? formatClock(remainingSeconds)
-                : formatDuration(
-                    quizData.startedAt,
-                    quizData.submittedAt,
-                    quizData.attemptStatus,
-                  )}
             </strong>
           </div>
         </div>
@@ -368,22 +249,6 @@ export default function StandaloneQuizPlayer({
               <span>Đã trả lời</span>
               <strong>{answeredCount}</strong>
             </div>
-            <div className={styles.statRow}>
-              <span>Thời gian</span>
-              <strong>{formatTimeLimit(quizData.timeLimitMinutes)}</strong>
-            </div>
-            {remainingSeconds !== null ? (
-              <div className={styles.statRow}>
-                <span>Còn lại</span>
-                <strong
-                  className={
-                    remainingSeconds <= 60 ? styles.timeDanger : ""
-                  }
-                >
-                  {formatClock(remainingSeconds)}
-                </strong>
-              </div>
-            ) : null}
           </div>
         </aside>
 
@@ -516,7 +381,6 @@ export default function StandaloneQuizPlayer({
                 >
                   Câu tiếp theo
                 </button>
-
               </div>
             )}
           </div>

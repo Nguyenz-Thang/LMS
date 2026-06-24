@@ -144,8 +144,6 @@ export default function QuizEditor() {
     description: "",
     courseId: courseIdFromQuery,
     lessonId: lessonIdFromQuery,
-    maxAttempts: 1,
-    timeLimitMinutes: 0,
     passingScore: 1,
     questions: [createEmptyQuestion()],
   });
@@ -162,8 +160,6 @@ export default function QuizEditor() {
         description: "",
         courseId: courseIdFromQuery,
         lessonId: lessonIdFromQuery,
-        maxAttempts: 1,
-        timeLimitMinutes: 0,
         passingScore: 1,
         questions: [createEmptyQuestion()],
       });
@@ -186,8 +182,6 @@ export default function QuizEditor() {
         description: data?.description || "",
         courseId: data?.courseId || "",
         lessonId: data?.lessonId || "",
-        maxAttempts: Number(data?.maxAttempts) || 1,
-        timeLimitMinutes: Number(data?.timeLimitMinutes) || 0,
         passingScore:
           Number(data?.passingScore) ||
           (Array.isArray(data?.questions) ? data.questions.length : 1),
@@ -436,14 +430,8 @@ export default function QuizEditor() {
     description: form.description.trim(),
     courseId: form.courseId || null,
     lessonId: form.lessonId || null,
-    maxAttempts: form.lessonId
-      ? null
-      : Math.max(1, Number(form.maxAttempts) || 1),
-    timeLimitMinutes: form.lessonId
-      ? null
-      : Math.max(0, Number(form.timeLimitMinutes) || 0) > 0
-        ? Math.max(0, Number(form.timeLimitMinutes) || 0)
-        : null,
+    maxAttempts: null,
+    timeLimitMinutes: null,
     passingScore: Math.min(
       form.questions.length,
       Math.max(1, Number(form.passingScore) || form.questions.length),
@@ -564,35 +552,6 @@ export default function QuizEditor() {
             />
           </div>
 
-          {!form.lessonId ? (
-            <div className={styles.formGroup}>
-              <label htmlFor="maxAttempts">Số lần được làm</label>
-              <input
-                id="maxAttempts"
-                name="maxAttempts"
-                type="number"
-                min="1"
-                value={form.maxAttempts}
-                onChange={handleQuizChange}
-                placeholder="Nhập số lần được làm"
-              />
-            </div>
-          ) : null}
-
-          {!form.lessonId ? (
-          <div className={styles.formGroup}>
-            <label htmlFor="timeLimitMinutes">Thời gian làm bài (phút)</label>
-            <input
-              id="timeLimitMinutes"
-              name="timeLimitMinutes"
-              type="number"
-              min="0"
-              value={form.timeLimitMinutes}
-              onChange={handleQuizChange}
-              placeholder="0 = không giới hạn"
-            />
-          </div>
-          ) : null}
         </div>
 
         <div className={styles.questionSection}>

@@ -280,10 +280,6 @@ export default function QuizResults() {
                       onClick={() => navigate(`/quiz-results/${attempt.attemptId}`)}
                     >
                       <div>
-                        <span>Lần</span>
-                        <strong>#{attempt.attemptNo || 1}</strong>
-                      </div>
-                      <div>
                         <span>Đúng</span>
                         <strong>
                           {formatCorrectAnswers(attempt.score, attempt.totalScore)}

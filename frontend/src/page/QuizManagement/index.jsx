@@ -32,11 +32,6 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString("vi-VN");
 }
 
-function formatTimeLimit(minutes) {
-  const safeMinutes = Number(minutes) || 0;
-  return safeMinutes > 0 ? `${safeMinutes} phút` : "Không giới hạn";
-}
-
 export default function QuizManagement() {
   const navigate = useNavigate();
 
@@ -242,7 +237,6 @@ export default function QuizManagement() {
                   <th>Bài kiểm tra</th>
                   <th>Mô tả</th>
                   <th>Loại</th>
-                  <th>Thời gian</th>
                   <th>Lượt làm</th>
                   <th>Trạng thái</th>
                   <th>Thao tác</th>
@@ -279,8 +273,6 @@ export default function QuizManagement() {
                         {quiz.courseId ? "Kiểm tra điều kiện" : "Luyện tập"}
                       </span>
                     </td>
-
-                    <td>{formatTimeLimit(quiz.timeLimitMinutes)}</td>
 
                     <td>
                       <button

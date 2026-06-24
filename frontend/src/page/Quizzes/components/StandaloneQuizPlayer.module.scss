@@ -189,7 +189,7 @@
 
 .headMeta {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -214,10 +214,6 @@
     line-height: 1.35;
     font-weight: 800;
   }
-}
-
-.timeDanger {
-  color: #dc2626 !important;
 }
 
 .layout {

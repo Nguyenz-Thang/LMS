@@ -336,7 +336,7 @@ public class LessonService {
                 .lesson(lesson)
                 .quizScope("LESSON")
                 .timeLimitMinutes(null)
-                .maxAttempts(1)
+                .maxAttempts(null)
                 .isPublished(true)
                 .createdSource("MANUAL")
                 .createdBy(getCurrentUserOrNull())
@@ -360,9 +360,6 @@ public class LessonService {
         quiz.setLesson(lesson);
         quiz.setQuizScope("LESSON");
         quiz.setTimeLimitMinutes(null);
-        if (quiz.getMaxAttempts() == null) {
-            quiz.setMaxAttempts(1);
-        }
         if (quiz.getIsPublished() == null) {
             quiz.setIsPublished(true);
         }

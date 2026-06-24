@@ -90,7 +90,7 @@ public class QuizService {
                 .description(quiz.getDescription())
                 .courseId(quiz.getCourse() != null ? quiz.getCourse().getId() : null)
                 .lessonId(quiz.getLesson() != null ? quiz.getLesson().getId() : null)
-                .maxAttempts(quiz.getMaxAttempts())
+                .maxAttempts(null)
                 .timeLimitMinutes(quiz.getTimeLimitMinutes())
                 .passingScore(resolvePassingScore(quiz, questions.size()))
                 .isPublished(quiz.getIsPublished())
@@ -206,10 +206,6 @@ public class QuizService {
         }
 
         if (request.getQuestions() == null || request.getQuestions().isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        if (request.getMaxAttempts() != null && request.getMaxAttempts() < 1) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
@@ -356,7 +352,7 @@ public class QuizService {
                             .description(q.getDescription())
                             .courseId(q.getCourse() != null ? q.getCourse().getId() : null)
                             .lessonId(q.getLesson() != null ? q.getLesson().getId() : null)
-                            .maxAttempts(q.getMaxAttempts())
+                            .maxAttempts(null)
                             .timeLimitMinutes(q.getTimeLimitMinutes())
                             .passingScore(resolvePassingScore(q, null))
                             .isPublished(q.getIsPublished())
@@ -405,27 +401,11 @@ public class QuizService {
     }
 
     private Integer resolveMaxAttempts(Integer requestedMaxAttempts, boolean lessonLinked) {
-        if (lessonLinked) {
-            return null;
-        }
-
-        if (requestedMaxAttempts == null || requestedMaxAttempts < 1) {
-            return 1;
-        }
-
-        return requestedMaxAttempts;
+        return null;
     }
 
     private Integer resolveTimeLimitMinutes(Integer requestedTimeLimitMinutes, boolean lessonLinked) {
-        if (lessonLinked) {
-            return null;
-        }
-
-        if (requestedTimeLimitMinutes == null || requestedTimeLimitMinutes <= 0) {
-            return null;
-        }
-
-        return requestedTimeLimitMinutes;
+        return null;
     }
 
     private Integer resolvePassingScore(Integer requestedPassingScore, int questionCount) {
