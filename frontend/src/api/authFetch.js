@@ -1,7 +1,8 @@
 import { useCallback, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
-export const LMS_BASE_URL = "http://localhost:8080/lms";
+export const LMS_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:8080/lms";
 
 export async function toJson(res) {
   const data = await res.json().catch(() => ({}));

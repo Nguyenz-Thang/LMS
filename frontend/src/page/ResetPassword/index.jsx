@@ -4,8 +4,7 @@ import axios from "axios";
 import styles from "../Login/Login.module.scss";
 import logo from "../../assets/img/logo.png";
 import heroImage from "../../assets/img/logo.png";
-
-const API_BASE_URL = "http://localhost:8080/lms";
+import { LMS_BASE_URL } from "../../api/authFetch";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -55,7 +54,7 @@ export default function ResetPassword() {
 
     try {
       setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/auth/reset-password`, {
+      const response = await axios.post(`${LMS_BASE_URL}/auth/reset-password`, {
         token,
         newPassword: form.newPassword,
         confirmPassword: form.confirmPassword,

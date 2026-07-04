@@ -5,6 +5,7 @@ import { AuthContext } from "../../../context/AuthContext";
 import styles from "./Header.module.scss";
 import logo from "../../../assets/img/logo.png";
 import api from "../../../api/axios";
+import { LMS_BASE_URL } from "../../../api/authFetch";
 import {
   getMyNotifications,
   markAllNotificationsRead,
@@ -38,7 +39,7 @@ function formatRelativeTime(value) {
 function formatThumbUrl(value) {
   if (!value) return "";
   if (value.startsWith("http")) return value;
-  return `http://localhost:8080/lms${value.startsWith("/") ? "" : "/"}${value}`;
+  return `${LMS_BASE_URL}${value.startsWith("/") ? "" : "/"}${value}`;
 }
 
 function CourseThumb({ src, title }) {
@@ -148,12 +149,10 @@ export default function Header() {
     fetchNotifications();
   }, [user?.id]);
 
-  const backendBaseUrl = "http://localhost:8080/lms";
-
   const buildImageUrl = (value) => {
     if (!value) return "";
     if (value.startsWith("http")) return value;
-    return `${backendBaseUrl}${value}`;
+    return `${LMS_BASE_URL}${value}`;
   };
 
   const displayName = user?.fullName?.trim() || user?.username || "Người dùng";

@@ -1,7 +1,8 @@
 import axios from "axios";
+import { LMS_BASE_URL } from "./authFetch";
 
 const api = axios.create({
-  baseURL: "http://localhost:8080/lms",
+  baseURL: LMS_BASE_URL,
 });
 
 api.interceptors.request.use(

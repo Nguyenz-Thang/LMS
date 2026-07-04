@@ -11,11 +11,10 @@ import {
   X,
 } from "lucide-react";
 import api from "../../api/axios";
+import { LMS_BASE_URL } from "../../api/authFetch";
 import { AuthContext } from "../../context/AuthContext";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import styles from "./Profile.module.scss";
-
-const BACKEND_BASE_URL = "http://localhost:8080/lms";
 
 export default function Profile() {
   const { user: authUser, login, token } = useContext(AuthContext);
@@ -91,7 +90,7 @@ export default function Profile() {
   const buildImageUrl = (value) => {
     if (!value) return "";
     if (value.startsWith("http")) return value;
-    return `${BACKEND_BASE_URL}${value}`;
+    return `${LMS_BASE_URL}${value}`;
   };
 
   const getJoinedDate = () => {

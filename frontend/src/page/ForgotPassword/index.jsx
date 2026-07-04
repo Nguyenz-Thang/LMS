@@ -4,8 +4,7 @@ import axios from "axios";
 import styles from "../Login/Login.module.scss";
 import logo from "../../assets/img/logo.png";
 import heroImage from "../../assets/img/logo.png";
-
-const API_BASE_URL = "http://localhost:8080/lms";
+import { LMS_BASE_URL } from "../../api/authFetch";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -30,7 +29,7 @@ export default function ForgotPassword() {
 
     try {
       setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/auth/forgot-password`, {
+      const response = await axios.post(`${LMS_BASE_URL}/auth/forgot-password`, {
         email: email.trim(),
       });
 

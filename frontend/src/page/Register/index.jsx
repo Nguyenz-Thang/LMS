@@ -4,8 +4,7 @@ import axios from "axios";
 import styles from "./Register.module.scss";
 import logo from "../../assets/img/logo.png";
 import heroImage from "../../assets/img/logo.png";
-
-const API_BASE_URL = "http://localhost:8080/lms";
+import { LMS_BASE_URL } from "../../api/authFetch";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -80,7 +79,7 @@ export default function Register() {
     try {
       setLoading(true);
 
-      await axios.post(`${API_BASE_URL}/auth/register`, {
+      await axios.post(`${LMS_BASE_URL}/auth/register`, {
         username: form.username,
         email: form.email,
         password: form.password,

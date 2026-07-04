@@ -6,6 +6,7 @@ import "react-quill/dist/quill.snow.css";
 import Modal from "../Modal";
 import styles from "./EditLessonModal.module.scss";
 import { useLessonApi } from "../../api/LessonApi";
+import { LMS_BASE_URL } from "../../api/authFetch";
 
 const READING_EDITOR_FORMATS = [
   "header",
@@ -95,7 +96,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
     return raw.startsWith("http")
       ? raw
-      : `http://localhost:8080/lms${raw.startsWith("/") ? "" : "/"}${raw}`;
+      : `${LMS_BASE_URL}${raw.startsWith("/") ? "" : "/"}${raw}`;
   }
   const handleEditorImageUpload = () => {
     const input = document.createElement("input");
@@ -113,7 +114,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
 
         const token = localStorage.getItem("token");
 
-        const res = await fetch("http://localhost:8080/lms/courses/upload", {
+        const res = await fetch(`${LMS_BASE_URL}/courses/upload`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -142,7 +143,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
           "image",
           imageUrl.startsWith("http")
             ? imageUrl
-            : `http://localhost:8080/lms${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`,
+            : `${LMS_BASE_URL}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`,
         );
       } catch (error) {
         setErrorText(error?.message || "Upload ảnh thất bại.");
@@ -363,7 +364,7 @@ function EditLessonModal({ isOpen, onClose, onUpdated, lesson, section }) {
   const resolveResourceUrl = (url = "") => {
     if (!url) return "#";
     if (url.startsWith("http")) return url;
-    return `http://localhost:8080/lms${url.startsWith("/") ? "" : "/"}${url}`;
+    return `${LMS_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
   };
 
   const handleClose = () => {

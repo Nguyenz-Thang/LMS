@@ -5,8 +5,7 @@ import { AuthContext } from "../../context/AuthContext";
 import styles from "./Login.module.scss";
 import logo from "../../assets/img/logo.png";
 import heroImage from "../../assets/img/logo.png";
-
-const API_BASE_URL = "http://localhost:8080/lms";
+import { LMS_BASE_URL } from "../../api/authFetch";
 
 export default function Login() {
   const { login } = useContext(AuthContext);
@@ -61,7 +60,7 @@ export default function Login() {
     try {
       setLoading(true);
 
-      const loginRes = await axios.post(`${API_BASE_URL}/auth/token`, {
+      const loginRes = await axios.post(`${LMS_BASE_URL}/auth/token`, {
         username: form.username,
         password: form.password,
       });
@@ -73,7 +72,7 @@ export default function Login() {
         throw new Error("Đăng nhập thất bại.");
       }
 
-      const meRes = await axios.get(`${API_BASE_URL}/users/myInfo`, {
+      const meRes = await axios.get(`${LMS_BASE_URL}/users/myInfo`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
