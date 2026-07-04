@@ -1,18 +1,23 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     context-path: /lms
+
 spring:
   application:
     name: LMS
+
   datasource:
-    url: "jdbc:mysql://localhost:3306/lms_db"
-    username: root
-    password: root
+    url: jdbc:mysql://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+
   mail:
     host: ${MAIL_HOST:}
     port: ${MAIL_PORT:587}
@@ -24,19 +29,27 @@ spring:
           auth: ${MAIL_SMTP_AUTH:true}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:true}
+
 jwt:
-  signerKey: "9POlrNobyAby/kPvcYdhlTYF5g2lWgHzHxjVmbHqOxo="
-  valid-duration: 60 # in hours
-  refreshable-duration: 72 # in hours
+  signerKey: ${JWT_SIGNER_KEY}
+  valid-duration: 60
+  refreshable-duration: 72
+
 openai:
   api-key: ${OPENAI_API_KEY:}
   base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   model: ${OPENAI_MODEL:gpt-4o-mini}
+
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:gemini-2.5-flash}
+
 transcript-api:
   api-key: ${TRANSCRIPT_API_KEY:}
   base-url: ${TRANSCRIPT_API_BASE_URL:https://transcriptapi.com}
+
 lms:
-  frontend-base-url: ${LMS_FRONTEND_BASE_URL:http://localhost:5173}
+  frontend-base-url: ${LMS_FRONTEND_BASE_URL}
   mail:
     enabled: ${LMS_MAIL_ENABLED:false}
     from: ${MAIL_FROM:no-reply@lms.local}
