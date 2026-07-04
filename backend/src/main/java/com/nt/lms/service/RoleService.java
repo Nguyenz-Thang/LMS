@@ -28,7 +28,7 @@ public class RoleService {
     RoleRepository roleRepository;
     RoleMapper roleMapper;
 
-    static final Set<String> SYSTEM_ROLES = Set.of("ADMIN", "STUDENT");
+    static final Set<String> SYSTEM_ROLES = Set.of("ADMIN", "INSTRUCTOR", "STUDENT");
 
     @Transactional
     public RoleResponse create(RoleRequest request) {

@@ -1,10 +1,11 @@
 package com.nt.lms.configuration;
 
 import com.nt.lms.entity.User;
-import com.nt.lms.enums.Role;
 import com.nt.lms.exception.AppException;
 import com.nt.lms.exception.ErrorCode;
 import com.nt.lms.repository.RoleRepository;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,10 +34,11 @@ public class ApplicationInitConfig {
             JdbcTemplate jdbcTemplate
     ) {
         return args -> {
+            seedSystemRoles(roleRepository);
             migrateLegacyUserRoles(jdbcTemplate);
 
             if (userRepository.findByUsername("adminn").isEmpty() && userRepository.findByEmail("admin@gmail.com").isEmpty()) {
-                var role = roleRepository.findById(Role.ADMIN.name())
+                var role = roleRepository.findById("ADMIN")
                         .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_EXISTED));
                 User user = User.builder()
                         .username("adminn")
@@ -52,12 +54,30 @@ public class ApplicationInitConfig {
             userRepository.findByUsername("adminn")
                     .filter(user -> user.getRole() == null)
                     .ifPresent(user -> {
-                        var role = roleRepository.findById(Role.ADMIN.name())
+                        var role = roleRepository.findById("ADMIN")
                                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_EXISTED));
                         user.setRole(role);
                         userRepository.save(user);
                     });
         };
+    }
+
+    private void seedSystemRoles(RoleRepository roleRepository) {
+        Map<String, String> roles = new LinkedHashMap<>();
+        roles.put("ADMIN", "System administrator");
+        roles.put("INSTRUCTOR", "Instructor");
+        roles.put("STUDENT", "Student");
+
+        roles.forEach((name, description) -> roleRepository.findById(name)
+                .orElseGet(() -> {
+                    com.nt.lms.entity.Role role = com.nt.lms.entity.Role.builder()
+                            .name(name)
+                            .description(description)
+                            .build();
+
+                    log.info("Seeded missing system role: {}", name);
+                    return roleRepository.save(role);
+                }));
     }
 
     private void migrateLegacyUserRoles(JdbcTemplate jdbcTemplate) {
